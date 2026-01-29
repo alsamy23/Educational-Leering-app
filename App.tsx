@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { UserProfile, Difficulty, QuizQuestion, QuizSession, AppScreen } from './types';
 import { generateQuizQuestions } from './services/geminiService';
@@ -5,13 +6,13 @@ import { Button } from './components/Button';
 
 // --- Icons ---
 const StarIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
     <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
   </svg>
 );
 
 const TrophyIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0V5.625a2.25 2.25 0 10-4.5 0v5.75c0 .621.504 1.125 1.125 1.125h.871M9.497 5.625c0-1.036.84-1.875 1.875-1.875h.001c1.035 0 1.875.84 1.875 1.875" />
   </svg>
 );
@@ -40,34 +41,50 @@ const DownloadIcon = () => (
   </svg>
 );
 
+const UserIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+  </svg>
+);
+
 // --- Sub-Components ---
 
-const Header = ({ points, name }: { points: number; name?: string }) => (
-  <div className="flex-none flex justify-between items-center p-4 bg-white shadow-sm border-b border-gray-100 z-10 relative">
+const Header = ({ points, highScore, name }: { points: number; highScore: number; name?: string }) => (
+  <header className="flex-none flex justify-between items-center p-4 bg-white shadow-sm border-b border-gray-100 z-30 sticky top-0">
     <div className="flex flex-col">
-      <h1 className="text-xl font-bold text-primary tracking-tight">ScholarEarn</h1>
-      {name && <span className="text-xs text-gray-500 font-medium truncate max-w-[150px]">Student: {name}</span>}
-    </div>
-    <div className="flex items-center gap-2 bg-gradient-to-r from-amber-50 to-orange-50 px-3 py-1.5 rounded-xl border border-amber-100 shadow-sm">
-      <div className="text-accent p-1 bg-white rounded-full shadow-sm">
-        <StarIcon />
+      <div className="flex items-center gap-2">
+        <div className="bg-primary p-1 rounded-lg">
+           <TrophyIcon />
+        </div>
+        <h1 className="text-xl font-black text-gray-900 tracking-tight leading-none">ScholarEarn</h1>
       </div>
-      <div className="flex flex-col items-end leading-none">
-        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total Points</span>
-        <span className="font-bold text-gray-800 text-lg">{points.toLocaleString()}</span>
+      {name && (
+        <div className="flex items-center gap-1 mt-1 text-gray-500">
+           <UserIcon />
+           <span className="text-[10px] font-bold uppercase truncate max-w-[100px]">{name}</span>
+        </div>
+      )}
+    </div>
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-1.5 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
+        <div className="text-accent"><StarIcon /></div>
+        <span className="font-black text-gray-800 text-sm">{points.toLocaleString()}</span>
+      </div>
+      <div className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">
+        All-Time High: <span className="text-indigo-600">{highScore.toLocaleString()}</span>
       </div>
     </div>
-  </div>
+  </header>
 );
 
 const InputGroup = ({ label, value, onChange, placeholder, required = false }: any) => (
-  <div className="mb-5">
-    <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>
+  <div className="mb-4">
+    <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1.5">{label}</label>
     <input
       type="text"
       value={value}
       onChange={onChange}
-      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all shadow-sm bg-gray-50 focus:bg-white"
+      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all shadow-sm bg-gray-50 focus:bg-white font-medium text-gray-800"
       placeholder={placeholder}
       required={required}
     />
@@ -75,13 +92,13 @@ const InputGroup = ({ label, value, onChange, placeholder, required = false }: a
 );
 
 const SelectGroup = ({ label, value, onChange, options }: any) => (
-  <div className="mb-5">
-    <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>
+  <div className="mb-4">
+    <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1.5">{label}</label>
     <div className="relative">
       <select
         value={value}
         onChange={onChange}
-        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none bg-gray-50 focus:bg-white transition-all shadow-sm appearance-none"
+        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none bg-gray-50 focus:bg-white transition-all shadow-sm appearance-none font-medium text-gray-800"
       >
         {options.map((opt: string) => (
           <option key={opt} value={opt}>{opt}</option>
@@ -99,15 +116,26 @@ const SelectGroup = ({ label, value, onChange, options }: any) => (
 // --- Main App ---
 
 export default function App() {
-  const [totalPoints, setTotalPoints] = useState<number>(0);
+  const [totalPoints, setTotalPoints] = useState<number>(() => {
+    const saved = localStorage.getItem('scholarEarn_points');
+    return saved ? parseInt(saved, 10) : 0;
+  });
+  const [highScore, setHighScore] = useState<number>(() => {
+    const saved = localStorage.getItem('scholarEarn_highScore');
+    return saved ? parseInt(saved, 10) : 0;
+  });
+  
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.ENTRY);
   
   // User Data
-  const [user, setUser] = useState<UserProfile>({
-    name: '',
-    school: '',
-    section: '',
-    gradeLevel: '10'
+  const [user, setUser] = useState<UserProfile>(() => {
+    const saved = localStorage.getItem('scholarEarn_user');
+    return saved ? JSON.parse(saved) : {
+      name: '',
+      school: '',
+      section: '',
+      gradeLevel: '10'
+    };
   });
 
   // Quiz Setup
@@ -118,6 +146,19 @@ export default function App() {
   // Active Quiz State
   const [activeQuiz, setActiveQuiz] = useState<QuizSession | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
+  // Persistence
+  useEffect(() => {
+    localStorage.setItem('scholarEarn_points', totalPoints.toString());
+    if (totalPoints > highScore) {
+      setHighScore(totalPoints);
+      localStorage.setItem('scholarEarn_highScore', totalPoints.toString());
+    }
+  }, [totalPoints, highScore]);
+
+  useEffect(() => {
+    localStorage.setItem('scholarEarn_user', JSON.stringify(user));
+  }, [user]);
 
   // Scroll Ref
   const mainRef = useRef<HTMLDivElement>(null);
@@ -155,7 +196,7 @@ export default function App() {
 
     } catch (err) {
       console.error(err);
-      setLoadingError("Failed to generate exam. Please check your connection and try again.");
+      setLoadingError("Connection error. Please check your API key and try again.");
       setCurrentScreen(AppScreen.ENTRY);
     }
   }, [quizTopic, user.gradeLevel, quizDifficulty, user.name, user.school]);
@@ -176,7 +217,7 @@ export default function App() {
       } else {
         finishQuiz(updatedQuiz);
       }
-    }, 300);
+    }, 400);
   };
 
   const finishQuiz = (finalQuizState: QuizSession) => {
@@ -189,14 +230,15 @@ export default function App() {
 
     const multipliers: Record<Difficulty, number> = {
       [Difficulty.EASY]: 1,
-      [Difficulty.MEDIUM]: 1.5,
-      [Difficulty.HARD]: 2.5,
+      [Difficulty.MEDIUM]: 2,
+      [Difficulty.HARD]: 3,
       [Difficulty.EXPERT]: 5
     };
     
-    // Points logic: base 10 points * multiplier
-    const pointsPerQuestion = 10 * multipliers[finalQuizState.difficulty];
-    const totalEarnedPoints = Math.round(correctCount * pointsPerQuestion);
+    // Points logic: base 10 points * multiplier * accuracy %
+    const accuracy = correctCount / finalQuizState.totalQuestions;
+    const basePoints = 100 * multipliers[finalQuizState.difficulty];
+    const totalEarnedPoints = Math.round(basePoints * accuracy);
 
     const completedQuiz = {
       ...finalQuizState,
@@ -218,38 +260,32 @@ export default function App() {
   const handleExportCSV = () => {
     if (!activeQuiz) return;
 
-    // Standard grade calculation (out of 100)
     const percentageScore = Math.round((activeQuiz.score / activeQuiz.totalQuestions) * 100);
-    const dateStr = new Date().toLocaleDateString();
+    const dateStr = new Date().toLocaleString();
 
-    // CSV Data Structure
-    const csvRows = [
-      ['Student Report Card'],
-      ['Generated by ScholarEarn'],
-      [],
-      ['Student Name', user.name],
-      ['School', user.school],
-      ['Section', user.section],
-      ['Grade Level', user.gradeLevel],
-      [],
-      ['Exam Details'],
-      ['Topic', activeQuiz.topic],
-      ['Difficulty', activeQuiz.difficulty],
-      ['Date', dateStr],
-      [],
-      ['Results'],
-      ['Questions Answered', `${activeQuiz.score} / ${activeQuiz.totalQuestions}`],
-      ['Final Score', `${percentageScore} / 100`],
-      ['Points Earned', activeQuiz.earnedPoints],
+    // Flatten data for easy Google Sheet usage
+    const headers = ["Student Name", "School", "Section", "Grade", "Topic", "Difficulty", "Correct Answers", "Total Questions", "Percentage Score", "Points Gained", "Timestamp"];
+    const row = [
+      user.name,
+      user.school,
+      user.section,
+      user.gradeLevel,
+      activeQuiz.topic,
+      activeQuiz.difficulty,
+      activeQuiz.score,
+      activeQuiz.totalQuestions,
+      `${percentageScore}%`,
+      activeQuiz.earnedPoints,
+      dateStr
     ];
 
     const csvContent = "data:text/csv;charset=utf-8," 
-      + csvRows.map(e => e.join(",")).join("\n");
+      + [headers, row].map(e => e.map(cell => `"${cell}"`).join(",")).join("\n");
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${user.name}_${activeQuiz.topic.replace(/\s+/g, '_')}_Report.csv`);
+    link.setAttribute("download", `ScholarEarn_${user.name.replace(/\s+/g, '_')}_${new Date().getTime()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -258,8 +294,8 @@ export default function App() {
   // --- Screens ---
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col max-w-lg mx-auto border-x border-gray-200 shadow-2xl relative">
-      <Header points={totalPoints} name={user.name} />
+    <div className="h-full bg-gray-50 flex flex-col max-w-lg mx-auto border-x border-gray-200 shadow-2xl relative overflow-hidden">
+      <Header points={totalPoints} highScore={highScore} name={user.name} />
 
       {/* Main Content Area - Scrollable */}
       <main ref={mainRef} className="flex-1 overflow-y-auto scroll-smooth">
@@ -267,28 +303,31 @@ export default function App() {
         {currentScreen === AppScreen.ENTRY && (
           <div className="p-6 pb-20 animate-fade-in">
              <div className="text-center mb-8 mt-2">
-               <div className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-2xl mb-3 text-primary">
+               <div className="inline-flex items-center justify-center p-4 bg-indigo-50 rounded-full mb-4 text-primary shadow-sm">
                  <BookOpenIcon />
                </div>
-               <h2 className="text-2xl font-bold text-gray-900">Student Entry</h2>
-               <p className="text-gray-500 text-sm">Enter your academic details.</p>
+               <h2 className="text-2xl font-black text-gray-900">Entrance Form</h2>
+               <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mt-1">Ready to prove your skills?</p>
              </div>
 
              <form onSubmit={startQuizGeneration} className="space-y-6">
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Student Identity</h3>
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full"></span>
+                    Identity Details
+                  </h3>
                   <InputGroup 
                     label="Full Name" 
                     value={user.name} 
                     onChange={(e: any) => setUser({...user, name: e.target.value})} 
-                    placeholder="Student Name"
+                    placeholder="Enter Student Name"
                     required
                   />
                   <InputGroup 
-                    label="School / University" 
+                    label="School Name" 
                     value={user.school} 
                     onChange={(e: any) => setUser({...user, school: e.target.value})} 
-                    placeholder="Institution Name"
+                    placeholder="Enter Institution"
                     required
                   />
                   <div className="flex gap-4">
@@ -297,7 +336,7 @@ export default function App() {
                         label="Section" 
                         value={user.section} 
                         onChange={(e: any) => setUser({...user, section: e.target.value})} 
-                        placeholder="e.g. A"
+                        placeholder="e.g. Diamond"
                       />
                     </div>
                     <div className="w-1/2">
@@ -311,35 +350,38 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Exam Configuration</h3>
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <h3 className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
+                    Exam Subject
+                  </h3>
                   
                   {loadingError && (
-                    <div className="p-3 mb-4 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100 flex items-center gap-2">
-                      <span className="text-lg">⚠️</span> {loadingError}
+                    <div className="p-3 mb-4 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100 flex items-center gap-2">
+                      <span>⚠️</span> {loadingError}
                     </div>
                   )}
 
                   <InputGroup 
-                    label="Topic to Learn" 
+                    label="What topic should we test?" 
                     value={quizTopic} 
                     onChange={(e: any) => setQuizTopic(e.target.value)} 
-                    placeholder="e.g. Thermodynamics"
+                    placeholder="e.g. World War II History"
                     required
                   />
 
                   <div className="mb-2">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Difficulty Level</label>
-                    <div className="grid grid-cols-4 gap-2">
+                    <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2">Complexity</label>
+                    <div className="grid grid-cols-2 gap-2">
                       {Object.values(Difficulty).map((diff) => (
                         <button
                           key={diff}
                           type="button"
                           onClick={() => setQuizDifficulty(diff)}
-                          className={`py-2 px-1 rounded-lg border text-xs font-bold transition-all ${
+                          className={`py-3 px-1 rounded-xl border text-[10px] font-black uppercase transition-all flex flex-col items-center justify-center ${
                             quizDifficulty === diff 
-                            ? 'border-primary bg-primary text-white shadow-lg shadow-indigo-200 scale-105' 
-                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                            ? 'border-primary bg-primary text-white shadow-lg shadow-indigo-100 scale-[1.02]' 
+                            : 'border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100'
                           }`}
                         >
                           {diff}
@@ -350,8 +392,8 @@ export default function App() {
                 </div>
 
                 <div className="pt-2">
-                  <Button type="submit">
-                    Start Exam
+                  <Button type="submit" className="rounded-2xl py-4 h-16 text-lg font-black uppercase tracking-widest">
+                    Start Examination
                   </Button>
                 </div>
              </form>
@@ -359,17 +401,17 @@ export default function App() {
         )}
 
         {currentScreen === AppScreen.LOADING && (
-          <div className="flex flex-col items-center justify-center h-full space-y-6 p-8">
+          <div className="flex flex-col items-center justify-center h-full space-y-6 p-8 animate-pulse">
             <div className="relative">
-              <div className="w-20 h-20 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+              <div className="w-24 h-24 border-[6px] border-indigo-100 border-t-indigo-600 rounded-full animate-spin shadow-inner"></div>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl">🧠</span>
+                <span className="text-3xl animate-bounce">🧪</span>
               </div>
             </div>
             <div className="text-center space-y-2">
-              <h3 className="text-xl font-bold text-gray-800">Preparing Exam</h3>
-              <p className="text-sm text-gray-500 max-w-[200px] mx-auto">
-                Generating questions on <span className="text-primary font-semibold">{quizTopic}</span>...
+              <h3 className="text-2xl font-black text-gray-900">Setting up the Paper</h3>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">
+                Gathering questions for <span className="text-primary">{quizTopic}</span>
               </p>
             </div>
           </div>
@@ -377,42 +419,43 @@ export default function App() {
 
         {currentScreen === AppScreen.QUIZ && activeQuiz && (
           <div className="p-6 pb-20 flex flex-col min-h-full">
-            <div className="flex justify-between items-center mb-6">
-               <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                 Question {currentQuestionIndex + 1} / {activeQuiz.questions.length}
-               </span>
-               <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
-                 {activeQuiz.difficulty}
-               </span>
+            <div className="flex justify-between items-end mb-6">
+               <div className="flex flex-col">
+                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Question</span>
+                 <span className="text-2xl font-black text-gray-900 leading-none">
+                   {currentQuestionIndex + 1} <span className="text-gray-300">/ {activeQuiz.questions.length}</span>
+                 </span>
+               </div>
+               <div className="flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100">
+                 <span className="text-[10px] font-black text-primary uppercase tracking-tight">{activeQuiz.difficulty}</span>
+               </div>
             </div>
 
-            <div className="w-full bg-gray-200 rounded-full h-2 mb-8 overflow-hidden">
+            <div className="w-full bg-gray-100 rounded-full h-3 mb-10 p-0.5 overflow-hidden border border-gray-200">
               <div 
-                className="bg-primary h-full rounded-full transition-all duration-500 ease-out" 
+                className="bg-primary h-full rounded-full transition-all duration-700 ease-in-out shadow-sm" 
                 style={{ width: `${((currentQuestionIndex + 1) / activeQuiz.questions.length) * 100}%` }}
               ></div>
             </div>
 
-            <div className="flex-1">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
-                <h2 className="text-lg font-bold text-gray-900 leading-relaxed">
+            <div className="flex-1 space-y-8">
+              <div className="bg-white p-8 rounded-[2rem] shadow-xl shadow-indigo-50 border border-gray-100">
+                <h2 className="text-xl font-bold text-gray-800 leading-snug">
                   {activeQuiz.questions[currentQuestionIndex].text}
                 </h2>
               </div>
 
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3">
                 {activeQuiz.questions[currentQuestionIndex].options.map((option, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleAnswer(idx)}
-                    className="group w-full p-4 text-left rounded-xl border border-gray-200 bg-white hover:border-primary hover:bg-indigo-50/50 hover:shadow-md transition-all duration-200 active:scale-[0.98]"
+                    className="group w-full p-5 text-left rounded-2xl border-2 border-gray-100 bg-white hover:border-primary hover:bg-indigo-50 transition-all duration-300 active:scale-[0.97] flex items-center gap-4"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="flex-none w-8 h-8 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center text-sm font-bold text-gray-500 group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-colors">
-                        {String.fromCharCode(65 + idx)}
-                      </div>
-                      <span className="text-gray-700 font-medium group-hover:text-indigo-900">{option}</span>
+                    <div className="flex-none w-10 h-10 rounded-xl border-2 border-gray-100 bg-gray-50 flex items-center justify-center text-sm font-black text-gray-400 group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all">
+                      {String.fromCharCode(65 + idx)}
                     </div>
+                    <span className="text-gray-700 font-bold group-hover:text-indigo-900">{option}</span>
                   </button>
                 ))}
               </div>
@@ -421,85 +464,108 @@ export default function App() {
         )}
 
         {currentScreen === AppScreen.RESULTS && activeQuiz && (
-          <div className="p-6 pb-32 animate-fade-in">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-yellow-100 to-amber-100 rounded-full mb-4 shadow-inner ring-4 ring-white">
-                 <div className="text-accent drop-shadow-sm">
+          <div className="p-6 pb-40 animate-fade-in">
+            <div className="text-center mb-10">
+              <div className="inline-flex items-center justify-center w-28 h-28 bg-white rounded-[2.5rem] mb-6 shadow-2xl border-4 border-indigo-50 ring-1 ring-indigo-100">
+                 <div className="text-primary animate-pulse">
                    <TrophyIcon />
                  </div>
               </div>
-              <h2 className="text-3xl font-bold text-gray-900">Exam Complete</h2>
-              <p className="text-gray-500 mt-2 font-medium">Here is your performance report</p>
+              <h2 className="text-3xl font-black text-gray-900 tracking-tight">Exam Terminated</h2>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mt-2">Performance Analytics</p>
             </div>
 
-            {/* Score Card */}
-            <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-2xl shadow-lg p-6 text-white text-center mb-4 relative overflow-hidden">
-               <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
-               <div className="absolute bottom-0 left-0 -ml-4 -mb-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+            {/* Score Showcase */}
+            <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-indigo-100 border border-indigo-50 p-8 text-center mb-6 relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50"></div>
+               <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-50 rounded-full blur-3xl -ml-16 -mb-16 opacity-50"></div>
                
-               <div className="grid grid-cols-2 divide-x divide-indigo-400/30">
-                 <div>
-                    <p className="text-indigo-100 font-medium text-xs uppercase tracking-widest mb-1">Final Score</p>
-                    <h3 className="text-4xl font-bold my-1 tracking-tight">
-                      {Math.round((activeQuiz.score / activeQuiz.totalQuestions) * 100)}<span className="text-2xl opacity-70">/100</span>
-                    </h3>
-                 </div>
-                 <div>
-                    <p className="text-indigo-100 font-medium text-xs uppercase tracking-widest mb-1">Points Earned</p>
-                    <div className="flex items-center justify-center gap-1">
-                      <div className="text-yellow-300 w-5 h-5"><StarIcon /></div>
-                      <h3 className="text-4xl font-bold my-1 tracking-tight">{activeQuiz.earnedPoints}</h3>
+               <div className="relative z-10 flex flex-col items-center">
+                 <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Overall Academic Standing</p>
+                 
+                 <div className="relative w-40 h-40 flex items-center justify-center mb-6">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-gray-100" />
+                      <circle 
+                        cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" 
+                        strokeDasharray={440}
+                        strokeDashoffset={440 - (440 * (activeQuiz.score / activeQuiz.totalQuestions))}
+                        className="text-primary transition-all duration-1000 ease-out" 
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-5xl font-black text-gray-900 leading-none">
+                        {Math.round((activeQuiz.score / activeQuiz.totalQuestions) * 100)}
+                      </span>
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Percent</span>
                     </div>
                  </div>
-               </div>
-               
-               <div className="inline-block bg-white/20 backdrop-blur-sm px-4 py-1 rounded-full text-sm font-medium mt-4">
-                 Correct Answers: {activeQuiz.score} / {activeQuiz.totalQuestions}
+
+                 <div className="grid grid-cols-2 w-full gap-4 pt-4 border-t border-gray-100">
+                   <div className="flex flex-col">
+                      <span className="text-[9px] font-black text-gray-400 uppercase">Points Gained</span>
+                      <span className="text-2xl font-black text-amber-500 flex items-center justify-center gap-1">
+                        <StarIcon /> {activeQuiz.earnedPoints}
+                      </span>
+                   </div>
+                   <div className="flex flex-col">
+                      <span className="text-[9px] font-black text-gray-400 uppercase">Correctness</span>
+                      <span className="text-2xl font-black text-indigo-600">
+                        {activeQuiz.score} <span className="text-gray-300 text-sm">/ {activeQuiz.totalQuestions}</span>
+                      </span>
+                   </div>
+                 </div>
                </div>
             </div>
 
             <button 
               onClick={handleExportCSV}
-              className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-gray-300 text-gray-600 font-semibold hover:border-primary hover:text-primary hover:bg-indigo-50 transition-all mb-8"
+              className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl bg-gray-900 text-white font-black text-xs uppercase tracking-widest hover:bg-black transition-all mb-10 shadow-xl shadow-gray-200"
             >
               <DownloadIcon />
-              Download Report for Google Sheets
+              Generate CSV for Google Sheets
             </button>
 
-            {/* Correction Section */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-               <div className="p-4 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-                 <div className="w-2 h-6 bg-primary rounded-full"></div>
-                 <span className="font-bold text-gray-800">Answer Key</span>
+            {/* Answer Key */}
+            <div className="space-y-6">
+               <div className="flex items-center gap-3 px-2">
+                 <div className="w-1 h-4 bg-primary rounded-full"></div>
+                 <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Detailed Correction</h4>
                </div>
-               <div className="divide-y divide-gray-100">
+               
+               <div className="space-y-4">
                  {activeQuiz.questions.map((q, idx) => {
                    const userAnswer = activeQuiz.userAnswers[idx];
                    const isCorrect = userAnswer === q.correctIndex;
                    return (
-                     <div key={q.id} className="p-5">
-                       <div className="flex gap-3 mb-3">
-                         <div className={`mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${isCorrect ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                     <div key={q.id} className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+                       <div className="flex gap-4 mb-4">
+                         <div className={`flex-none w-10 h-10 rounded-2xl flex items-center justify-center ${isCorrect ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
                            {isCorrect ? <CheckIcon /> : <XMarkIcon />}
                          </div>
-                         <p className="font-medium text-gray-800 text-sm leading-relaxed">{q.text}</p>
+                         <p className="font-bold text-gray-800 text-sm leading-snug pt-1">{q.text}</p>
                        </div>
                        
-                       <div className="ml-9 space-y-2">
+                       <div className="ml-14 space-y-3">
                          {!isCorrect && (
-                           <div className="text-xs text-red-500 flex gap-2 items-center">
-                             <span className="font-bold uppercase tracking-wider text-[10px]">Your Answer:</span>
-                             <span className="line-through decoration-red-400">{q.options[userAnswer]}</span>
+                           <div className="flex flex-col">
+                             <span className="text-[9px] font-black text-red-400 uppercase tracking-widest mb-1">Your response:</span>
+                             <div className="p-3 bg-red-50/50 rounded-xl border border-red-100 text-sm text-red-800 font-medium line-through decoration-red-300">
+                               {q.options[userAnswer]}
+                             </div>
                            </div>
                          )}
-                         <div className="text-sm bg-emerald-50/50 p-3 rounded-lg border border-emerald-100">
-                           <div className="flex gap-2 items-start">
-                             <span className="font-bold text-emerald-700 text-xs uppercase tracking-wider mt-0.5 flex-shrink-0">Correct:</span>
-                             <span className="text-gray-800 font-medium">{q.options[q.correctIndex]}</span>
-                           </div>
-                           <div className="mt-2 text-xs text-gray-500 leading-relaxed border-t border-emerald-100 pt-2">
-                             <span className="font-semibold text-emerald-600">Note:</span> {q.explanation}
-                           </div>
+                         <div className="flex flex-col">
+                            <span className={`text-[9px] font-black ${isCorrect ? 'text-emerald-400' : 'text-indigo-400'} uppercase tracking-widest mb-1`}>
+                              {isCorrect ? 'Validated Response:' : 'Correct Academic Fact:'}
+                            </span>
+                            <div className={`p-4 rounded-2xl border-2 ${isCorrect ? 'bg-emerald-50 border-emerald-100 text-emerald-900' : 'bg-indigo-50 border-indigo-100 text-indigo-900'} text-sm font-bold shadow-sm`}>
+                               {q.options[q.correctIndex]}
+                            </div>
+                            <div className="mt-3 text-[11px] text-gray-500 leading-relaxed p-3 bg-gray-50 rounded-xl border border-dashed border-gray-200 italic">
+                               <span className="font-black text-gray-400 uppercase not-italic mr-1">Rationale:</span> {q.explanation}
+                            </div>
                          </div>
                        </div>
                      </div>
@@ -512,11 +578,11 @@ export default function App() {
 
       </main>
 
-      {/* Floating Bottom Action Bar for Results */}
+      {/* Persistent Action Bar */}
       {currentScreen === AppScreen.RESULTS && (
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
-          <Button onClick={handleNextExam} className="shadow-xl shadow-indigo-200">
-            Take Another Exam
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-md border-t border-gray-100 z-40">
+          <Button onClick={handleNextExam} className="rounded-2xl py-5 font-black uppercase tracking-[0.2em] shadow-2xl shadow-indigo-100">
+            Next Examination
           </Button>
         </div>
       )}

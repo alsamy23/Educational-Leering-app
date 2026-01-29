@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Difficulty, QuizQuestion } from '../types';
 
@@ -7,7 +8,7 @@ export const generateQuizQuestions = async (
   topic: string,
   gradeLevel: string,
   difficulty: Difficulty,
-  count: number = 5
+  count: number = 10 // Increased to 10 for better 100-point scale granularity
 ): Promise<QuizQuestion[]> => {
   
   const prompt = `Create a ${count}-question multiple-choice quiz about "${topic}".
@@ -20,10 +21,10 @@ export const generateQuizQuestions = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are a strict academic examiner. You output only valid JSON.",
+        systemInstruction: "You are a strict academic examiner. You output only valid JSON. Ensure questions are challenging but appropriate for the grade level.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -48,7 +49,6 @@ export const generateQuizQuestions = async (
 
     if (response.text) {
       const data = JSON.parse(response.text);
-      // Ensure IDs are unique and sequential just in case
       return data.map((q: any, index: number) => ({
         ...q,
         id: index + 1
@@ -59,7 +59,6 @@ export const generateQuizQuestions = async (
 
   } catch (error) {
     console.error("Quiz generation failed:", error);
-    // Fallback or re-throw to be handled by UI
     throw error;
   }
 };
