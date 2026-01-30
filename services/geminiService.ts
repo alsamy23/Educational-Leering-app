@@ -8,21 +8,19 @@ export const generateQuizQuestions = async (
   difficulty: Difficulty,
   count: number = 10
 ): Promise<QuizQuestion[]> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API_KEY is missing from environment.");
-  
-  const ai = new GoogleGenAI({ apiKey });
+  // Directly use process.env.API_KEY as per instructions
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  const prompt = `Create a ${count}-question multiple-choice quiz.
+  const prompt = `Create a ${count}-question multiple-choice quiz to help a student EXCEL in their studies.
   Subject: ${subject}
   Specific Topic: ${topic}
   Grade Level: ${gradeLevel}
   Difficulty: ${difficulty}
   
   Requirements:
-  1. High academic quality for the specified grade.
-  2. Four unique options per question.
-  3. A clear, helpful explanation for the correct answer to help the student learn.
+  1. High academic rigor suitable for ${gradeLevel}.
+  2. Four unique, challenging options.
+  3. A deep, conceptual explanation for the correct answer.
   4. Output strictly as JSON.`;
 
   try {
@@ -30,7 +28,7 @@ export const generateQuizQuestions = async (
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are an expert educator. Your goal is to help students excel. Output only valid JSON.",
+        systemInstruction: "You are an elite academic examiner. Your goal is to challenge students so they can excel. Output only valid JSON.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -54,8 +52,8 @@ export const generateQuizQuestions = async (
     
     return JSON.parse(text);
   } catch (error: any) {
-    console.error("Gemini Error Details:", error);
-    throw new Error(error.message || "Unknown error during exam generation.");
+    console.error("Gemini Error:", error);
+    throw new Error(error.message || "Failed to connect to the AI service. Please verify your connection.");
   }
 };
 
@@ -65,7 +63,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Explain clearly: ${text}` }] }],
+      contents: [{ parts: [{ text: `Explain clearly for a student: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {

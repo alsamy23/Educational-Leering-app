@@ -74,7 +74,7 @@ export default function App() {
 
   const startQuiz = async () => {
     if (!user.name || !user.gradeLevel || !user.subject || !user.topic) {
-      setLoadingError("Please fill in all details to excel.");
+      setLoadingError("Please fill in all details to help the AI tailor your exam.");
       return;
     }
 
@@ -97,7 +97,7 @@ export default function App() {
       setShowFeedback(null);
       setCurrentScreen(AppScreen.QUIZ);
     } catch (err: any) {
-      setLoadingError(`Failed: ${err.message}`);
+      setLoadingError(err.message);
       setCurrentScreen(AppScreen.ENTRY);
     }
   };
@@ -111,8 +111,10 @@ export default function App() {
       const answers = [...activeQuiz.userAnswers];
       answers[currentQuestionIndex] = index;
       setActiveQuiz({ ...activeQuiz, userAnswers: answers, score: activeQuiz.score + 1 });
+      // Correct answers automatically proceed after a small delay
       setTimeout(proceedToNext, 1200);
     } else {
+      // Incorrect answers pause for explanation
       const answers = [...activeQuiz.userAnswers];
       answers[currentQuestionIndex] = index;
       setActiveQuiz({ ...activeQuiz, userAnswers: answers });
@@ -152,15 +154,15 @@ export default function App() {
         {currentScreen === AppScreen.ENTRY && (
           <div className="p-8 animate-fade-in space-y-8 pb-24">
             <div className="text-center mt-4">
-              <h2 className="text-3xl font-black text-gray-900 tracking-tighter">New Enrollment</h2>
-              <p className="text-gray-400 text-sm mt-2 font-medium">Excel in your chosen fields.</p>
+              <h2 className="text-3xl font-black text-gray-900 tracking-tighter italic">Excel Higher</h2>
+              <p className="text-gray-400 text-sm mt-2 font-medium">Personalized academic assessment.</p>
             </div>
 
             <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-5">
               {[
-                { label: 'Full Name', field: 'name', placeholder: 'e.g. Maria Clara' },
-                { label: 'Grade Level', field: 'gradeLevel', placeholder: 'e.g. Grade 11' },
-                { label: 'Subject', field: 'subject', placeholder: 'e.g. Biological Science' },
+                { label: 'Student Name', field: 'name', placeholder: 'e.g. Maria Clara' },
+                { label: 'Grade Level', field: 'gradeLevel', placeholder: 'e.g. Grade 11 / Year 12' },
+                { label: 'Subject', field: 'subject', placeholder: 'e.g. Physics / World Literature' },
               ].map((item) => (
                 <div key={item.field} className="space-y-1.5">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-2">{item.label}</label>
@@ -175,19 +177,19 @@ export default function App() {
               ))}
 
               <div className="space-y-1.5 relative">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-2">Topic (Type or Speak)</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-2">Specific Topic</label>
                 <div className="relative">
                   <input
                     type="text"
                     value={user.topic}
                     onChange={(e) => setUser({ ...user, topic: e.target.value })}
                     className="w-full pl-5 pr-12 py-3.5 rounded-2xl bg-gray-50 border-none focus:ring-4 focus:ring-indigo-100 transition-all font-bold text-gray-800 placeholder:text-gray-300"
-                    placeholder="e.g. Photosynthesis"
+                    placeholder="e.g. Quantum Mechanics"
                   />
                   <button
                     onClick={startListening}
                     className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                      isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-indigo-600 shadow-sm'
+                      isListening ? 'bg-red-500 text-white animate-pulse shadow-lg' : 'bg-white text-indigo-600 shadow-sm'
                     }`}
                   >
                     <MicIcon />
@@ -218,16 +220,19 @@ export default function App() {
             )}
 
             <Button onClick={startQuiz} className="rounded-[2rem] h-16 text-lg font-black tracking-widest uppercase shadow-2xl shadow-indigo-100">
-              Generate Exam
+              Excel in Exam
             </Button>
           </div>
         )}
 
         {currentScreen === AppScreen.LOADING && (
           <div className="flex flex-col items-center justify-center h-full space-y-8 animate-fade-in">
-             <div className="w-16 h-16 border-[6px] border-indigo-50 border-t-indigo-600 rounded-full animate-spin"></div>
+             <div className="relative">
+               <div className="w-16 h-16 border-[6px] border-indigo-50 border-t-indigo-600 rounded-full animate-spin"></div>
+               <div className="absolute inset-0 flex items-center justify-center">🎓</div>
+             </div>
              <div className="text-center">
-               <h3 className="text-2xl font-black text-gray-900">Writing Exam</h3>
+               <h3 className="text-2xl font-black text-gray-900">Creating Your Challenge</h3>
                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-2">{user.topic}</p>
              </div>
           </div>
@@ -237,7 +242,7 @@ export default function App() {
           <div className="p-8 h-full flex flex-col animate-fade-in">
              <div className="flex justify-between items-end mb-8">
                 <div>
-                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Question</p>
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mastery Progress</p>
                    <p className="text-4xl font-black">{currentQuestionIndex + 1}<span className="text-gray-200 text-xl">/{activeQuiz.questions.length}</span></p>
                 </div>
                 <div className="px-3 py-1 bg-indigo-50 rounded-full text-[10px] font-black text-indigo-600 uppercase border border-indigo-100">
@@ -258,7 +263,7 @@ export default function App() {
                     if (showFeedback) {
                       if (i === activeQuiz.questions[currentQuestionIndex].correctIndex) style = "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-emerald-50";
                       else if (i === showFeedback.selected && !showFeedback.isCorrect) style = "bg-red-50 border-red-500 text-red-700";
-                      else style = "opacity-40 bg-gray-50 border-transparent grayscale";
+                      else style = "opacity-40 bg-gray-50 border-transparent grayscale scale-95";
                     }
                     return (
                       <button
@@ -281,15 +286,19 @@ export default function App() {
                     <div className={`p-6 rounded-[2rem] border-2 ${showFeedback.isCorrect ? 'bg-emerald-50 border-emerald-100' : 'bg-indigo-50 border-indigo-100 shadow-xl'}`}>
                       <div className="flex justify-between items-center mb-3">
                         <p className={`text-[10px] font-black uppercase tracking-widest ${showFeedback.isCorrect ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                          {showFeedback.isCorrect ? 'Excellent!' : 'Understand How It Is'}
+                          {showFeedback.isCorrect ? 'Excellent Performance' : 'Understand the Concept'}
                         </p>
-                        <button onClick={() => handleSpeak(activeQuiz.questions[currentQuestionIndex].explanation, currentQuestionIndex)} className="text-indigo-600">
+                        <button onClick={() => handleSpeak(activeQuiz.questions[currentQuestionIndex].explanation, currentQuestionIndex)} className="text-indigo-600 p-2 hover:bg-indigo-100 rounded-full transition-colors">
                            <SpeakerIcon />
                         </button>
                       </div>
                       <p className="text-sm font-bold text-gray-800 italic leading-relaxed">{activeQuiz.questions[currentQuestionIndex].explanation}</p>
                     </div>
-                    {!showFeedback.isCorrect && <Button onClick={proceedToNext} className="rounded-2xl">Continue Learning</Button>}
+                    {!showFeedback.isCorrect && (
+                      <Button onClick={proceedToNext} className="rounded-2xl py-5 shadow-indigo-100 shadow-xl">
+                        I Understand, Next Question
+                      </Button>
+                    )}
                   </div>
                 )}
              </div>
@@ -300,9 +309,9 @@ export default function App() {
           <div className="p-8 pb-32 animate-fade-in">
              <div className="text-center mb-10">
                 <div className="w-20 h-20 bg-white rounded-3xl shadow-xl mx-auto flex items-center justify-center text-4xl mb-4 border border-indigo-50">
-                  {activeQuiz.score > 5 ? '🎓' : '📖'}
+                  {activeQuiz.score > (activeQuiz.totalQuestions / 2) ? '🎓' : '📖'}
                 </div>
-                <h2 className="text-4xl font-black text-gray-900 tracking-tighter">Certified Grade</h2>
+                <h2 className="text-4xl font-black text-gray-900 tracking-tighter">Certified Result</h2>
                 <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mt-2">{activeQuiz.subject}: {activeQuiz.topic}</p>
              </div>
 
@@ -327,23 +336,25 @@ export default function App() {
              </div>
 
              <div className="space-y-4">
-                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-2">Review Explanations</h3>
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-2">Transcript Review</h3>
                 {activeQuiz.questions.map((q, idx) => (
                    <div key={idx} className="bg-white p-5 rounded-3xl border border-gray-50 shadow-sm space-y-3">
                       <div className="flex justify-between items-start gap-4">
                         <p className="font-bold text-sm text-gray-800 leading-snug">{q.text}</p>
-                        <button onClick={() => handleSpeak(q.explanation, idx)} className="text-indigo-600 bg-indigo-50 p-2 rounded-xl"><SpeakerIcon /></button>
+                        <button onClick={() => handleSpeak(q.explanation, idx)} className="text-indigo-600 bg-indigo-50 p-2 rounded-xl transition-transform active:scale-90"><SpeakerIcon /></button>
                       </div>
-                      <p className="text-xs font-medium text-gray-500 italic bg-gray-50 p-3 rounded-xl">{q.explanation}</p>
+                      <div className="p-4 bg-gray-50 rounded-2xl">
+                        <p className="text-xs font-bold text-gray-500 italic leading-relaxed">{q.explanation}</p>
+                      </div>
                       <span className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${activeQuiz.userAnswers[idx] === q.correctIndex ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                        {activeQuiz.userAnswers[idx] === q.correctIndex ? 'Mastered' : 'Needs Review'}
+                        {activeQuiz.userAnswers[idx] === q.correctIndex ? 'Mastered' : 'Reviewed Concept'}
                       </span>
                    </div>
                 ))}
              </div>
 
              <Button onClick={() => { setCurrentScreen(AppScreen.ENTRY); }} className="mt-12 rounded-[2rem] py-6 font-black uppercase tracking-widest shadow-xl shadow-indigo-100">
-                Start New Subject
+                Enroll New Subject
              </Button>
           </div>
         )}
