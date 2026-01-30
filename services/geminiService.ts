@@ -6,10 +6,16 @@ export const generateQuizQuestions = async (
   difficulty: Difficulty,
   count: number = 10
 ): Promise<QuizQuestion[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API_KEY is not defined in the environment. Please add it to your deployment settings.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `Create a ${count}-question multiple-choice academic exam.
   Student Context:
+  - Name: ${profile.name}
   - School: ${profile.school}
   - Section: ${profile.section}
   - Grade: ${profile.gradeLevel}
@@ -20,8 +26,8 @@ export const generateQuizQuestions = async (
   Requirements:
   1. High academic quality appropriate for ${profile.gradeLevel}.
   2. Four unique, plausible options per question.
-  3. A detailed pedagogical explanation for why the correct answer is right, focusing on helping the student EXCEL.
-  4. Ensure the content is strictly related to the subject and topic provided.
+  3. A detailed pedagogical explanation for why the correct answer is right.
+  4. Ensure the content is strictly related to the subject and topic.
   5. Output strictly as JSON.`;
 
   try {
@@ -29,7 +35,7 @@ export const generateQuizQuestions = async (
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are a world-class academic examiner. Your mission is to provide challenging, accurate, and educational assessments that help students master their subjects. Output only valid JSON.",
+        systemInstruction: "You are a world-class academic examiner. Your mission is to provide challenging, accurate, and educational assessments that help students master their subjects and excel. Output only valid JSON.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -49,15 +55,12 @@ export const generateQuizQuestions = async (
     });
 
     const text = response.text;
-    if (!text) throw new Error("No response content received from AI.");
+    if (!text) throw new Error("Empty response from AI server.");
     
     return JSON.parse(text);
   } catch (error: any) {
-    console.error("Gemini Error:", error);
-    if (error.message?.includes("API key")) {
-      throw new Error("Authentication failure: Please ensure the system's API_KEY is correctly configured.");
-    }
-    throw new Error(error.message || "Failed to generate your personalized exam.");
+    console.error("Gemini Generation Error:", error);
+    throw new Error(error.message || "Failed to generate your exam. Please check your network and API configuration.");
   }
 };
 
@@ -67,7 +70,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Explain this academic concept clearly: ${text}` }] }],
+      contents: [{ parts: [{ text: `Explain clearly: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -88,7 +91,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
     }
     return bytes.buffer;
   } catch (error) {
-    console.error("Speech generation failed:", error);
+    console.error("TTS Error:", error);
     throw error;
   }
 };
