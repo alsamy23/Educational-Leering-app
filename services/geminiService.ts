@@ -1,34 +1,35 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { Difficulty, QuizQuestion } from '../types';
+import { Difficulty, QuizQuestion, UserProfile } from '../types';
 
 export const generateQuizQuestions = async (
-  subject: string,
-  topic: string,
-  gradeLevel: string,
+  profile: UserProfile,
   difficulty: Difficulty,
   count: number = 10
 ): Promise<QuizQuestion[]> => {
-  // Directly use process.env.API_KEY as per instructions
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  const prompt = `Create a ${count}-question multiple-choice quiz to help a student EXCEL in their studies.
-  Subject: ${subject}
-  Specific Topic: ${topic}
-  Grade Level: ${gradeLevel}
-  Difficulty: ${difficulty}
+  const prompt = `Create a ${count}-question multiple-choice academic exam.
+  Student Context:
+  - School: ${profile.school}
+  - Section: ${profile.section}
+  - Grade: ${profile.gradeLevel}
+  - Subject: ${profile.subject}
+  - Specific Topic: ${profile.topic}
+  - Difficulty: ${difficulty}
   
   Requirements:
-  1. High academic rigor suitable for ${gradeLevel}.
-  2. Four unique, challenging options.
-  3. A deep, conceptual explanation for the correct answer.
-  4. Output strictly as JSON.`;
+  1. High academic quality appropriate for ${profile.gradeLevel}.
+  2. Four unique, plausible options per question.
+  3. A detailed pedagogical explanation for why the correct answer is right, focusing on helping the student EXCEL.
+  4. Ensure the content is strictly related to the subject and topic provided.
+  5. Output strictly as JSON.`;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are an elite academic examiner. Your goal is to challenge students so they can excel. Output only valid JSON.",
+        systemInstruction: "You are a world-class academic examiner. Your mission is to provide challenging, accurate, and educational assessments that help students master their subjects. Output only valid JSON.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -48,12 +49,15 @@ export const generateQuizQuestions = async (
     });
 
     const text = response.text;
-    if (!text) throw new Error("Received empty response from the AI model.");
+    if (!text) throw new Error("No response content received from AI.");
     
     return JSON.parse(text);
   } catch (error: any) {
     console.error("Gemini Error:", error);
-    throw new Error(error.message || "Failed to connect to the AI service. Please verify your connection.");
+    if (error.message?.includes("API key")) {
+      throw new Error("Authentication failure: Please ensure the system's API_KEY is correctly configured.");
+    }
+    throw new Error(error.message || "Failed to generate your personalized exam.");
   }
 };
 
@@ -63,7 +67,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Explain clearly for a student: ${text}` }] }],
+      contents: [{ parts: [{ text: `Explain this academic concept clearly: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -75,7 +79,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
     });
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Audio) throw new Error("No audio data generated");
+    if (!base64Audio) throw new Error("Audio generation failed");
 
     const binaryString = atob(base64Audio);
     const bytes = new Uint8Array(binaryString.length);

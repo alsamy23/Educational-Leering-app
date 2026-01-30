@@ -7,6 +7,8 @@ export enum Difficulty {
 
 export interface UserProfile {
   name: string;
+  school: string;
+  section: string;
   gradeLevel: string;
   subject: string;
   topic: string;
@@ -21,8 +23,7 @@ export interface QuizQuestion {
 }
 
 export interface QuizSession {
-  topic: string;
-  subject: string;
+  profile: UserProfile;
   difficulty: Difficulty;
   questions: QuizQuestion[];
   userAnswers: number[];
