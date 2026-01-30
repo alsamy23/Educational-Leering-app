@@ -2,8 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Difficulty, QuizQuestion } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const generateQuizQuestions = async (
   topic: string,
   gradeLevel: string,
@@ -11,6 +9,9 @@ export const generateQuizQuestions = async (
   count: number = 10 // Increased to 10 for better 100-point scale granularity
 ): Promise<QuizQuestion[]> => {
   
+  // Create a new GoogleGenAI instance right before making an API call to ensure it always uses the most up-to-date API key.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
   const prompt = `Create a ${count}-question multiple-choice quiz about "${topic}".
   Target Audience: Grade ${gradeLevel} students.
   Difficulty Level: ${difficulty}.
