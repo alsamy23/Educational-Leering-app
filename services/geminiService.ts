@@ -1,27 +1,36 @@
-
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Difficulty, QuizQuestion } from '../types';
 
 export const generateQuizQuestions = async (
+  subject: string,
   topic: string,
   gradeLevel: string,
   difficulty: Difficulty,
   count: number = 10
 ): Promise<QuizQuestion[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error("API_KEY is missing from environment.");
+  
+  const ai = new GoogleGenAI({ apiKey });
 
-  const prompt = `Create a ${count}-question multiple-choice quiz about "${topic || 'General Education'}".
-  Target Audience: Grade ${gradeLevel} students.
-  Difficulty Level: ${difficulty}.
-  Include 4 options for each question.
-  Provide the correct answer index (0-3) and a brief explanation.`;
+  const prompt = `Create a ${count}-question multiple-choice quiz.
+  Subject: ${subject}
+  Specific Topic: ${topic}
+  Grade Level: ${gradeLevel}
+  Difficulty: ${difficulty}
+  
+  Requirements:
+  1. High academic quality for the specified grade.
+  2. Four unique options per question.
+  3. A clear, helpful explanation for the correct answer to help the student learn.
+  4. Output strictly as JSON.`;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are a professional academic examiner. Output ONLY a JSON array. No conversational text.",
+        systemInstruction: "You are an expert educator. Your goal is to help students excel. Output only valid JSON.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -41,14 +50,12 @@ export const generateQuizQuestions = async (
     });
 
     const text = response.text;
-    if (!text) throw new Error("Empty response from AI");
+    if (!text) throw new Error("Received empty response from the AI model.");
     
-    // Clean potential markdown wrap if JSON mode fails to strip it
-    const cleanJson = text.replace(/```json|```/g, "").trim();
-    return JSON.parse(cleanJson);
-  } catch (error) {
-    console.error("Quiz generation failed:", error);
-    throw error;
+    return JSON.parse(text);
+  } catch (error: any) {
+    console.error("Gemini Error Details:", error);
+    throw new Error(error.message || "Unknown error during exam generation.");
   }
 };
 
@@ -58,7 +65,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Read this explanation clearly: ${text}` }] }],
+      contents: [{ parts: [{ text: `Explain clearly: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -72,7 +79,6 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) throw new Error("No audio data generated");
 
-    // Decode base64 to ArrayBuffer (Raw PCM)
     const binaryString = atob(base64Audio);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {

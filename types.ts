@@ -1,4 +1,3 @@
-
 export enum Difficulty {
   EASY = 'Easy',
   MEDIUM = 'Medium',
@@ -9,6 +8,8 @@ export enum Difficulty {
 export interface UserProfile {
   name: string;
   gradeLevel: string;
+  subject: string;
+  topic: string;
 }
 
 export interface QuizQuestion {
@@ -21,12 +22,13 @@ export interface QuizQuestion {
 
 export interface QuizSession {
   topic: string;
+  subject: string;
   difficulty: Difficulty;
   questions: QuizQuestion[];
-  userAnswers: number[]; // Array of indices
-  score: number; // Number of correct answers
+  userAnswers: number[];
+  score: number;
   totalQuestions: number;
-  earnedPoints: number; // Gamified points
+  earnedPoints: number;
 }
 
 export enum AppScreen {
