@@ -119,7 +119,7 @@ export default function App() {
   const startQuizGeneration = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (isApiKeyMissing) {
-      setLoadingError("API Key is missing. Please set the API_KEY environment variable.");
+      setLoadingError("API Key is missing. Please add 'API_KEY' to your environment variables in your deployment dashboard.");
       return;
     }
     if (!quizTopic || !user.name || !user.school || !user.section) return;
@@ -145,11 +145,6 @@ export default function App() {
       setCurrentScreen(AppScreen.ENTRY);
     }
   }, [quizTopic, user, quizDifficulty, isApiKeyMissing]);
-
-  if (isApiKeyMissing && currentScreen !== AppScreen.ENTRY) {
-     // Safety fallback
-     setCurrentScreen(AppScreen.ENTRY);
-  }
 
   return (
     <div className="h-full bg-white flex flex-col max-w-lg mx-auto border-x border-gray-100 shadow-2xl relative overflow-hidden">
@@ -218,7 +213,7 @@ export default function App() {
 
                     {loadingError && (
                       <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-[11px] font-bold border border-red-100 animate-fade-in">
-                        {loadingError}
+                        ⚠️ {loadingError}
                       </div>
                     )}
 
@@ -274,7 +269,6 @@ export default function App() {
           </div>
         )}
 
-        {/* --- Quiz Screen and Results remain functional as per previous architecture --- */}
         {currentScreen === AppScreen.QUIZ && activeQuiz && (
            <div className="p-8 animate-fade-in h-full flex flex-col">
               <div className="flex justify-between items-center mb-8">
@@ -313,14 +307,13 @@ export default function App() {
                            if (currentQuestionIndex < activeQuiz.questions.length - 1) {
                              setCurrentQuestionIndex(currentQuestionIndex + 1);
                            } else {
-                             // Scoring logic...
                              let score = 0;
                              activeQuiz.questions.forEach((q, i) => {
                                if (updatedAnswers[i] === q.correctIndex) score++;
                              });
                              const earned = score * 10;
                              setActiveQuiz({...activeQuiz, score, earnedPoints: earned, userAnswers: updatedAnswers});
-                             setTotalPoints(totalPoints + earned);
+                             setTotalPoints(prev => prev + earned);
                              setCurrentScreen(AppScreen.RESULTS);
                            }
                         }, 200);
