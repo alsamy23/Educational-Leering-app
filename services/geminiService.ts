@@ -1,22 +1,18 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Difficulty, QuizQuestion } from '../types';
 
 export const generateQuizQuestions = async (
   topic: string,
   gradeLevel: string,
   difficulty: Difficulty,
-  count: number = 10 // Increased to 10 for better 100-point scale granularity
+  count: number = 10
 ): Promise<QuizQuestion[]> => {
-  
-  // Create a new GoogleGenAI instance right before making an API call to ensure it always uses the most up-to-date API key.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  const prompt = `Create a ${count}-question multiple-choice quiz about "${topic}".
+  const prompt = `Create a ${count}-question multiple-choice quiz about "${topic || 'General Education'}".
   Target Audience: Grade ${gradeLevel} students.
   Difficulty Level: ${difficulty}.
-  
-  Ensure the questions are educational, factual, and strictly relevant to the topic.
   Include 4 options for each question.
   Provide the correct answer index (0-3) and a brief explanation.`;
 
@@ -25,7 +21,7 @@ export const generateQuizQuestions = async (
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are a strict academic examiner. You output only valid JSON. Ensure questions are challenging but appropriate for the grade level.",
+        systemInstruction: "You are a professional academic examiner. Output ONLY a JSON array. No conversational text.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -33,14 +29,10 @@ export const generateQuizQuestions = async (
             type: Type.OBJECT,
             properties: {
               id: { type: Type.INTEGER },
-              text: { type: Type.STRING, description: "The question text" },
-              options: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "List of 4 possible answers"
-              },
-              correctIndex: { type: Type.INTEGER, description: "The index (0-3) of the correct answer" },
-              explanation: { type: Type.STRING, description: "Why this answer is correct" }
+              text: { type: Type.STRING },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctIndex: { type: Type.INTEGER },
+              explanation: { type: Type.STRING }
             },
             required: ["id", "text", "options", "correctIndex", "explanation"]
           }
@@ -48,18 +40,61 @@ export const generateQuizQuestions = async (
       }
     });
 
-    if (response.text) {
-      const data = JSON.parse(response.text);
-      return data.map((q: any, index: number) => ({
-        ...q,
-        id: index + 1
-      }));
-    }
+    const text = response.text;
+    if (!text) throw new Error("Empty response from AI");
     
-    throw new Error("No data received from AI");
-
+    // Clean potential markdown wrap if JSON mode fails to strip it
+    const cleanJson = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleanJson);
   } catch (error) {
     console.error("Quiz generation failed:", error);
     throw error;
   }
+};
+
+export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: `Read this explanation clearly: ${text}` }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Kore' },
+          },
+        },
+      },
+    });
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!base64Audio) throw new Error("No audio data generated");
+
+    // Decode base64 to ArrayBuffer (Raw PCM)
+    const binaryString = atob(base64Audio);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+  } catch (error) {
+    console.error("Speech generation failed:", error);
+    throw error;
+  }
+};
+
+export const playAudioBuffer = async (buffer: ArrayBuffer) => {
+  const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+  const dataInt16 = new Int16Array(buffer);
+  const audioBuffer = ctx.createBuffer(1, dataInt16.length, 24000);
+  const channelData = audioBuffer.getChannelData(0);
+  for (let i = 0; i < dataInt16.length; i++) {
+    channelData[i] = dataInt16[i] / 32768.0;
+  }
+  const source = ctx.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(ctx.destination);
+  source.start();
 };

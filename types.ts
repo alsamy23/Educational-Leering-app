@@ -1,3 +1,4 @@
+
 export enum Difficulty {
   EASY = 'Easy',
   MEDIUM = 'Medium',
@@ -7,8 +8,6 @@ export enum Difficulty {
 
 export interface UserProfile {
   name: string;
-  school: string;
-  section: string;
   gradeLevel: string;
 }
 
