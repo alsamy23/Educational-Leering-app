@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Difficulty, QuizQuestion, UserProfile } from '../types';
 
@@ -6,12 +7,8 @@ export const generateQuizQuestions = async (
   difficulty: Difficulty,
   count: number = 10
 ): Promise<QuizQuestion[]> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY is not defined in the environment. Please add it to your deployment settings.");
-  }
-  
-  const ai = new GoogleGenAI({ apiKey });
+  // Use process.env.API_KEY directly when initializing the GoogleGenAI client as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `Create a ${count}-question multiple-choice academic exam.
   Student Context:
@@ -32,7 +29,8 @@ export const generateQuizQuestions = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      // Use gemini-3-pro-preview for complex academic reasoning tasks
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
         systemInstruction: "You are a world-class academic examiner. Your mission is to provide challenging, accurate, and educational assessments that help students master their subjects and excel. Output only valid JSON.",
@@ -54,17 +52,19 @@ export const generateQuizQuestions = async (
       }
     });
 
+    // Access the .text property directly instead of calling a method
     const text = response.text;
     if (!text) throw new Error("Empty response from AI server.");
     
     return JSON.parse(text);
   } catch (error: any) {
     console.error("Gemini Generation Error:", error);
-    throw new Error(error.message || "Failed to generate your exam. Please check your network and API configuration.");
+    throw new Error(error.message || "Failed to generate your exam. Please check your network configuration.");
   }
 };
 
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
+  // Use process.env.API_KEY directly for initialization
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
@@ -81,6 +81,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
       },
     });
 
+    // Extract raw audio bytes from the inlineData response part
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) throw new Error("Audio generation failed");
 
@@ -97,6 +98,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
 };
 
 export const playAudioBuffer = async (buffer: ArrayBuffer) => {
+  // Initialize AudioContext with 24000Hz as recommended for the TTS model output
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
   const dataInt16 = new Int16Array(buffer);
   const audioBuffer = ctx.createBuffer(1, dataInt16.length, 24000);
