@@ -54,7 +54,7 @@ export default function App() {
 
   const startQuiz = async () => {
     if (!user.name || !user.school || !user.section || !user.gradeLevel || !user.subject || !user.topic) {
-      setError("Academic enrollment requires all fields to be completed.");
+      setError("Please fill in all details (School, Section, Name, etc.) to proceed.");
       return;
     }
     setError(null);
@@ -119,12 +119,12 @@ export default function App() {
   };
 
   return (
-    <div className="h-full bg-white flex flex-col max-w-lg mx-auto border-x border-slate-200 shadow-2xl relative overflow-hidden font-sans">
-      <header className="flex-none flex justify-between items-center p-6 bg-white border-b border-slate-100 shadow-sm z-20">
+    <div className="h-full bg-slate-50 flex flex-col max-w-lg mx-auto border-x border-slate-200 shadow-2xl relative overflow-hidden font-sans">
+      <header className="flex-none flex justify-between items-center p-6 bg-white border-b border-slate-200 shadow-sm z-20">
         <div className="flex flex-col">
           <h1 className="text-2xl font-black text-indigo-600 tracking-tight leading-none">ScholarEarn</h1>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 truncate max-w-[150px]">
-            {user.school ? `${user.school} • ${user.section}` : 'Student Portal'}
+            {user.school ? `${user.school} • ${user.section}` : 'Academic Portal'}
           </p>
         </div>
         <div className="bg-indigo-50 px-4 py-2 rounded-2xl border border-indigo-100 flex items-center gap-2">
@@ -133,37 +133,37 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar bg-slate-50/30">
+      <main className="flex-1 overflow-y-auto no-scrollbar">
         {currentScreen === AppScreen.ENTRY && (
           <div className="p-8 animate-fade-in space-y-6 pb-24">
             <div className="text-center space-y-1 py-4">
               <h2 className="text-3xl font-black text-slate-900 tracking-tighter italic">Enroll to Excel</h2>
-              <p className="text-slate-400 text-sm font-medium">Verify your details to start the assessment.</p>
+              <p className="text-slate-400 text-sm font-medium">Identify yourself to access the exam.</p>
             </div>
 
             <div className="space-y-4">
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-5">
-                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Enrollment Details</h3>
+                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Student Identification</h3>
                 <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">School Name</label>
-                    <input type="text" value={user.school} onChange={e => setUser({...user, school: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Science High School" />
-                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Section</label>
-                      <input type="text" value={user.section} onChange={e => setUser({...user, section: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Einstein" />
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">School Name</label>
+                      <input type="text" value={user.school} onChange={e => setUser({...user, school: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Science HS" />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Student Name</label>
-                      <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="Your Name" />
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Section</label>
+                      <input type="text" value={user.section} onChange={e => setUser({...user, section: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. 10-A" />
                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Full Student Name</label>
+                    <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="Your Name" />
                   </div>
                 </div>
               </div>
 
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-5">
-                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Exam Scope</h3>
+                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Academic Scope</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Grade Level</label>
@@ -171,13 +171,13 @@ export default function App() {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Subject</label>
-                    <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="Physics" />
+                    <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. History" />
                   </div>
                 </div>
                 <div className="space-y-1.5 relative">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Specific Topic</label>
                   <div className="relative">
-                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full pl-5 pr-12 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Thermodynamics" />
+                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full pl-5 pr-12 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Renaissance" />
                     <button onClick={startListening} className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-indigo-600 shadow-sm border border-slate-100'}`}><MicIcon /></button>
                   </div>
                 </div>
@@ -192,7 +192,7 @@ export default function App() {
 
             {error && (
               <div className="p-5 bg-red-50 text-red-600 rounded-[1.5rem] border border-red-100 animate-fade-in text-center">
-                 <p className="text-xs font-black uppercase tracking-widest mb-1">Error Occurred</p>
+                 <p className="text-xs font-black uppercase tracking-widest mb-1">Attention</p>
                  <p className="text-[11px] font-medium leading-relaxed opacity-80">{error}</p>
               </div>
             )}
@@ -205,8 +205,8 @@ export default function App() {
           <div className="flex flex-col items-center justify-center h-full space-y-6 animate-fade-in p-12 text-center">
              <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
              <div className="space-y-2">
-               <h3 className="text-2xl font-black text-slate-900">Syncing Enrollment</h3>
-               <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Generating high-quality curriculum...</p>
+               <h3 className="text-2xl font-black text-slate-900">Academic Sync</h3>
+               <p className="text-xs text-slate-400 font-bold uppercase tracking-widest leading-relaxed">Preparing curriculum for {user.topic}...</p>
              </div>
           </div>
         )}
@@ -215,7 +215,7 @@ export default function App() {
           <div className="p-8 h-full flex flex-col animate-fade-in">
              <div className="flex justify-between items-end mb-8">
                 <div>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Excellence Track</p>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Question Status</p>
                    <p className="text-4xl font-black">{currentIndex + 1}<span className="text-slate-300 text-xl font-medium">/{activeQuiz.questions.length}</span></p>
                 </div>
                 <div className="px-3 py-1 bg-white shadow-sm rounded-lg text-[9px] font-black text-slate-600 uppercase border border-slate-100">{activeQuiz.difficulty}</div>
@@ -247,13 +247,13 @@ export default function App() {
                   <div className="animate-fade-in space-y-4 pt-4">
                     <div className={`p-6 rounded-[2rem] border-2 ${feedback.isCorrect ? 'bg-emerald-50 border-emerald-200 shadow-emerald-100' : 'bg-indigo-50 border-indigo-200 shadow-indigo-100'} shadow-lg`}>
                       <div className="flex justify-between items-center mb-3">
-                        <p className={`text-[10px] font-black uppercase tracking-widest ${feedback.isCorrect ? 'text-emerald-600' : 'text-indigo-600'}`}>Learning Insight</p>
+                        <p className={`text-[10px] font-black uppercase tracking-widest ${feedback.isCorrect ? 'text-emerald-600' : 'text-indigo-600'}`}>Teacher's Insight</p>
                         <button onClick={() => speak(activeQuiz.questions[currentIndex].explanation)} className="text-indigo-600 p-2 hover:bg-indigo-100 rounded-full"><SpeakerIcon /></button>
                       </div>
                       <p className="text-sm font-bold text-slate-800 italic leading-relaxed">{activeQuiz.questions[currentIndex].explanation}</p>
                     </div>
                     {!feedback.isCorrect && (
-                      <Button onClick={nextQuestion} className="rounded-xl h-14 shadow-lg">Understood, Continue</Button>
+                      <Button onClick={nextQuestion} className="rounded-xl h-14 shadow-lg">Next Question</Button>
                     )}
                   </div>
                 )}
@@ -265,7 +265,7 @@ export default function App() {
           <div className="p-8 pb-32 animate-fade-in space-y-8 text-center">
              <div>
                 <div className="w-16 h-16 bg-white rounded-2xl shadow-md mx-auto flex items-center justify-center text-3xl mb-4 border border-slate-100">🎓</div>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tighter italic">Grade Certified</h2>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tighter italic">Evaluation Complete</h2>
                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1.5">{activeQuiz.profile.school} • {activeQuiz.profile.section}</p>
              </div>
 
@@ -276,18 +276,18 @@ export default function App() {
                 </div>
                 <div className="flex justify-between items-center text-center">
                    <div className="flex-1">
-                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Earned</p>
+                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Points Earned</p>
                       <p className="text-2xl font-black text-amber-500">+{activeQuiz.earnedPoints}★</p>
                    </div>
                    <div className="w-px h-8 bg-slate-100" />
                    <div className="flex-1">
-                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Correct</p>
+                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Correct Answers</p>
                       <p className="text-2xl font-black text-slate-800">{activeQuiz.score}/{activeQuiz.totalQuestions}</p>
                    </div>
                 </div>
              </div>
 
-             <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="rounded-[1.5rem] py-5 font-black uppercase tracking-widest shadow-xl shadow-indigo-100">New Enrollment</Button>
+             <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="rounded-[1.5rem] py-5 font-black uppercase tracking-widest shadow-xl shadow-indigo-100">Take New Exam</Button>
           </div>
         )}
       </main>
