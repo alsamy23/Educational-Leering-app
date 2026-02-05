@@ -1,17 +1,16 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Difficulty, QuizQuestion, UserProfile } from '../types';
 
+/**
+ * Generates academic quiz questions based on the user's profile and desired difficulty.
+ */
 export const generateQuizQuestions = async (
   profile: UserProfile,
   difficulty: Difficulty,
   count: number = 10
 ): Promise<QuizQuestion[]> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey === "") {
-    throw new Error("Gemini API Key is missing. Please ensure your environment is configured correctly with API_KEY.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Guidelines: Use process.env.API_KEY directly and assume it's pre-configured.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `Generate a ${count}-question multiple-choice exam for this student:
   - School: ${profile.school}
@@ -21,15 +20,15 @@ export const generateQuizQuestions = async (
   - Topic: ${profile.topic}
   - Difficulty Level: ${difficulty}
   
-  Format strictly as a JSON array of objects with:
-  text (string), options (array of 4 strings), correctIndex (number 0-3), explanation (string).`;
+  Output MUST be a JSON array of objects.
+  Each object: { "id": number, "text": string, "options": string[], "correctIndex": number, "explanation": string }`;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are an elite academic curriculum designer. Your goal is to assess student knowledge with high-quality, relevant questions. Return only valid JSON.",
+        systemInstruction: "You are an elite academic curriculum designer. Your goal is to assess student knowledge with high-quality, relevant questions. Return ONLY valid JSON.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -48,23 +47,27 @@ export const generateQuizQuestions = async (
       }
     });
 
+    // Guidelines: Use .text property directly.
     const text = response.text;
     if (!text) throw new Error("The AI examiner provided an empty response.");
     
     return JSON.parse(text);
   } catch (error: any) {
-    console.error("Gemini Generation Error:", error);
-    throw new Error(error.message || "Academic sync failed. Please check your connection.");
+    console.error("Gemini Error:", error);
+    throw new Error(error.message || "Academic assessment generation failed.");
   }
 };
 
+/**
+ * Generates an audio explanation for the provided text using Gemini TTS.
+ */
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Explain clearly: ${text}` }] }],
+      contents: [{ parts: [{ text: `Explain this concept clearly: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -78,6 +81,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) throw new Error("Audio generation failed");
 
+    // Decoding base64 to binary buffer
     const binaryString = atob(base64Audio);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
@@ -90,6 +94,9 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   }
 };
 
+/**
+ * Plays raw PCM audio data in the browser.
+ */
 export const playAudioBuffer = async (buffer: ArrayBuffer) => {
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
   const dataInt16 = new Int16Array(buffer);
