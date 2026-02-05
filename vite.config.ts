@@ -3,13 +3,13 @@ import react from '@vitejs/plugin-react';
 import process from 'node:process';
 
 export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current working directory.
+  // Load environment variables from .env files and the system environment (Vercel)
   const env = loadEnv(mode, process.cwd(), '');
   
   return {
     plugins: [react()],
     define: {
-      // Prioritize the environment variable from Vercel/System or .env file
+      // This performs a direct string replacement of process.env.API_KEY in your code
       'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY || '')
     },
     server: {
@@ -18,7 +18,14 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: 'dist',
-      sourcemap: false
-    }
+      sourcemap: false,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', '@google/genai'],
+          },
+        },
+      },
+    },
   };
 });
