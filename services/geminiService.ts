@@ -1,44 +1,41 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Difficulty, QuizQuestion, UserProfile } from '../types';
 
-const getAIClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("Gemini API Key is missing. Please add API_KEY to your environment variables (.env file or deployment settings).");
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
 export const generateQuizQuestions = async (
   profile: UserProfile,
   difficulty: Difficulty,
   count: number = 10
 ): Promise<QuizQuestion[]> => {
-  const ai = getAIClient();
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey === "") {
+    throw new Error("Gemini API Key is missing. Create a .env file with API_KEY=your_key or set it in your environment variables.");
+  }
 
-  const prompt = `Create a ${count}-question multiple-choice academic exam.
-  Student Context:
-  - Name: ${profile.name}
+  const ai = new GoogleGenAI({ apiKey });
+
+  const prompt = `Create a ${count}-question multiple-choice academic exam for a student.
+  Context:
+  - Student Name: ${profile.name}
   - School: ${profile.school}
   - Section: ${profile.section}
   - Grade: ${profile.gradeLevel}
   - Subject: ${profile.subject}
-  - Specific Topic: ${profile.topic}
+  - Topic: ${profile.topic}
   - Difficulty: ${difficulty}
   
-  Requirements:
-  1. High academic quality appropriate for ${profile.gradeLevel}.
-  2. Four unique, plausible options per question.
-  3. A detailed pedagogical explanation for why the correct answer is right.
-  4. Ensure the content is strictly related to the subject and topic.
-  5. Output strictly as JSON.`;
+  Instructions:
+  1. Questions must be challenging but fair for ${profile.gradeLevel}.
+  2. Provide 4 distinct options per question.
+  3. Include a 'correctIndex' (0-3).
+  4. Provide a 'explanation' that teaches the core concept.
+  5. Format your response strictly as a JSON array of objects.`;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are a world-class academic examiner. Your mission is to provide challenging, accurate, and educational assessments. Output only valid JSON.",
+        systemInstruction: "You are a professional academic examiner. Ensure accuracy and pedagogical value. Return only the JSON array.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -58,25 +55,22 @@ export const generateQuizQuestions = async (
     });
 
     const text = response.text;
-    if (!text) throw new Error("The AI examiner provided an empty response.");
-    
+    if (!text) throw new Error("Received an empty response from the examiner.");
     return JSON.parse(text);
   } catch (error: any) {
-    console.error("Gemini Generation Error:", error);
-    if (error.message?.includes("API_KEY")) {
-       throw new Error("Invalid or missing API Key. Please verify your environment settings.");
-    }
-    throw new Error(error.message || "Failed to generate your exam. Please check your connection.");
+    console.error("Gemini Error:", error);
+    throw new Error(error.message || "Failed to generate exam. Please check your API key and connection.");
   }
 };
 
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
-  const ai = getAIClient();
+  const apiKey = process.env.API_KEY;
+  const ai = new GoogleGenAI({ apiKey: apiKey! });
   
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Explain clearly: ${text}` }] }],
+      contents: [{ parts: [{ text: `Explain this concept clearly: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
