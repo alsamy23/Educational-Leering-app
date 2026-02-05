@@ -1,13 +1,20 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Difficulty, QuizQuestion, UserProfile } from '../types';
 
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini API Key is missing. Please add API_KEY to your environment variables (.env file or deployment settings).");
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
 export const generateQuizQuestions = async (
   profile: UserProfile,
   difficulty: Difficulty,
   count: number = 10
 ): Promise<QuizQuestion[]> => {
-  // Always use process.env.API_KEY directly as per guidelines
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getAIClient();
 
   const prompt = `Create a ${count}-question multiple-choice academic exam.
   Student Context:
@@ -56,12 +63,15 @@ export const generateQuizQuestions = async (
     return JSON.parse(text);
   } catch (error: any) {
     console.error("Gemini Generation Error:", error);
-    throw new Error(error.message || "Failed to generate your exam. Please check your network.");
+    if (error.message?.includes("API_KEY")) {
+       throw new Error("Invalid or missing API Key. Please verify your environment settings.");
+    }
+    throw new Error(error.message || "Failed to generate your exam. Please check your connection.");
   }
 };
 
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getAIClient();
   
   try {
     const response = await ai.models.generateContent({
