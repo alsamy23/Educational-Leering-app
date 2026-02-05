@@ -2,6 +2,17 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Difficulty, QuizQuestion, UserProfile } from '../types';
 
 /**
+ * Helper to ensure the AI client is always initialized with a fresh check for the key.
+ */
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey === "") {
+    throw new Error("API_KEY is missing. Please set it in your hosting provider's (Netlify/Vercel) Environment Variables settings.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
+/**
  * Generates academic quiz questions based on the user's profile and desired difficulty.
  */
 export const generateQuizQuestions = async (
@@ -9,8 +20,7 @@ export const generateQuizQuestions = async (
   difficulty: Difficulty,
   count: number = 10
 ): Promise<QuizQuestion[]> => {
-  // Guidelines: Use process.env.API_KEY directly and assume it's pre-configured.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getAIClient();
 
   const prompt = `Generate a ${count}-question multiple-choice exam for this student:
   - School: ${profile.school}
@@ -25,7 +35,7 @@ export const generateQuizQuestions = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: "You are an elite academic curriculum designer. Your goal is to assess student knowledge with high-quality, relevant questions. Return ONLY valid JSON.",
@@ -47,7 +57,6 @@ export const generateQuizQuestions = async (
       }
     });
 
-    // Guidelines: Use .text property directly.
     const text = response.text;
     if (!text) throw new Error("The AI examiner provided an empty response.");
     
@@ -62,7 +71,7 @@ export const generateQuizQuestions = async (
  * Generates an audio explanation for the provided text using Gemini TTS.
  */
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getAIClient();
   
   try {
     const response = await ai.models.generateContent({
@@ -81,7 +90,6 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) throw new Error("Audio generation failed");
 
-    // Decoding base64 to binary buffer
     const binaryString = atob(base64Audio);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
