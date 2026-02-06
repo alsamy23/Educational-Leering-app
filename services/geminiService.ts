@@ -7,7 +7,8 @@ import { Difficulty, QuizQuestion, UserProfile } from '../types';
 const getAIClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === "") {
-    throw new Error("API_KEY is missing. In Vercel, go to Settings -> Environment Variables and add API_KEY.");
+    // This error triggers if the build process didn't find the environment variable.
+    throw new Error("CRITICAL: API_KEY is missing. In your Netlify/Vercel settings, add a variable named 'API_KEY' with your Google AI Studio key, then trigger a new deploy.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -24,7 +25,7 @@ export const generateQuizQuestions = async (
 
   const prompt = `Generate a ${count}-question multiple-choice exam for this student:
   - Name: ${profile.name}
-  - School: ${profile.school || 'Private Student'}
+  - School: ${profile.school || 'Not specified'}
   - Grade Level: ${profile.gradeLevel}
   - Subject: ${profile.subject}
   - Topic: ${profile.topic}
@@ -32,7 +33,7 @@ export const generateQuizQuestions = async (
   
   Instructions:
   1. Questions must be challenging but fair for a ${profile.gradeLevel} student.
-  2. Topics should focus on: ${profile.topic}.
+  2. Topics should strictly focus on: ${profile.topic}.
   
   Output MUST be a JSON array of objects.
   Each object: { "id": number, "text": string, "options": string[], "correctIndex": number, "explanation": string }`;
@@ -42,7 +43,7 @@ export const generateQuizQuestions = async (
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are an elite academic curriculum designer. Your goal is to assess student knowledge with high-quality, relevant questions that match their educational level. Return ONLY valid JSON.",
+        systemInstruction: "You are an elite academic curriculum designer and pedagogical expert. Your goal is to assess student knowledge with high-quality, relevant questions that match their educational level. Return ONLY valid JSON.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -62,12 +63,12 @@ export const generateQuizQuestions = async (
     });
 
     const text = response.text;
-    if (!text) throw new Error("Empty response from AI examiner.");
+    if (!text) throw new Error("The AI examiner provided an empty response.");
     
     return JSON.parse(text);
   } catch (error: any) {
     console.error("Gemini Error:", error);
-    throw new Error(error.message || "Failed to generate academic content. Ensure your API_KEY is set correctly.");
+    throw new Error(error.message || "Academic assessment generation failed. Check your network or API settings.");
   }
 };
 
