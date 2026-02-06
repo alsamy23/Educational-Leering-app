@@ -53,9 +53,9 @@ export default function App() {
   };
 
   const startQuiz = async () => {
-    // Validation: Name, Grade, Subject, Topic are required. School is optional.
+    // Requirements: Name, Grade, Subject, Topic. School is optional.
     if (!user.name || !user.gradeLevel || !user.subject || !user.topic) {
-      setError("Please fill in your Name, Grade, Subject, and Topic to continue.");
+      setError("Please complete all required fields (Name, Grade, Subject, Topic).");
       return;
     }
     setError(null);
@@ -74,7 +74,7 @@ export default function App() {
       setCurrentIndex(0);
       setCurrentScreen(AppScreen.QUIZ);
     } catch (err: any) {
-      setError(err.message || "Failed to generate academic content. Check your internet or API settings.");
+      setError(err.message || "Failed to generate assessment. Ensure your API key is correctly set in your environment variables.");
       setCurrentScreen(AppScreen.ENTRY);
     }
   };
@@ -139,7 +139,7 @@ export default function App() {
           <div className="p-8 animate-fade-in space-y-6 pb-24">
             <div className="text-center space-y-1 py-4">
               <h2 className="text-3xl font-black text-slate-900 tracking-tighter italic">Get Started</h2>
-              <p className="text-slate-400 text-sm font-medium">Enter your details for the assessment.</p>
+              <p className="text-slate-400 text-sm font-medium">Enter your details to generate your exam.</p>
             </div>
 
             <div className="space-y-4">
@@ -148,31 +148,31 @@ export default function App() {
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Name*</label>
-                    <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="Your Name" />
+                    <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="Full Name" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">School Name (Optional)</label>
-                    <input type="text" value={user.school || ''} onChange={e => setUser({...user, school: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="Optional" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">School (Optional)</label>
+                    <input type="text" value={user.school || ''} onChange={e => setUser({...user, school: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Lincoln High" />
                   </div>
                 </div>
               </div>
 
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-5">
-                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Academic Context</h3>
+                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Academic Info</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Grade Level*</label>
-                    <input type="text" value={user.gradeLevel} onChange={e => setUser({...user, gradeLevel: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. 10" />
+                    <input type="text" value={user.gradeLevel} onChange={e => setUser({...user, gradeLevel: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Grade 10" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Subject*</label>
-                    <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. History" />
+                    <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Biology" />
                   </div>
                 </div>
                 <div className="space-y-1.5 relative">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Topic*</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Specific Topic*</label>
                   <div className="relative">
-                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full pl-5 pr-12 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="What should we test?" />
+                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full pl-5 pr-12 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Photosynthesis" />
                     <button onClick={startListening} className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-indigo-600 shadow-sm border border-slate-100'}`} title="Use voice to input topic"><MicIcon /></button>
                   </div>
                 </div>
