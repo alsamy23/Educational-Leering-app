@@ -53,9 +53,9 @@ export default function App() {
   };
 
   const startQuiz = async () => {
-    // Requirements: Name, Grade, Subject, Topic. School is optional.
+    // Requirements check
     if (!user.name || !user.gradeLevel || !user.subject || !user.topic) {
-      setError("Please complete all required fields (Name, Grade, Subject, Topic).");
+      setError("Please fill in Name, Grade, Subject, and Topic.");
       return;
     }
     setError(null);
@@ -74,7 +74,7 @@ export default function App() {
       setCurrentIndex(0);
       setCurrentScreen(AppScreen.QUIZ);
     } catch (err: any) {
-      setError(err.message || "Failed to generate assessment. Ensure your API key is correctly set in your environment variables.");
+      setError(err.message || "Something went wrong. Ensure API_KEY is set in Vercel settings.");
       setCurrentScreen(AppScreen.ENTRY);
     }
   };
@@ -138,41 +138,41 @@ export default function App() {
         {currentScreen === AppScreen.ENTRY && (
           <div className="p-8 animate-fade-in space-y-6 pb-24">
             <div className="text-center space-y-1 py-4">
-              <h2 className="text-3xl font-black text-slate-900 tracking-tighter italic">Get Started</h2>
-              <p className="text-slate-400 text-sm font-medium">Enter your details to generate your exam.</p>
+              <h2 className="text-3xl font-black text-slate-900 tracking-tighter italic">Student Setup</h2>
+              <p className="text-slate-400 text-sm font-medium">Ready to test your knowledge?</p>
             </div>
 
             <div className="space-y-4">
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-5">
-                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Personal Details</h3>
+                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Identify Yourself</h3>
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Name*</label>
-                    <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="Full Name" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Full Name*</label>
+                    <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Alex Smith" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">School (Optional)</label>
-                    <input type="text" value={user.school || ''} onChange={e => setUser({...user, school: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Lincoln High" />
+                    <input type="text" value={user.school || ''} onChange={e => setUser({...user, school: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Westside Academy" />
                   </div>
                 </div>
               </div>
 
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-5">
-                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Academic Info</h3>
+                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Assessment Goal</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Grade Level*</label>
-                    <input type="text" value={user.gradeLevel} onChange={e => setUser({...user, gradeLevel: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Grade 10" />
+                    <input type="text" value={user.gradeLevel} onChange={e => setUser({...user, gradeLevel: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. 10th" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Subject*</label>
-                    <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Biology" />
+                    <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Math" />
                   </div>
                 </div>
                 <div className="space-y-1.5 relative">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Specific Topic*</label>
                   <div className="relative">
-                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full pl-5 pr-12 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Photosynthesis" />
+                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full pl-5 pr-12 py-3 rounded-xl bg-slate-50 border-none font-bold text-slate-800" placeholder="e.g. Quadratic Equations" />
                     <button onClick={startListening} className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-indigo-600 shadow-sm border border-slate-100'}`} title="Use voice to input topic"><MicIcon /></button>
                   </div>
                 </div>
@@ -192,7 +192,7 @@ export default function App() {
               </div>
             )}
 
-            <Button onClick={startQuiz} className="rounded-[1.5rem] h-14 text-sm font-black tracking-widest uppercase shadow-xl shadow-indigo-100">Proceed to Exam</Button>
+            <Button onClick={startQuiz} className="rounded-[1.5rem] h-14 text-sm font-black tracking-widest uppercase shadow-xl shadow-indigo-100">Start Assessment</Button>
           </div>
         )}
 
@@ -200,8 +200,8 @@ export default function App() {
           <div className="flex flex-col items-center justify-center h-full space-y-6 animate-fade-in p-12 text-center">
              <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
              <div className="space-y-2">
-               <h3 className="text-2xl font-black text-slate-900">Academic Sync</h3>
-               <p className="text-xs text-slate-400 font-bold uppercase tracking-widest leading-relaxed">Designing questions for {user.topic}...</p>
+               <h3 className="text-2xl font-black text-slate-900">Curating Exam</h3>
+               <p className="text-xs text-slate-400 font-bold uppercase tracking-widest leading-relaxed">Designing academic challenges for {user.topic}...</p>
              </div>
           </div>
         )}
@@ -210,7 +210,7 @@ export default function App() {
           <div className="p-8 h-full flex flex-col animate-fade-in">
              <div className="flex justify-between items-end mb-8">
                 <div>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Progress</p>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Question Status</p>
                    <p className="text-4xl font-black">{currentIndex + 1}<span className="text-slate-300 text-xl font-medium">/{activeQuiz.questions.length}</span></p>
                 </div>
                 <div className="px-3 py-1 bg-white shadow-sm rounded-lg text-[9px] font-black text-slate-600 uppercase border border-slate-100">{activeQuiz.difficulty}</div>
@@ -242,13 +242,13 @@ export default function App() {
                   <div className="animate-fade-in space-y-4 pt-4">
                     <div className={`p-6 rounded-[2rem] border-2 ${feedback.isCorrect ? 'bg-emerald-50 border-emerald-200 shadow-emerald-100' : 'bg-indigo-50 border-indigo-200 shadow-indigo-100'} shadow-lg`}>
                       <div className="flex justify-between items-center mb-3">
-                        <p className={`text-[10px] font-black uppercase tracking-widest ${feedback.isCorrect ? 'text-emerald-600' : 'text-indigo-600'}`}>Teacher's Insight</p>
+                        <p className={`text-[10px] font-black uppercase tracking-widest ${feedback.isCorrect ? 'text-emerald-600' : 'text-indigo-600'}`}>Academic Insight</p>
                         <button onClick={() => speak(activeQuiz.questions[currentIndex].explanation)} className="text-indigo-600 p-2 hover:bg-indigo-100 rounded-full"><SpeakerIcon /></button>
                       </div>
                       <p className="text-sm font-bold text-slate-800 italic leading-relaxed">{activeQuiz.questions[currentIndex].explanation}</p>
                     </div>
                     {!feedback.isCorrect && (
-                      <Button onClick={nextQuestion} className="rounded-xl h-14 shadow-lg">Proceed Next</Button>
+                      <Button onClick={nextQuestion} className="rounded-xl h-14 shadow-lg">Next Question</Button>
                     )}
                   </div>
                 )}
@@ -266,23 +266,23 @@ export default function App() {
 
              <div className="bg-white rounded-[2rem] shadow-lg p-8 border border-slate-200">
                 <div className="pb-6 mb-6 border-b border-slate-100 text-center">
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Final Mark</p>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Performance Index</p>
                    <p className="text-6xl font-black text-indigo-600 tracking-tighter">{Math.round((activeQuiz.score / activeQuiz.totalQuestions) * 100)}%</p>
                 </div>
                 <div className="flex justify-between items-center text-center">
                    <div className="flex-1">
-                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Points Earned</p>
+                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Scholar Points</p>
                       <p className="text-2xl font-black text-amber-500">+{activeQuiz.earnedPoints}★</p>
                    </div>
                    <div className="w-px h-8 bg-slate-100" />
                    <div className="flex-1">
-                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Correct Answers</p>
+                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Success Rate</p>
                       <p className="text-2xl font-black text-slate-800">{activeQuiz.score}/{activeQuiz.totalQuestions}</p>
                    </div>
                 </div>
              </div>
 
-             <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="rounded-[1.5rem] py-5 font-black uppercase tracking-widest shadow-xl shadow-indigo-100">New Assessment</Button>
+             <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="rounded-[1.5rem] py-5 font-black uppercase tracking-widest shadow-xl shadow-indigo-100">Try New Topic</Button>
           </div>
         )}
       </main>
