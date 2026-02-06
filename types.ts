@@ -7,8 +7,7 @@ export enum Difficulty {
 
 export interface UserProfile {
   name: string;
-  school: string;
-  section: string;
+  school?: string;
   gradeLevel: string;
   subject: string;
   topic: string;

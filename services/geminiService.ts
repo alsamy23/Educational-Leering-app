@@ -2,12 +2,12 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Difficulty, QuizQuestion, UserProfile } from '../types';
 
 /**
- * Helper to ensure the AI client is always initialized with a fresh check for the key.
+ * Helper to ensure the AI client is always initialized with the correctly injected key.
  */
 const getAIClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === "") {
-    throw new Error("API_KEY is missing. Please set it in your hosting provider's (Netlify/Vercel) Environment Variables settings.");
+    throw new Error("API_KEY is missing. Ensure you have set the API_KEY environment variable in your Vercel/Netlify settings.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -23,13 +23,14 @@ export const generateQuizQuestions = async (
   const ai = getAIClient();
 
   const prompt = `Generate a ${count}-question multiple-choice exam for this student:
-  - School: ${profile.school}
-  - Section: ${profile.section}
-  - Grade: ${profile.gradeLevel}
+  - Name: ${profile.name}
+  - School: ${profile.school || 'Not specified'}
+  - Grade Level: ${profile.gradeLevel}
   - Subject: ${profile.subject}
   - Topic: ${profile.topic}
   - Difficulty Level: ${difficulty}
   
+  The questions should be appropriate for the student's grade level and topic.
   Output MUST be a JSON array of objects.
   Each object: { "id": number, "text": string, "options": string[], "correctIndex": number, "explanation": string }`;
 
@@ -38,7 +39,7 @@ export const generateQuizQuestions = async (
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are an elite academic curriculum designer. Your goal is to assess student knowledge with high-quality, relevant questions. Return ONLY valid JSON.",
+        systemInstruction: "You are an elite academic curriculum designer and pedagogical expert. Your goal is to assess student knowledge with high-quality, relevant questions that match their educational level. Return ONLY valid JSON.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -76,7 +77,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Explain this concept clearly: ${text}` }] }],
+      contents: [{ parts: [{ text: `Explain this concept clearly and concisely: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
