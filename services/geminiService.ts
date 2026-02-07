@@ -2,48 +2,62 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Difficulty, QuizQuestion, UserProfile } from '../types';
 
 /**
- * Helper to ensure the AI client is always initialized with the correctly injected key.
+ * Creates a fresh AI instance using the environment-provided API key.
  */
-const getAIClient = () => {
+const getAI = () => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey === "") {
-    // This error triggers if the build process didn't find the environment variable.
-    throw new Error("CRITICAL: API_KEY is missing. In your Netlify/Vercel settings, add a variable named 'API_KEY' with your Google AI Studio key, then trigger a new deploy.");
+  if (!apiKey) {
+    throw new Error("Missing API_KEY environment variable.");
   }
   return new GoogleGenAI({ apiKey });
 };
 
 /**
- * Generates academic quiz questions based on the user's profile and desired difficulty.
+ * Helper for exponential backoff retry.
+ */
+const fetchWithRetry = async <T>(fn: () => Promise<T>, retries: number = 3, delay: number = 2000): Promise<T> => {
+  try {
+    return await fn();
+  } catch (error: any) {
+    if (retries > 0 && (error.message?.includes('503') || error.message?.includes('overloaded') || error.message?.includes('429'))) {
+      await new Promise(res => setTimeout(res, delay));
+      return fetchWithRetry(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Generates academic quiz questions based on board syllabus and difficulty.
  */
 export const generateQuizQuestions = async (
   profile: UserProfile,
   difficulty: Difficulty,
   count: number = 10
 ): Promise<QuizQuestion[]> => {
-  const ai = getAIClient();
+  return fetchWithRetry(async () => {
+    const ai = getAI();
 
-  const prompt = `Generate a ${count}-question multiple-choice exam for this student:
-  - Name: ${profile.name}
-  - School: ${profile.school || 'Not specified'}
-  - Grade Level: ${profile.gradeLevel}
-  - Subject: ${profile.subject}
-  - Topic: ${profile.topic}
-  - Difficulty Level: ${difficulty}
-  
-  Instructions:
-  1. Questions must be challenging but fair for a ${profile.gradeLevel} student.
-  2. Topics should strictly focus on: ${profile.topic}.
-  
-  Output MUST be a JSON array of objects.
-  Each object: { "id": number, "text": string, "options": string[], "correctIndex": number, "explanation": string }`;
+    const prompt = `Generate a ${count}-question ${difficulty} difficulty exam.
+    Student Profile:
+    - Board Pattern: ${profile.board}
+    - Grade: ${profile.gradeLevel}
+    - Subject: ${profile.subject}
+    - Topic: ${profile.topic}
+    
+    Curriculum Guidelines:
+    1. Follow the latest 2024-25 syllabus framework for ${profile.board}.
+    2. Question Pattern: Use board-specific assessment styles (e.g., Application-based for CBSE, High-Order Thinking for ICSE/IGCSE).
+    3. Difficulty ${difficulty}: Adjust complexity of distractors and reasoning required.
+    4. Feedback: The 'explanation' field must explain the concept where the student might fail, acting like a tutor.
+    
+    Output MUST be a JSON array of objects following the schema.`;
 
-  try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are an elite academic curriculum designer and pedagogical expert. Your goal is to assess student knowledge with high-quality, relevant questions that match their educational level. Return ONLY valid JSON.",
+        systemInstruction: `You are a Senior Academic Examiner for the ${profile.board} curriculum. Your goal is to assess student mastery of ${profile.topic} according to the latest Indian educational standards and international frameworks (if IGCSE/IB). Ensure explanations are pedagogically sound.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -63,25 +77,20 @@ export const generateQuizQuestions = async (
     });
 
     const text = response.text;
-    if (!text) throw new Error("The AI examiner provided an empty response.");
-    
+    if (!text) throw new Error("Empty AI response.");
     return JSON.parse(text);
-  } catch (error: any) {
-    console.error("Gemini Error:", error);
-    throw new Error(error.message || "Academic assessment generation failed. Check your network or API settings.");
-  }
+  });
 };
 
 /**
  * Generates an audio explanation for the provided text using Gemini TTS.
  */
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
-  const ai = getAIClient();
-  
+  const ai = getAI();
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Explain this academic concept clearly: ${text}` }] }],
+      contents: [{ parts: [{ text: `Clearly explain this academic concept for a student: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
