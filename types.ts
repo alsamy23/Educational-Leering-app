@@ -12,6 +12,7 @@ export interface Badge {
   description: string;
   condition: string;
   color: string;
+  maxValue: number; // For progression tracking
 }
 
 export interface UserProfile {
@@ -23,6 +24,7 @@ export interface UserProfile {
   topic: string;
   totalQuizzes: number;
   earnedBadges: string[];
+  equippedBadgeId?: string; // The badge currently shown in profile
 }
 
 export interface QuizQuestion {
@@ -52,10 +54,10 @@ export enum AppScreen {
 }
 
 export const BADGES: Badge[] = [
-  { id: 'perfect_10', name: 'Perfect Scholar', icon: '🏆', description: 'Scored 100% in an assessment!', condition: 'Score 100%', color: '#F59E0B' },
-  { id: 'board_master', name: 'Board Specialist', icon: '🧠', description: 'Completed 5 quizzes in your board.', condition: '5 Quizzes', color: '#4F46E5' },
-  { id: 'high_roller', name: 'Point Baron', icon: '💰', description: 'Earned over 1,000 points.', condition: '1000+ Points', color: '#10B981' },
-  { id: 'first_step', name: 'Novice', icon: '🌱', description: 'Completed your first assessment.', condition: 'First Quiz', color: '#6366F1' }
+  { id: 'first_step', name: 'Novice', icon: '🌱', description: 'Completed your first assessment.', condition: 'First Quiz', color: '#6366F1', maxValue: 1 },
+  { id: 'perfect_10', name: 'Perfect Scholar', icon: '🏆', description: 'Scored 100% in an assessment!', condition: 'Score 100%', color: '#F59E0B', maxValue: 1 },
+  { id: 'board_master', name: 'Board Specialist', icon: '🧠', description: 'Complete 5 quizzes in your board.', condition: '5 Quizzes', color: '#4F46E5', maxValue: 5 },
+  { id: 'high_roller', name: 'Point Baron', icon: '💰', description: 'Earn over 1,000 total points.', condition: '1000+ Points', color: '#10B981', maxValue: 1000 }
 ];
 
 export const INDIAN_BOARDS = [

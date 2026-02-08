@@ -40,6 +40,7 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [feedback, setFeedback] = useState<{ selected: number; isCorrect: boolean } | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
+  const [newlyEarnedBadge, setNewlyEarnedBadge] = useState<Badge | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -50,7 +51,6 @@ export default function App() {
     localStorage.setItem('scholarEarn_user', JSON.stringify(user));
   }, [user]);
 
-  // Loading Steps Simulation
   useEffect(() => {
     if (currentScreen === AppScreen.LOADING) {
       const interval = setInterval(() => {
@@ -117,15 +117,26 @@ export default function App() {
   };
 
   const checkBadges = (score: number, total: number) => {
-    const newBadges = [...user.earnedBadges];
+    const currentEarned = [...user.earnedBadges];
+    const newlyWon: string[] = [];
     const percentage = (score / total) * 100;
     
-    if (percentage === 100 && !newBadges.includes('perfect_10')) newBadges.push('perfect_10');
-    if (user.totalQuizzes + 1 >= 5 && !newBadges.includes('board_master')) newBadges.push('board_master');
-    if (totalPoints + (score * 10) >= 1000 && !newBadges.includes('high_roller')) newBadges.push('high_roller');
-    if (user.totalQuizzes === 0 && !newBadges.includes('first_step')) newBadges.push('first_step');
+    // Logic for unlocking badges based on MERIT
+    if (percentage === 100 && !currentEarned.includes('perfect_10')) newlyWon.push('perfect_10');
+    if (user.totalQuizzes + 1 >= 5 && !currentEarned.includes('board_master')) newlyWon.push('board_master');
+    if (totalPoints + (score * 10) >= 1000 && !currentEarned.includes('high_roller')) newlyWon.push('high_roller');
+    if (user.totalQuizzes === 0 && !currentEarned.includes('first_step')) newlyWon.push('first_step');
 
-    setUser(prev => ({ ...prev, totalQuizzes: prev.totalQuizzes + 1, earnedBadges: newBadges }));
+    if (newlyWon.length > 0) {
+      const badgeData = BADGES.find(b => b.id === newlyWon[0]);
+      if (badgeData) setNewlyEarnedBadge(badgeData);
+    }
+
+    setUser(prev => ({ 
+      ...prev, 
+      totalQuizzes: prev.totalQuizzes + 1, 
+      earnedBadges: [...prev.earnedBadges, ...newlyWon] 
+    }));
   };
 
   const nextQuestion = () => {
@@ -210,6 +221,15 @@ export default function App() {
     link.click();
   };
 
+  const equipBadge = (badgeId: string) => {
+    setUser(prev => ({ ...prev, equippedBadgeId: badgeId }));
+  };
+
+  const getBadgeIcon = (id?: string) => {
+    if (!id) return null;
+    return BADGES.find(b => b.id === id)?.icon;
+  };
+
   const speak = async (text: string) => {
     try {
       const buffer = await generateSpeech(text);
@@ -219,17 +239,51 @@ export default function App() {
     }
   };
 
+  const getProgression = (badgeId: string) => {
+    switch (badgeId) {
+      case 'board_master': return user.totalQuizzes;
+      case 'high_roller': return totalPoints;
+      case 'first_step': return user.totalQuizzes > 0 ? 1 : 0;
+      default: return 0;
+    }
+  };
+
   return (
     <div className="h-full bg-slate-50 flex flex-col max-w-lg mx-auto border-x border-slate-200 shadow-2xl relative overflow-hidden font-sans">
+      
+      {/* Badge Unlocked Celebration Modal */}
+      {newlyEarnedBadge && (
+        <div className="absolute inset-0 z-[100] bg-indigo-900/90 flex items-center justify-center p-8 animate-fade-in backdrop-blur-sm">
+           <div className="bg-white rounded-[2.5rem] w-full p-8 text-center space-y-6 shadow-2xl scale-up border-4 border-amber-400">
+              <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center text-5xl mx-auto shadow-inner">
+                {newlyEarnedBadge.icon}
+              </div>
+              <div className="space-y-2">
+                <p className="text-amber-600 font-black uppercase text-xs tracking-widest">New Achievement!</p>
+                <h3 className="text-2xl font-black text-slate-900">{newlyEarnedBadge.name}</h3>
+                <p className="text-sm text-slate-500 font-medium leading-relaxed">{newlyEarnedBadge.description}</p>
+              </div>
+              <Button onClick={() => setNewlyEarnedBadge(null)} className="h-14 rounded-2xl text-xs font-black uppercase">Awesome!</Button>
+           </div>
+        </div>
+      )}
+
       <header className="flex-none flex justify-between items-center p-6 bg-white border-b border-slate-200 shadow-sm z-20">
         <div className="flex flex-col">
-          <h1 onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="text-2xl font-black text-indigo-600 tracking-tight leading-none cursor-pointer">ScholarEarn</h1>
+          <div className="flex items-center gap-2">
+            <h1 onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="text-2xl font-black text-indigo-600 tracking-tight leading-none cursor-pointer">ScholarEarn</h1>
+            {user.equippedBadgeId && (
+              <span className="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-sm shadow-sm border border-white" title="Active Badge">
+                {getBadgeIcon(user.equippedBadgeId)}
+              </span>
+            )}
+          </div>
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 truncate max-w-[150px]">
-            {user.board} Curriculum
+            {user.name || 'Scholar'} • {user.board.split(' ')[0]}
           </p>
         </div>
         <div className="flex items-center gap-2">
-           <button onClick={() => setCurrentScreen(AppScreen.BADGES)} className="w-9 h-9 bg-amber-50 rounded-lg flex items-center justify-center text-lg border border-amber-100">🏅</button>
+           <button onClick={() => setCurrentScreen(AppScreen.BADGES)} className="w-9 h-9 bg-amber-50 rounded-lg flex items-center justify-center text-lg border border-amber-100 transition-transform active:scale-90">🏅</button>
            <div className="bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 flex items-center gap-1.5">
             <span className="text-indigo-600 font-bold text-xs">★</span>
             <span className="font-black text-slate-800 text-sm">{totalPoints.toLocaleString()}</span>
@@ -242,7 +296,7 @@ export default function App() {
           <div className="p-8 animate-fade-in space-y-5 pb-24">
             <div className="text-center space-y-1">
               <h2 className="text-2xl font-black text-slate-900 tracking-tighter">Student Portal</h2>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Free Educational Platform</p>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Merit-Based Learning</p>
             </div>
 
             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-4">
@@ -262,7 +316,7 @@ export default function App() {
               </div>
               <div className="relative">
                 <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full pl-4 pr-10 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Specific Topic" />
-                <button onClick={startListening} className={`absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-indigo-600'}`}><MicIcon /></button>
+                <button onClick={startListening} className={`absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-indigo-600'}`}><MicIcon /></button>
               </div>
             </div>
 
@@ -283,11 +337,8 @@ export default function App() {
                 <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${loadingStep}%` }}></div>
              </div>
              <div className="space-y-2">
-               <h3 className="text-xl font-black text-slate-900 tracking-tight">AI Teacher is Preparing...</h3>
-               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Syllabus: {user.board}</p>
-             </div>
-             <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-sm italic text-xs text-slate-500 leading-relaxed">
-                "Learning is a treasure that will follow its owner everywhere."
+               <h3 className="text-xl font-black text-slate-900 tracking-tight italic">Analyzing Framework...</h3>
+               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Synchronizing board requirements</p>
              </div>
           </div>
         )}
@@ -328,7 +379,7 @@ export default function App() {
                   <div className="animate-fade-in space-y-3 pt-2">
                     <div className={`p-5 rounded-3xl border-2 ${feedback.isCorrect ? 'bg-emerald-50 border-emerald-200' : 'bg-indigo-50 border-indigo-200'}`}>
                       <div className="flex justify-between items-center mb-2">
-                        <p className={`text-[9px] font-black uppercase ${feedback.isCorrect ? 'text-emerald-600' : 'text-indigo-600'}`}>Explanation</p>
+                        <p className={`text-[9px] font-black uppercase ${feedback.isCorrect ? 'text-emerald-600' : 'text-indigo-600'}`}>Syllabus Feedback</p>
                         <button onClick={() => speak(activeQuiz.questions[currentIndex].explanation)} className="p-1.5 hover:bg-white rounded-full"><SpeakerIcon /></button>
                       </div>
                       <p className="text-xs font-bold text-slate-700 italic leading-relaxed">{activeQuiz.questions[currentIndex].explanation}</p>
@@ -344,8 +395,8 @@ export default function App() {
           <div className="p-8 pb-32 animate-fade-in space-y-6 text-center">
              <div className="w-20 h-20 bg-white rounded-3xl shadow-xl mx-auto flex items-center justify-center text-4xl border border-slate-100">🎓</div>
              <div>
-                <h2 className="text-2xl font-black text-slate-900 italic">Analysis Report</h2>
-                <p className="text-slate-400 text-[9px] font-black uppercase mt-1 tracking-widest">{user.name} • {user.board}</p>
+                <h2 className="text-2xl font-black text-slate-900 italic">Merit Analysis</h2>
+                <p className="text-slate-400 text-[9px] font-black uppercase mt-1 tracking-widest">{user.name} • Proficiency: {Math.round((activeQuiz.score / activeQuiz.totalQuestions) * 100)}%</p>
              </div>
 
              <div className="bg-white rounded-[2rem] shadow-lg p-6 border border-slate-200">
@@ -358,7 +409,7 @@ export default function App() {
              </div>
 
              <div className="flex gap-3">
-                <Button onClick={generateCertificate} variant="secondary" className="rounded-xl h-12 text-[10px] font-black uppercase">Download Certificate</Button>
+                <Button onClick={generateCertificate} variant="secondary" className="rounded-xl h-12 text-[10px] font-black uppercase">Download Results</Button>
                 <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} variant="outline" className="rounded-xl h-12 text-[10px] font-black uppercase">Home</Button>
              </div>
              <canvas ref={canvasRef} width="800" height="600" className="hidden" />
@@ -368,21 +419,44 @@ export default function App() {
         {currentScreen === AppScreen.BADGES && (
           <div className="p-8 animate-fade-in space-y-6">
              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-black text-slate-900">Achievements</h2>
-                <button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="text-[10px] font-black text-indigo-600 uppercase">Back</button>
+                <h2 className="text-2xl font-black text-slate-900">Trophy Room</h2>
+                <button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="text-[10px] font-black text-indigo-600 uppercase border border-indigo-100 px-3 py-1 rounded-lg">Back</button>
              </div>
-             <div className="grid grid-cols-2 gap-3">
+             
+             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
+                Unlock badges by mastering topics. Once earned, click a badge to "Equip" it to your profile.
+             </p>
+
+             <div className="grid grid-cols-2 gap-3 pb-24">
                 {BADGES.map(badge => {
                   const isEarned = user.earnedBadges.includes(badge.id);
+                  const isEquipped = user.equippedBadgeId === badge.id;
+                  const currentVal = getProgression(badge.id);
+                  const progressPerc = Math.min((currentVal / badge.maxValue) * 100, 100);
+
                   return (
-                    <div key={badge.id} className={`p-5 rounded-3xl border-2 text-center relative group ${isEarned ? 'bg-white border-slate-100 shadow-md' : 'bg-slate-50 border-slate-50 opacity-40 grayscale'}`}>
+                    <div 
+                      key={badge.id} 
+                      onClick={() => isEarned && equipBadge(badge.id)}
+                      className={`p-5 rounded-3xl border-2 text-center relative group transition-all cursor-pointer ${isEarned ? (isEquipped ? 'bg-indigo-50 border-indigo-500 shadow-indigo-100 scale-[1.02]' : 'bg-white border-slate-100 shadow-sm opacity-100') : 'bg-slate-50 border-slate-50 opacity-60'}`}
+                    >
                        <div className="text-3xl mb-2">{isEarned ? badge.icon : '🔒'}</div>
                        <p className="text-[10px] font-black uppercase mb-1">{badge.name}</p>
-                       <p className="text-[8px] font-medium text-slate-400 mb-3">{badge.description}</p>
+                       <p className="text-[8px] font-medium text-slate-400 mb-3">{isEarned ? badge.description : badge.condition}</p>
+                       
+                       {!isEarned && (
+                         <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden mt-1">
+                            <div className="h-full bg-indigo-300" style={{ width: `${progressPerc}%` }}></div>
+                         </div>
+                       )}
+
                        {isEarned && (
-                         <button onClick={() => shareBadge(badge)} className="w-full py-1.5 bg-slate-50 rounded-lg flex items-center justify-center gap-1.5 text-[9px] font-black text-indigo-600 uppercase border border-indigo-50">
-                            <ShareIcon /> Badge
-                         </button>
+                         <div className="flex flex-col gap-2 mt-2">
+                           <button onClick={(e) => { e.stopPropagation(); shareBadge(badge); }} className="w-full py-1 bg-slate-50 rounded-lg flex items-center justify-center gap-1 text-[8px] font-black text-indigo-600 uppercase border border-indigo-50">
+                              <ShareIcon /> Save
+                           </button>
+                           {isEquipped && <span className="text-[8px] font-black text-indigo-500 uppercase">Equipped</span>}
+                         </div>
                        )}
                     </div>
                   );
