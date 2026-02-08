@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { UserProfile, Difficulty, QuizSession, AppScreen, INDIAN_BOARDS } from './types';
+import React, { useState, useEffect, useRef } from 'react';
+import { UserProfile, Difficulty, QuizSession, AppScreen, INDIAN_BOARDS, BADGES, Badge } from './types';
 import { generateQuizQuestions, generateSpeech, playAudioBuffer } from './services/geminiService';
 import { Button } from './components/Button';
 
@@ -15,6 +15,12 @@ const SpeakerIcon = () => (
   </svg>
 );
 
+const ShareIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-10.628a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5m0 10.628a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5" />
+  </svg>
+);
+
 export default function App() {
   const [totalPoints, setTotalPoints] = useState<number>(() => {
     const saved = localStorage.getItem('scholarEarn_points');
@@ -24,7 +30,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.ENTRY);
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('scholarEarn_user');
-    return saved ? JSON.parse(saved) : { name: '', school: '', board: 'CBSE', gradeLevel: '', subject: '', topic: '' };
+    return saved ? JSON.parse(saved) : { name: '', school: '', board: 'CBSE (National)', gradeLevel: '', subject: '', topic: '', totalQuizzes: 0, earnedBadges: [] };
   });
 
   const [isListening, setIsListening] = useState(false);
@@ -33,6 +39,8 @@ export default function App() {
   const [activeQuiz, setActiveQuiz] = useState<QuizSession | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [feedback, setFeedback] = useState<{ selected: number; isCorrect: boolean } | null>(null);
+  const [loadingStep, setLoadingStep] = useState(0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     localStorage.setItem('scholarEarn_points', totalPoints.toString());
@@ -41,6 +49,18 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('scholarEarn_user', JSON.stringify(user));
   }, [user]);
+
+  // Loading Steps Simulation
+  useEffect(() => {
+    if (currentScreen === AppScreen.LOADING) {
+      const interval = setInterval(() => {
+        setLoadingStep(s => (s < 95 ? s + Math.random() * 15 : s));
+      }, 400);
+      return () => clearInterval(interval);
+    } else {
+      setLoadingStep(0);
+    }
+  }, [currentScreen]);
 
   const startListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -54,7 +74,7 @@ export default function App() {
 
   const startQuiz = async () => {
     if (!user.name || !user.gradeLevel || !user.subject || !user.topic || !user.board) {
-      setError("Please fill in all mandatory fields (Name, Board, Grade, Subject, Topic).");
+      setError("Please fill in all mandatory fields.");
       return;
     }
     setError(null);
@@ -73,7 +93,7 @@ export default function App() {
       setCurrentIndex(0);
       setCurrentScreen(AppScreen.QUIZ);
     } catch (err: any) {
-      setError(err.message || "The server is currently busy. Please try again in a few moments.");
+      setError(err.message || "Something went wrong. Let's try again.");
       setCurrentScreen(AppScreen.ENTRY);
     }
   };
@@ -96,6 +116,18 @@ export default function App() {
     }
   };
 
+  const checkBadges = (score: number, total: number) => {
+    const newBadges = [...user.earnedBadges];
+    const percentage = (score / total) * 100;
+    
+    if (percentage === 100 && !newBadges.includes('perfect_10')) newBadges.push('perfect_10');
+    if (user.totalQuizzes + 1 >= 5 && !newBadges.includes('board_master')) newBadges.push('board_master');
+    if (totalPoints + (score * 10) >= 1000 && !newBadges.includes('high_roller')) newBadges.push('high_roller');
+    if (user.totalQuizzes === 0 && !newBadges.includes('first_step')) newBadges.push('first_step');
+
+    setUser(prev => ({ ...prev, totalQuizzes: prev.totalQuizzes + 1, earnedBadges: newBadges }));
+  };
+
   const nextQuestion = () => {
     if (!activeQuiz) return;
     setFeedback(null);
@@ -105,8 +137,77 @@ export default function App() {
       const earned = activeQuiz.score * 10;
       setTotalPoints(p => p + earned);
       setActiveQuiz({ ...activeQuiz, earnedPoints: earned });
+      checkBadges(activeQuiz.score, activeQuiz.totalQuestions);
       setCurrentScreen(AppScreen.RESULTS);
     }
+  };
+
+  const generateCertificate = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !activeQuiz) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.fillStyle = '#4F46E5';
+    ctx.fillRect(0, 0, 800, 600);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(20, 20, 760, 560);
+    ctx.strokeStyle = '#F59E0B';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(40, 40, 720, 520);
+
+    ctx.fillStyle = '#1E293B';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 40px Inter';
+    ctx.fillText('CERTIFICATE OF ACHIEVEMENT', 400, 150);
+    ctx.font = 'italic 20px Inter';
+    ctx.fillText('This is awarded to', 400, 220);
+    ctx.font = 'bold 50px Inter';
+    ctx.fillStyle = '#4F46E5';
+    ctx.fillText(user.name, 400, 300);
+    ctx.font = '20px Inter';
+    ctx.fillStyle = '#1E293B';
+    ctx.fillText(`Scored ${Math.round((activeQuiz.score/activeQuiz.totalQuestions)*100)}% in ${user.topic}`, 400, 360);
+    ctx.fillText(`Board: ${user.board}`, 400, 400);
+    ctx.font = 'bold 24px Inter';
+    ctx.fillStyle = '#F59E0B';
+    ctx.fillText('ScholarEarn AI Academy', 400, 500);
+
+    const link = document.createElement('a');
+    link.download = `ScholarEarn_Result_${user.name}.png`;
+    link.href = canvas.toDataURL();
+    link.click();
+  };
+
+  const shareBadge = (badge: Badge) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 400;
+    canvas.height = 400;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.fillStyle = badge.color;
+    ctx.fillRect(0, 0, 400, 400);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(200, 200, 180, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.textAlign = 'center';
+    ctx.font = '100px Arial';
+    ctx.fillText(badge.icon, 200, 180);
+    ctx.font = 'bold 30px Inter';
+    ctx.fillStyle = '#1E293B';
+    ctx.fillText(badge.name, 200, 240);
+    ctx.font = '16px Inter';
+    ctx.fillStyle = '#64748B';
+    ctx.fillText('Earned by ' + user.name, 200, 280);
+    ctx.fillText('on ScholarEarn Academy', 200, 310);
+
+    const link = document.createElement('a');
+    link.download = `Badge_${badge.name}.png`;
+    link.href = canvas.toDataURL();
+    link.click();
   };
 
   const speak = async (text: string) => {
@@ -122,135 +223,117 @@ export default function App() {
     <div className="h-full bg-slate-50 flex flex-col max-w-lg mx-auto border-x border-slate-200 shadow-2xl relative overflow-hidden font-sans">
       <header className="flex-none flex justify-between items-center p-6 bg-white border-b border-slate-200 shadow-sm z-20">
         <div className="flex flex-col">
-          <h1 className="text-2xl font-black text-indigo-600 tracking-tight leading-none">ScholarEarn</h1>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 truncate max-w-[150px]">
-            {user.name ? user.name : 'Student Portal'} {user.board && `• ${user.board}`}
+          <h1 onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="text-2xl font-black text-indigo-600 tracking-tight leading-none cursor-pointer">ScholarEarn</h1>
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 truncate max-w-[150px]">
+            {user.board} Curriculum
           </p>
         </div>
-        <div className="bg-indigo-50 px-4 py-2 rounded-2xl border border-indigo-100 flex items-center gap-2">
-          <span className="text-indigo-600 font-bold">★</span>
-          <span className="font-black text-slate-800">{totalPoints.toLocaleString()}</span>
+        <div className="flex items-center gap-2">
+           <button onClick={() => setCurrentScreen(AppScreen.BADGES)} className="w-9 h-9 bg-amber-50 rounded-lg flex items-center justify-center text-lg border border-amber-100">🏅</button>
+           <div className="bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 flex items-center gap-1.5">
+            <span className="text-indigo-600 font-bold text-xs">★</span>
+            <span className="font-black text-slate-800 text-sm">{totalPoints.toLocaleString()}</span>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar">
+      <main className="flex-1 overflow-y-auto no-scrollbar bg-slate-50/50">
         {currentScreen === AppScreen.ENTRY && (
-          <div className="p-8 animate-fade-in space-y-6 pb-24">
-            <div className="text-center space-y-1 py-4">
-              <h2 className="text-3xl font-black text-slate-900 tracking-tighter italic">Exam Portal</h2>
-              <p className="text-slate-400 text-sm font-medium">Select your board and syllabus to begin.</p>
+          <div className="p-8 animate-fade-in space-y-5 pb-24">
+            <div className="text-center space-y-1">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tighter">Student Portal</h2>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Free Educational Platform</p>
             </div>
 
-            <div className="space-y-4">
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-5">
-                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Identification</h3>
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Student Name*</label>
-                    <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 font-bold text-slate-800 placeholder:text-slate-300" placeholder="Alex Johnson" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Board Pattern*</label>
-                    <select value={user.board} onChange={e => setUser({...user, board: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 font-bold text-slate-800 appearance-none cursor-pointer">
-                      {INDIAN_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                  </div>
-                </div>
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Name</label>
+                <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-4 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Student Name" />
               </div>
-
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-5">
-                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-1">Curriculum</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Grade Level*</label>
-                    <input type="text" value={user.gradeLevel} onChange={e => setUser({...user, gradeLevel: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Grade 10" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Subject*</label>
-                    <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-5 py-3 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Physics" />
-                  </div>
-                </div>
-                <div className="space-y-1.5 relative">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Specific Topic*</label>
-                  <div className="relative">
-                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full pl-5 pr-12 py-3 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Thermodynamics" />
-                    <button onClick={startListening} className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-indigo-600 shadow-sm border border-slate-100 hover:bg-slate-50'}`}><MicIcon /></button>
-                  </div>
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Board</label>
+                <select value={user.board} onChange={e => setUser({...user, board: e.target.value})} className="input-field w-full px-4 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800 appearance-none">
+                  {INDIAN_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input type="text" value={user.gradeLevel} onChange={e => setUser({...user, gradeLevel: e.target.value})} className="input-field w-full px-4 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Grade" />
+                <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-4 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Subject" />
+              </div>
+              <div className="relative">
+                <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full pl-4 pr-10 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Specific Topic" />
+                <button onClick={startListening} className={`absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-indigo-600'}`}><MicIcon /></button>
               </div>
             </div>
 
             <div className="flex bg-slate-200/50 p-1.5 rounded-2xl gap-1">
               {Object.values(Difficulty).map(d => (
-                <button key={d} onClick={() => setDifficulty(d)} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${difficulty === d ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>{d}</button>
+                <button key={d} onClick={() => setDifficulty(d)} className={`flex-1 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${difficulty === d ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>{d}</button>
               ))}
             </div>
 
-            {error && (
-              <div className="p-4 bg-red-50 text-red-600 rounded-2xl border border-red-100 animate-fade-in text-center">
-                 <p className="text-[11px] font-bold leading-relaxed">{error}</p>
-                 <button onClick={startQuiz} className="mt-2 text-[10px] underline font-black uppercase tracking-widest">Click to Retry</button>
-              </div>
-            )}
-
-            <Button onClick={startQuiz} className="rounded-[1.5rem] h-14 text-sm font-black tracking-widest uppercase shadow-xl shadow-indigo-100">Prepare Assessment</Button>
+            {error && <p className="text-red-500 text-[10px] font-bold text-center">{error}</p>}
+            <Button onClick={startQuiz} className="rounded-2xl h-12 text-xs font-black uppercase tracking-widest">Start Assessment</Button>
           </div>
         )}
 
         {currentScreen === AppScreen.LOADING && (
-          <div className="flex flex-col items-center justify-center h-full space-y-6 animate-fade-in p-12 text-center">
-             <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+          <div className="flex flex-col items-center justify-center h-full space-y-6 p-12 text-center animate-fade-in">
+             <div className="w-full max-w-[200px] h-3 bg-slate-200 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${loadingStep}%` }}></div>
+             </div>
              <div className="space-y-2">
-               <h3 className="text-2xl font-black text-slate-900">Synchronizing Board Framework</h3>
-               <p className="text-xs text-slate-400 font-bold uppercase tracking-widest leading-relaxed">Applying {user.board} latest syllabus patterns for {user.topic}...</p>
+               <h3 className="text-xl font-black text-slate-900 tracking-tight">AI Teacher is Preparing...</h3>
+               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Syllabus: {user.board}</p>
+             </div>
+             <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-sm italic text-xs text-slate-500 leading-relaxed">
+                "Learning is a treasure that will follow its owner everywhere."
              </div>
           </div>
         )}
 
         {currentScreen === AppScreen.QUIZ && activeQuiz && (
-          <div className="p-8 h-full flex flex-col animate-fade-in">
-             <div className="flex justify-between items-end mb-8">
+          <div className="p-6 h-full flex flex-col animate-fade-in">
+             <div className="flex justify-between items-end mb-6">
                 <div>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Board: {activeQuiz.profile.board}</p>
-                   <p className="text-4xl font-black">{currentIndex + 1}<span className="text-slate-300 text-xl font-medium">/{activeQuiz.questions.length}</span></p>
+                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{activeQuiz.profile.topic}</p>
+                   <p className="text-3xl font-black">{currentIndex + 1}<span className="text-slate-300 text-lg">/{activeQuiz.questions.length}</span></p>
                 </div>
-                <div className="px-3 py-1 bg-white shadow-sm rounded-lg text-[9px] font-black text-slate-600 uppercase border border-slate-100">{activeQuiz.difficulty}</div>
+                <div className="text-[10px] font-black px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg">{activeQuiz.difficulty}</div>
              </div>
 
-             <div className="flex-1 space-y-6 overflow-y-auto no-scrollbar pb-10">
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-                  <h2 className="text-lg font-bold text-slate-800 leading-snug">{activeQuiz.questions[currentIndex].text}</h2>
+             <div className="flex-1 space-y-4 overflow-y-auto no-scrollbar pb-10">
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                  <h2 className="text-base font-bold text-slate-800 leading-relaxed">{activeQuiz.questions[currentIndex].text}</h2>
                 </div>
 
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   {activeQuiz.questions[currentIndex].options.map((opt, i) => {
-                    let style = "bg-white border-slate-200 text-slate-600 hover:border-indigo-400";
+                    let style = "bg-white border-slate-100 text-slate-600";
                     if (feedback) {
                       if (i === activeQuiz.questions[currentIndex].correctIndex) style = "bg-emerald-50 border-emerald-500 text-emerald-700";
                       else if (i === feedback.selected && !feedback.isCorrect) style = "bg-red-50 border-red-500 text-red-700";
-                      else style = "opacity-40 grayscale pointer-events-none";
+                      else style = "opacity-30 pointer-events-none";
                     }
                     return (
-                      <button key={i} disabled={!!feedback} onClick={() => handleAnswer(i)} className={`w-full p-4 text-left rounded-xl border-2 transition-all font-bold flex items-center gap-4 ${style}`}>
-                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${feedback && i === activeQuiz.questions[currentIndex].correctIndex ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>{String.fromCharCode(65 + i)}</span>
-                        <span className="text-sm">{opt}</span>
+                      <button key={i} disabled={!!feedback} onClick={() => handleAnswer(i)} className={`w-full p-3.5 text-left rounded-2xl border-2 transition-all font-bold flex items-center gap-3 ${style}`}>
+                        <span className="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400 flex-none">{String.fromCharCode(65 + i)}</span>
+                        <span className="text-sm leading-tight">{opt}</span>
                       </button>
                     );
                   })}
                 </div>
 
                 {feedback && (
-                  <div className="animate-fade-in space-y-4 pt-4">
-                    <div className={`p-6 rounded-[2rem] border-2 ${feedback.isCorrect ? 'bg-emerald-50 border-emerald-200 shadow-emerald-100' : 'bg-indigo-50 border-indigo-200 shadow-indigo-100'} shadow-lg`}>
-                      <div className="flex justify-between items-center mb-3">
-                        <p className={`text-[10px] font-black uppercase tracking-widest ${feedback.isCorrect ? 'text-emerald-600' : 'text-indigo-600'}`}>Syllabus Feedback</p>
-                        <button onClick={() => speak(activeQuiz.questions[currentIndex].explanation)} className="text-indigo-600 p-2 hover:bg-indigo-100 rounded-full"><SpeakerIcon /></button>
+                  <div className="animate-fade-in space-y-3 pt-2">
+                    <div className={`p-5 rounded-3xl border-2 ${feedback.isCorrect ? 'bg-emerald-50 border-emerald-200' : 'bg-indigo-50 border-indigo-200'}`}>
+                      <div className="flex justify-between items-center mb-2">
+                        <p className={`text-[9px] font-black uppercase ${feedback.isCorrect ? 'text-emerald-600' : 'text-indigo-600'}`}>Explanation</p>
+                        <button onClick={() => speak(activeQuiz.questions[currentIndex].explanation)} className="p-1.5 hover:bg-white rounded-full"><SpeakerIcon /></button>
                       </div>
-                      <p className="text-sm font-bold text-slate-800 italic leading-relaxed">{activeQuiz.questions[currentIndex].explanation}</p>
+                      <p className="text-xs font-bold text-slate-700 italic leading-relaxed">{activeQuiz.questions[currentIndex].explanation}</p>
                     </div>
-                    {!feedback.isCorrect && (
-                      <Button onClick={nextQuestion} className="rounded-xl h-14 shadow-lg">Proceed to Next</Button>
-                    )}
+                    {!feedback.isCorrect && <Button onClick={nextQuestion} className="h-12 rounded-2xl">Continue</Button>}
                   </div>
                 )}
              </div>
@@ -258,32 +341,53 @@ export default function App() {
         )}
 
         {currentScreen === AppScreen.RESULTS && activeQuiz && (
-          <div className="p-8 pb-32 animate-fade-in space-y-8 text-center">
+          <div className="p-8 pb-32 animate-fade-in space-y-6 text-center">
+             <div className="w-20 h-20 bg-white rounded-3xl shadow-xl mx-auto flex items-center justify-center text-4xl border border-slate-100">🎓</div>
              <div>
-                <div className="w-16 h-16 bg-white rounded-2xl shadow-md mx-auto flex items-center justify-center text-3xl mb-4 border border-slate-100">🎓</div>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tighter italic">Grade Analysis</h2>
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1.5">{user.name} • {activeQuiz.profile.board} Curriculum</p>
+                <h2 className="text-2xl font-black text-slate-900 italic">Analysis Report</h2>
+                <p className="text-slate-400 text-[9px] font-black uppercase mt-1 tracking-widest">{user.name} • {user.board}</p>
              </div>
 
-             <div className="bg-white rounded-[2rem] shadow-lg p-8 border border-slate-200">
-                <div className="pb-6 mb-6 border-b border-slate-100 text-center">
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Proficiency Level</p>
-                   <p className="text-6xl font-black text-indigo-600 tracking-tighter">{Math.round((activeQuiz.score / activeQuiz.totalQuestions) * 100)}%</p>
-                </div>
-                <div className="flex justify-between items-center text-center">
-                   <div className="flex-1">
-                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Rewards</p>
-                      <p className="text-2xl font-black text-amber-500">+{activeQuiz.earnedPoints}★</p>
-                   </div>
-                   <div className="w-px h-8 bg-slate-100" />
-                   <div className="flex-1">
-                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Accuracy</p>
-                      <p className="text-2xl font-black text-slate-800">{activeQuiz.score}/{activeQuiz.totalQuestions}</p>
-                   </div>
+             <div className="bg-white rounded-[2rem] shadow-lg p-6 border border-slate-200">
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Accuracy</p>
+                <p className="text-5xl font-black text-indigo-600 mb-4">{Math.round((activeQuiz.score / activeQuiz.totalQuestions) * 100)}%</p>
+                <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
+                   <div><p className="text-[9px] font-black text-slate-400 uppercase">Points</p><p className="text-xl font-black text-amber-500">+{activeQuiz.earnedPoints}★</p></div>
+                   <div><p className="text-[9px] font-black text-slate-400 uppercase">Correct</p><p className="text-xl font-black text-slate-800">{activeQuiz.score}/{activeQuiz.totalQuestions}</p></div>
                 </div>
              </div>
 
-             <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="rounded-[1.5rem] py-5 font-black uppercase tracking-widest shadow-xl shadow-indigo-100">Return to Portal</Button>
+             <div className="flex gap-3">
+                <Button onClick={generateCertificate} variant="secondary" className="rounded-xl h-12 text-[10px] font-black uppercase">Download Certificate</Button>
+                <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} variant="outline" className="rounded-xl h-12 text-[10px] font-black uppercase">Home</Button>
+             </div>
+             <canvas ref={canvasRef} width="800" height="600" className="hidden" />
+          </div>
+        )}
+
+        {currentScreen === AppScreen.BADGES && (
+          <div className="p-8 animate-fade-in space-y-6">
+             <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-black text-slate-900">Achievements</h2>
+                <button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="text-[10px] font-black text-indigo-600 uppercase">Back</button>
+             </div>
+             <div className="grid grid-cols-2 gap-3">
+                {BADGES.map(badge => {
+                  const isEarned = user.earnedBadges.includes(badge.id);
+                  return (
+                    <div key={badge.id} className={`p-5 rounded-3xl border-2 text-center relative group ${isEarned ? 'bg-white border-slate-100 shadow-md' : 'bg-slate-50 border-slate-50 opacity-40 grayscale'}`}>
+                       <div className="text-3xl mb-2">{isEarned ? badge.icon : '🔒'}</div>
+                       <p className="text-[10px] font-black uppercase mb-1">{badge.name}</p>
+                       <p className="text-[8px] font-medium text-slate-400 mb-3">{badge.description}</p>
+                       {isEarned && (
+                         <button onClick={() => shareBadge(badge)} className="w-full py-1.5 bg-slate-50 rounded-lg flex items-center justify-center gap-1.5 text-[9px] font-black text-indigo-600 uppercase border border-indigo-50">
+                            <ShareIcon /> Badge
+                         </button>
+                       )}
+                    </div>
+                  );
+                })}
+             </div>
           </div>
         )}
       </main>

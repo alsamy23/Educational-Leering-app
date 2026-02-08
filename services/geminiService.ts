@@ -1,64 +1,51 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Difficulty, QuizQuestion, UserProfile } from '../types';
 
-/**
- * Creates a fresh AI instance using the environment-provided API key.
- */
 const getAI = () => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("Missing API_KEY environment variable.");
-  }
+  if (!apiKey) throw new Error("API_KEY missing");
   return new GoogleGenAI({ apiKey });
 };
 
-/**
- * Helper for exponential backoff retry.
- */
-const fetchWithRetry = async <T>(fn: () => Promise<T>, retries: number = 3, delay: number = 2000): Promise<T> => {
+const fetchWithRetry = async <T>(fn: () => Promise<T>, retries: number = 2, delay: number = 1000): Promise<T> => {
   try {
     return await fn();
   } catch (error: any) {
-    if (retries > 0 && (error.message?.includes('503') || error.message?.includes('overloaded') || error.message?.includes('429'))) {
+    if (retries > 0 && (error.message?.includes('503') || error.message?.includes('429'))) {
       await new Promise(res => setTimeout(res, delay));
-      return fetchWithRetry(fn, retries - 1, delay * 2);
+      return fetchWithRetry(fn, retries - 1, delay * 1.5);
     }
     throw error;
   }
 };
 
-/**
- * Generates academic quiz questions based on board syllabus and difficulty.
- */
 export const generateQuizQuestions = async (
   profile: UserProfile,
   difficulty: Difficulty,
-  count: number = 10
+  count: number = 5 // Reduced to 5 for maximum speed while maintaining educational value
 ): Promise<QuizQuestion[]> => {
   return fetchWithRetry(async () => {
     const ai = getAI();
 
-    const prompt = `Generate a ${count}-question ${difficulty} difficulty exam.
-    Student Profile:
-    - Board Pattern: ${profile.board}
-    - Grade: ${profile.gradeLevel}
-    - Subject: ${profile.subject}
-    - Topic: ${profile.topic}
+    // Specific instruction to follow the selected board pattern
+    const prompt = `Generate 5 multiple choice questions for ${profile.board} syllabus.
+    Level: Grade ${profile.gradeLevel}, Difficulty ${difficulty}.
+    Subject: ${profile.subject}. Topic: ${profile.topic}.
     
-    Curriculum Guidelines:
-    1. Follow the latest 2024-25 syllabus framework for ${profile.board}.
-    2. Question Pattern: Use board-specific assessment styles (e.g., Application-based for CBSE, High-Order Thinking for ICSE/IGCSE).
-    3. Difficulty ${difficulty}: Adjust complexity of distractors and reasoning required.
-    4. Feedback: The 'explanation' field must explain the concept where the student might fail, acting like a tutor.
+    Requirements:
+    1. STRICTLY follow ${profile.board} latest 2024 syllabus question styles.
+    2. Explanations must be encouraging and explain the "why" for students.
+    3. Ensure distractors (wrong options) are plausible based on common student mistakes in this board.
     
-    Output MUST be a JSON array of objects following the schema.`;
+    Output JSON only.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: `You are a Senior Academic Examiner for the ${profile.board} curriculum. Your goal is to assess student mastery of ${profile.topic} according to the latest Indian educational standards and international frameworks (if IGCSE/IB). Ensure explanations are pedagogically sound.`,
+        systemInstruction: `You are a curriculum expert for ${profile.board}. Generate accurate, syllabus-aligned exam questions instantly. Return ONLY JSON.`,
         responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 0 },
         responseSchema: {
           type: Type.ARRAY,
           items: {
@@ -82,51 +69,36 @@ export const generateQuizQuestions = async (
   });
 };
 
-/**
- * Generates an audio explanation for the provided text using Gemini TTS.
- */
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   const ai = getAI();
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Clearly explain this academic concept for a student: ${text}` }] }],
+      contents: [{ parts: [{ text: `Explain this concept clearly: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
-          },
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
         },
       },
     });
-
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Audio) throw new Error("Audio generation failed");
-
+    if (!base64Audio) throw new Error("Audio failed");
     const binaryString = atob(base64Audio);
     const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
+    for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
     return bytes.buffer;
   } catch (error) {
-    console.error("TTS Error:", error);
     throw error;
   }
 };
 
-/**
- * Plays raw PCM audio data in the browser.
- */
 export const playAudioBuffer = async (buffer: ArrayBuffer) => {
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
   const dataInt16 = new Int16Array(buffer);
   const audioBuffer = ctx.createBuffer(1, dataInt16.length, 24000);
   const channelData = audioBuffer.getChannelData(0);
-  for (let i = 0; i < dataInt16.length; i++) {
-    channelData[i] = dataInt16[i] / 32768.0;
-  }
+  for (let i = 0; i < dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
   const source = ctx.createBufferSource();
   source.buffer = audioBuffer;
   source.connect(ctx.destination);
