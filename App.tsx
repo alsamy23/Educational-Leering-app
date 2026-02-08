@@ -28,9 +28,28 @@ export default function App() {
   });
   
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.ENTRY);
+  
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('scholarEarn_user');
-    return saved ? JSON.parse(saved) : { name: '', school: '', board: 'CBSE (National)', gradeLevel: '', subject: '', topic: '', totalQuizzes: 0, earnedBadges: [] };
+    const defaults: UserProfile = { 
+      name: '', 
+      school: '', 
+      board: 'CBSE (National)', 
+      gradeLevel: '', 
+      subject: '', 
+      topic: '', 
+      totalQuizzes: 0, 
+      earnedBadges: [],
+      equippedBadgeId: undefined
+    };
+    if (!saved) return defaults;
+    try {
+      const parsed = JSON.parse(saved);
+      // Merge defaults with parsed to ensure earnedBadges and other new fields exist
+      return { ...defaults, ...parsed };
+    } catch {
+      return defaults;
+    }
   });
 
   const [isListening, setIsListening] = useState(false);
@@ -117,15 +136,14 @@ export default function App() {
   };
 
   const checkBadges = (score: number, total: number) => {
-    const currentEarned = [...user.earnedBadges];
+    const currentEarned = [...(user.earnedBadges || [])];
     const newlyWon: string[] = [];
     const percentage = (score / total) * 100;
     
-    // Logic for unlocking badges based on MERIT
     if (percentage === 100 && !currentEarned.includes('perfect_10')) newlyWon.push('perfect_10');
-    if (user.totalQuizzes + 1 >= 5 && !currentEarned.includes('board_master')) newlyWon.push('board_master');
+    if ((user.totalQuizzes || 0) + 1 >= 5 && !currentEarned.includes('board_master')) newlyWon.push('board_master');
     if (totalPoints + (score * 10) >= 1000 && !currentEarned.includes('high_roller')) newlyWon.push('high_roller');
-    if (user.totalQuizzes === 0 && !currentEarned.includes('first_step')) newlyWon.push('first_step');
+    if ((user.totalQuizzes || 0) === 0 && !currentEarned.includes('first_step')) newlyWon.push('first_step');
 
     if (newlyWon.length > 0) {
       const badgeData = BADGES.find(b => b.id === newlyWon[0]);
@@ -134,8 +152,8 @@ export default function App() {
 
     setUser(prev => ({ 
       ...prev, 
-      totalQuizzes: prev.totalQuizzes + 1, 
-      earnedBadges: [...prev.earnedBadges, ...newlyWon] 
+      totalQuizzes: (prev.totalQuizzes || 0) + 1, 
+      earnedBadges: [...(prev.earnedBadges || []), ...newlyWon] 
     }));
   };
 
@@ -241,9 +259,9 @@ export default function App() {
 
   const getProgression = (badgeId: string) => {
     switch (badgeId) {
-      case 'board_master': return user.totalQuizzes;
-      case 'high_roller': return totalPoints;
-      case 'first_step': return user.totalQuizzes > 0 ? 1 : 0;
+      case 'board_master': return user.totalQuizzes || 0;
+      case 'high_roller': return totalPoints || 0;
+      case 'first_step': return (user.totalQuizzes || 0) > 0 ? 1 : 0;
       default: return 0;
     }
   };
@@ -279,7 +297,7 @@ export default function App() {
             )}
           </div>
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 truncate max-w-[150px]">
-            {user.name || 'Scholar'} • {user.board.split(' ')[0]}
+            {user.name || 'Scholar'} • {(user.board || 'CBSE').split(' ')[0]}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -417,19 +435,19 @@ export default function App() {
         )}
 
         {currentScreen === AppScreen.BADGES && (
-          <div className="p-8 animate-fade-in space-y-6">
+          <div className="p-8 animate-fade-in h-full overflow-y-auto no-scrollbar space-y-6">
              <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-black text-slate-900">Trophy Room</h2>
-                <button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="text-[10px] font-black text-indigo-600 uppercase border border-indigo-100 px-3 py-1 rounded-lg">Back</button>
+                <button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="text-[10px] font-black text-indigo-600 uppercase border border-indigo-100 px-3 py-1 rounded-lg bg-white">Back</button>
              </div>
              
              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
                 Unlock badges by mastering topics. Once earned, click a badge to "Equip" it to your profile.
              </p>
 
-             <div className="grid grid-cols-2 gap-3 pb-24">
+             <div className="grid grid-cols-2 gap-3 pb-32">
                 {BADGES.map(badge => {
-                  const isEarned = user.earnedBadges.includes(badge.id);
+                  const isEarned = (user.earnedBadges || []).includes(badge.id);
                   const isEquipped = user.equippedBadgeId === badge.id;
                   const currentVal = getProgression(badge.id);
                   const progressPerc = Math.min((currentVal / badge.maxValue) * 100, 100);
