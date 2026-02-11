@@ -1,13 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, Difficulty, QuizSession, AppScreen, INDIAN_BOARDS, BADGES, Badge } from './types';
-import { generateQuizQuestions, generateSpeech, playAudioBuffer } from './services/geminiService';
+import React, { useState, useEffect } from 'react';
+import { UserProfile, Difficulty, QuizSession, AppScreen, ExamMode, QuestionType, BoardSection } from './types';
+import { generateQuizQuestions, generateSpeech, playAudioBuffer, generateQuestionImage } from './services/geminiService';
 import { Button } from './components/Button';
-
-const MicIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
-  </svg>
-);
 
 const SpeakerIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
@@ -15,9 +9,15 @@ const SpeakerIcon = () => (
   </svg>
 );
 
-const ShareIcon = () => (
+const ChartBarIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-10.628a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5m0 10.628a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V19.875c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+  </svg>
+);
+
+const ImageIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6.75a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6.75v10.5a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
   </svg>
 );
 
@@ -28,381 +28,358 @@ export default function App() {
   });
   
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.ENTRY);
-  
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('scholarEarn_user');
     const defaults: UserProfile = { 
       name: '', 
-      school: '', 
+      school: '',
+      section: '',
       board: 'CBSE (National)', 
-      gradeLevel: '', 
+      gradeLevel: '10', 
       subject: '', 
       topic: '', 
+      isFullSyllabus: false,
       totalQuizzes: 0, 
       earnedBadges: [],
-      equippedBadgeId: undefined
+      examMode: ExamMode.CBSE_FULL_PATTERN,
+      selectedSection: BoardSection.FULL_MOCK
     };
     if (!saved) return defaults;
     try {
       const parsed = JSON.parse(saved);
-      // Merge defaults with parsed to ensure earnedBadges and other new fields exist
       return { ...defaults, ...parsed };
     } catch {
       return defaults;
     }
   });
 
-  const [isListening, setIsListening] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.MEDIUM);
   const [error, setError] = useState<string | null>(null);
   const [activeQuiz, setActiveQuiz] = useState<QuizSession | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [feedback, setFeedback] = useState<{ selected: number; isCorrect: boolean } | null>(null);
+  const [feedback, setFeedback] = useState<{ selected?: number; isCorrect?: boolean; showModel?: boolean } | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
-  const [newlyEarnedBadge, setNewlyEarnedBadge] = useState<Badge | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [loadingMessage, setLoadingMessage] = useState("Initializing Examiner AI...");
+  const [qImage, setQImage] = useState<string>("");
+  const [isImageLoading, setIsImageLoading] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('scholarEarn_points', totalPoints.toString());
-  }, [totalPoints]);
-
-  useEffect(() => {
     localStorage.setItem('scholarEarn_user', JSON.stringify(user));
-  }, [user]);
+  }, [totalPoints, user]);
 
   useEffect(() => {
     if (currentScreen === AppScreen.LOADING) {
+      const messages = [
+        "Analyzing board pattern...",
+        "Drafting concise questions...",
+        "Finalizing JSON structure...",
+        "Applying marking logic...",
+        "Almost ready..."
+      ];
+      let msgIdx = 0;
       const interval = setInterval(() => {
-        setLoadingStep(s => (s < 95 ? s + Math.random() * 15 : s));
-      }, 400);
+        setLoadingMessage(messages[msgIdx % messages.length]);
+        setLoadingStep(s => Math.min(s + 20, 100));
+        msgIdx++;
+      }, 1500);
       return () => clearInterval(interval);
-    } else {
-      setLoadingStep(0);
     }
   }, [currentScreen]);
 
-  const startListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-    const recognition = new SpeechRecognition();
-    recognition.onstart = () => setIsListening(true);
-    recognition.onresult = (e: any) => setUser(prev => ({ ...prev, topic: e.results[0][0].transcript }));
-    recognition.onend = () => setIsListening(false);
-    recognition.start();
-  };
+  useEffect(() => {
+    if (currentScreen === AppScreen.QUIZ && activeQuiz?.questions[currentIndex]) {
+      const q = activeQuiz.questions[currentIndex];
+      setQImage("");
+      if (q.visualDescription) {
+        setIsImageLoading(true);
+        generateQuestionImage(q.visualDescription).then(url => {
+          setQImage(url);
+          setIsImageLoading(false);
+        }).catch(() => setIsImageLoading(false));
+      }
+    }
+  }, [currentIndex, currentScreen, activeQuiz]);
 
   const startQuiz = async () => {
-    if (!user.name || !user.gradeLevel || !user.subject || !user.topic || !user.board) {
-      setError("Please fill in all mandatory fields.");
+    if (!user.name || !user.subject || (!user.topic && !user.isFullSyllabus)) {
+      setError("Please fill in Name, Subject, and Topic.");
       return;
     }
     setError(null);
     setCurrentScreen(AppScreen.LOADING);
     try {
       const questions = await generateQuizQuestions(user, difficulty);
+      if (!questions || questions.length === 0) throw new Error("AI returned no results.");
+      
       setActiveQuiz({
         profile: user,
         difficulty,
         questions,
-        userAnswers: new Array(questions.length).fill(-1),
+        userAnswers: new Array(questions.length).fill(null),
         score: 0,
         totalQuestions: questions.length,
-        earnedPoints: 0
+        earnedPoints: 0,
+        batchNumber: (user.totalQuizzes || 0) + 1
       });
       setCurrentIndex(0);
       setCurrentScreen(AppScreen.QUIZ);
     } catch (err: any) {
-      setError(err.message || "Something went wrong. Let's try again.");
+      setError(err.message || "Failed to generate board paper.");
       setCurrentScreen(AppScreen.ENTRY);
     }
   };
 
-  const handleAnswer = (index: number) => {
-    if (feedback || !activeQuiz) return;
-    const isCorrect = index === activeQuiz.questions[currentIndex].correctIndex;
-    setFeedback({ selected: index, isCorrect });
-    
-    const answers = [...activeQuiz.userAnswers];
-    answers[currentIndex] = index;
-    setActiveQuiz({ 
-      ...activeQuiz, 
-      userAnswers: answers, 
-      score: isCorrect ? activeQuiz.score + 1 : activeQuiz.score 
-    });
-
-    if (isCorrect) {
-      setTimeout(nextQuestion, 1500);
+  const handleMCQ = (idx: number) => {
+    if (feedback) return;
+    const isCorrect = idx === activeQuiz?.questions[currentIndex].correctIndex;
+    setFeedback({ selected: idx, isCorrect });
+    if (activeQuiz) {
+      const answers = [...activeQuiz.userAnswers];
+      answers[currentIndex] = idx;
+      setActiveQuiz({ ...activeQuiz, userAnswers: answers, score: isCorrect ? activeQuiz.score + 1 : activeQuiz.score });
     }
-  };
-
-  const checkBadges = (score: number, total: number) => {
-    const currentEarned = [...(user.earnedBadges || [])];
-    const newlyWon: string[] = [];
-    const percentage = (score / total) * 100;
-    
-    if (percentage === 100 && !currentEarned.includes('perfect_10')) newlyWon.push('perfect_10');
-    if ((user.totalQuizzes || 0) + 1 >= 5 && !currentEarned.includes('board_master')) newlyWon.push('board_master');
-    if (totalPoints + (score * 10) >= 1000 && !currentEarned.includes('high_roller')) newlyWon.push('high_roller');
-    if ((user.totalQuizzes || 0) === 0 && !currentEarned.includes('first_step')) newlyWon.push('first_step');
-
-    if (newlyWon.length > 0) {
-      const badgeData = BADGES.find(b => b.id === newlyWon[0]);
-      if (badgeData) setNewlyEarnedBadge(badgeData);
-    }
-
-    setUser(prev => ({ 
-      ...prev, 
-      totalQuizzes: (prev.totalQuizzes || 0) + 1, 
-      earnedBadges: [...(prev.earnedBadges || []), ...newlyWon] 
-    }));
+    if (isCorrect) setTimeout(nextQuestion, 1500);
   };
 
   const nextQuestion = () => {
-    if (!activeQuiz) return;
     setFeedback(null);
-    if (currentIndex < activeQuiz.totalQuestions - 1) {
+    if (activeQuiz && currentIndex < activeQuiz.questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
-    } else {
-      const earned = activeQuiz.score * 10;
+    } else if (activeQuiz) {
+      const earned = (activeQuiz.score || 0) * 100;
       setTotalPoints(p => p + earned);
-      setActiveQuiz({ ...activeQuiz, earnedPoints: earned });
-      checkBadges(activeQuiz.score, activeQuiz.totalQuestions);
+      setUser(u => ({ ...u, totalQuizzes: (u.totalQuizzes || 0) + 1 }));
       setCurrentScreen(AppScreen.RESULTS);
     }
   };
 
-  const generateCertificate = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !activeQuiz) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.fillStyle = '#4F46E5';
-    ctx.fillRect(0, 0, 800, 600);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(20, 20, 760, 560);
-    ctx.strokeStyle = '#F59E0B';
-    ctx.lineWidth = 10;
-    ctx.strokeRect(40, 40, 720, 520);
-
-    ctx.fillStyle = '#1E293B';
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 40px Inter';
-    ctx.fillText('CERTIFICATE OF ACHIEVEMENT', 400, 150);
-    ctx.font = 'italic 20px Inter';
-    ctx.fillText('This is awarded to', 400, 220);
-    ctx.font = 'bold 50px Inter';
-    ctx.fillStyle = '#4F46E5';
-    ctx.fillText(user.name, 400, 300);
-    ctx.font = '20px Inter';
-    ctx.fillStyle = '#1E293B';
-    ctx.fillText(`Scored ${Math.round((activeQuiz.score/activeQuiz.totalQuestions)*100)}% in ${user.topic}`, 400, 360);
-    ctx.fillText(`Board: ${user.board}`, 400, 400);
-    ctx.font = 'bold 24px Inter';
-    ctx.fillStyle = '#F59E0B';
-    ctx.fillText('ScholarEarn AI Academy', 400, 500);
-
-    const link = document.createElement('a');
-    link.download = `ScholarEarn_Result_${user.name}.png`;
-    link.href = canvas.toDataURL();
-    link.click();
-  };
-
-  const shareBadge = (badge: Badge) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 400;
-    canvas.height = 400;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.fillStyle = badge.color;
-    ctx.fillRect(0, 0, 400, 400);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(200, 200, 180, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.textAlign = 'center';
-    ctx.font = '100px Arial';
-    ctx.fillText(badge.icon, 200, 180);
-    ctx.font = 'bold 30px Inter';
-    ctx.fillStyle = '#1E293B';
-    ctx.fillText(badge.name, 200, 240);
-    ctx.font = '16px Inter';
-    ctx.fillStyle = '#64748B';
-    ctx.fillText('Earned by ' + user.name, 200, 280);
-    ctx.fillText('on ScholarEarn Academy', 200, 310);
-
-    const link = document.createElement('a');
-    link.download = `Badge_${badge.name}.png`;
-    link.href = canvas.toDataURL();
-    link.click();
-  };
-
-  const equipBadge = (badgeId: string) => {
-    setUser(prev => ({ ...prev, equippedBadgeId: badgeId }));
-  };
-
-  const getBadgeIcon = (id?: string) => {
-    if (!id) return null;
-    return BADGES.find(b => b.id === id)?.icon;
-  };
-
-  const speak = async (text: string) => {
+  const speak = async (txt: string) => {
     try {
-      const buffer = await generateSpeech(text);
-      await playAudioBuffer(buffer);
-    } catch (e) {
-      console.error(e);
-    }
+      const buf = await generateSpeech(txt);
+      await playAudioBuffer(buf);
+    } catch (e) { console.error(e); }
   };
 
-  const getProgression = (badgeId: string) => {
-    switch (badgeId) {
-      case 'board_master': return user.totalQuizzes || 0;
-      case 'high_roller': return totalPoints || 0;
-      case 'first_step': return (user.totalQuizzes || 0) > 0 ? 1 : 0;
-      default: return 0;
-    }
-  };
+  const currentQ = activeQuiz?.questions[currentIndex];
+  const isMcqStyle = currentQ && (
+    currentQ.type === QuestionType.MCQ || 
+    currentQ.type === QuestionType.ASSERTION_REASON || 
+    (currentQ.type === QuestionType.CASE_STUDY && currentQ.options && currentQ.options.length > 0)
+  );
 
   return (
     <div className="h-full bg-slate-50 flex flex-col max-w-lg mx-auto border-x border-slate-200 shadow-2xl relative overflow-hidden font-sans">
       
-      {/* Badge Unlocked Celebration Modal */}
-      {newlyEarnedBadge && (
-        <div className="absolute inset-0 z-[100] bg-indigo-900/90 flex items-center justify-center p-8 animate-fade-in backdrop-blur-sm">
-           <div className="bg-white rounded-[2.5rem] w-full p-8 text-center space-y-6 shadow-2xl scale-up border-4 border-amber-400">
-              <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center text-5xl mx-auto shadow-inner">
-                {newlyEarnedBadge.icon}
-              </div>
-              <div className="space-y-2">
-                <p className="text-amber-600 font-black uppercase text-xs tracking-widest">New Achievement!</p>
-                <h3 className="text-2xl font-black text-slate-900">{newlyEarnedBadge.name}</h3>
-                <p className="text-sm text-slate-500 font-medium leading-relaxed">{newlyEarnedBadge.description}</p>
-              </div>
-              <Button onClick={() => setNewlyEarnedBadge(null)} className="h-14 rounded-2xl text-xs font-black uppercase">Awesome!</Button>
-           </div>
+      <header className="flex-none p-5 bg-white border-b border-slate-200 flex justify-between items-center z-20">
+        <div onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="cursor-pointer">
+           <h1 className="text-xl font-black text-indigo-600 tracking-tighter leading-none">ScholarEarn</h1>
+           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Board Exam Simulator</span>
         </div>
-      )}
-
-      <header className="flex-none flex justify-between items-center p-6 bg-white border-b border-slate-200 shadow-sm z-20">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <h1 onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="text-2xl font-black text-indigo-600 tracking-tight leading-none cursor-pointer">ScholarEarn</h1>
-            {user.equippedBadgeId && (
-              <span className="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-sm shadow-sm border border-white" title="Active Badge">
-                {getBadgeIcon(user.equippedBadgeId)}
-              </span>
-            )}
-          </div>
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 truncate max-w-[150px]">
-            {user.name || 'Scholar'} • {(user.board || 'CBSE').split(' ')[0]}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-           <button onClick={() => setCurrentScreen(AppScreen.BADGES)} className="w-9 h-9 bg-amber-50 rounded-lg flex items-center justify-center text-lg border border-amber-100 transition-transform active:scale-90">🏅</button>
-           <div className="bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 flex items-center gap-1.5">
-            <span className="text-indigo-600 font-bold text-xs">★</span>
-            <span className="font-black text-slate-800 text-sm">{totalPoints.toLocaleString()}</span>
-          </div>
+        <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100 flex items-center gap-1.5 shadow-sm">
+          <span className="text-amber-500 font-bold text-xs">★</span>
+          <span className="font-black text-slate-800 text-xs">{totalPoints.toLocaleString()}</span>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar bg-slate-50/50">
+      <main className="flex-1 overflow-y-auto no-scrollbar">
         {currentScreen === AppScreen.ENTRY && (
-          <div className="p-8 animate-fade-in space-y-5 pb-24">
-            <div className="text-center space-y-1">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tighter">Student Portal</h2>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Merit-Based Learning</p>
+          <div className="p-8 space-y-6 animate-fade-in pb-32">
+            <div className="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
+               <h2 className="text-2xl font-black italic">Mock Board Center</h2>
+               <p className="text-indigo-100 text-xs font-medium opacity-90">Enter details to generate your exam paper.</p>
             </div>
 
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Name</label>
-                <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-4 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Student Name" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Board</label>
-                <select value={user.board} onChange={e => setUser({...user, board: e.target.value})} className="input-field w-full px-4 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800 appearance-none">
-                  {INDIAN_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input type="text" value={user.gradeLevel} onChange={e => setUser({...user, gradeLevel: e.target.value})} className="input-field w-full px-4 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Grade" />
-                <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-4 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Subject" />
-              </div>
-              <div className="relative">
-                <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full pl-4 pr-10 py-2.5 rounded-xl bg-slate-50 font-bold text-slate-800" placeholder="Specific Topic" />
-                <button onClick={startListening} className={`absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-indigo-600'}`}><MicIcon /></button>
-              </div>
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm space-y-5">
+               <div className="space-y-4 pb-2 border-b border-slate-100">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Student Name</label>
+                    <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 font-bold text-sm" placeholder="Full Name" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">School</label>
+                      <input type="text" value={user.school} onChange={e => setUser({...user, school: e.target.value})} className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 font-bold text-sm" placeholder="School Name" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Section</label>
+                      <input type="text" value={user.section} onChange={e => setUser({...user, section: e.target.value})} className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 font-bold text-sm" placeholder="e.g. B" />
+                    </div>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Grade</label>
+                    <select value={user.gradeLevel} onChange={e => setUser({...user, gradeLevel: e.target.value})} className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 font-bold text-sm appearance-none cursor-pointer">
+                       <option value="10">Class 10</option>
+                       <option value="12">Class 12</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Subject</label>
+                    <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 font-bold text-sm" placeholder="e.g. Science" />
+                  </div>
+               </div>
+
+               <div className="space-y-2">
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase">Focus Area</label>
+                    <button onClick={() => setUser({...user, isFullSyllabus: !user.isFullSyllabus})} className={`text-[9px] font-black px-2 py-0.5 rounded-md transition-colors ${user.isFullSyllabus ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-400'}`}>Full Syllabus</button>
+                  </div>
+                  {!user.isFullSyllabus && (
+                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 font-bold text-sm animate-fade-in" placeholder="Chapter Name" />
+                  )}
+               </div>
+
+               <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Exam Section</label>
+                  <select value={user.selectedSection} onChange={e => setUser({...user, selectedSection: e.target.value as BoardSection})} className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 font-bold text-sm appearance-none cursor-pointer">
+                     {Object.values(BoardSection).map(sec => <option key={sec} value={sec}>{sec}</option>)}
+                  </select>
+               </div>
             </div>
 
-            <div className="flex bg-slate-200/50 p-1.5 rounded-2xl gap-1">
-              {Object.values(Difficulty).map(d => (
-                <button key={d} onClick={() => setDifficulty(d)} className={`flex-1 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${difficulty === d ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>{d}</button>
-              ))}
-            </div>
-
-            {error && <p className="text-red-500 text-[10px] font-bold text-center">{error}</p>}
-            <Button onClick={startQuiz} className="rounded-2xl h-12 text-xs font-black uppercase tracking-widest">Start Assessment</Button>
+            <Button onClick={startQuiz} className="h-14 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-200">Start Mock Exam</Button>
+            {error && (
+              <div className="bg-red-50 p-4 rounded-2xl border border-red-100 space-y-2">
+                <p className="text-red-500 text-[10px] font-black uppercase text-center">{error}</p>
+                <button onClick={() => {setError(null); setCurrentScreen(AppScreen.ENTRY)}} className="w-full text-[9px] font-bold text-red-400 underline uppercase tracking-widest">Reset & Try Again</button>
+              </div>
+            )}
           </div>
         )}
 
         {currentScreen === AppScreen.LOADING && (
-          <div className="flex flex-col items-center justify-center h-full space-y-6 p-12 text-center animate-fade-in">
-             <div className="w-full max-w-[200px] h-3 bg-slate-200 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${loadingStep}%` }}></div>
+          <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-8 animate-fade-in">
+             <div className="relative">
+               <div className="w-20 h-20 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+               <div className="absolute inset-0 flex items-center justify-center font-black text-indigo-600 text-[10px] tracking-tighter italic">AI</div>
              </div>
-             <div className="space-y-2">
-               <h3 className="text-xl font-black text-slate-900 tracking-tight italic">Analyzing Framework...</h3>
-               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Synchronizing board requirements</p>
+             <div className="space-y-4 w-full">
+                <div className="space-y-1">
+                   <h3 className="text-xl font-black text-slate-900 tracking-tight italic">{loadingMessage}</h3>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">CBSE Standard 2025</p>
+                </div>
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                   <div className="h-full bg-indigo-600 rounded-full transition-all duration-700 ease-out shadow-sm shadow-indigo-100" style={{ width: `${loadingStep}%` }}></div>
+                </div>
              </div>
           </div>
         )}
 
-        {currentScreen === AppScreen.QUIZ && activeQuiz && (
+        {currentScreen === AppScreen.QUIZ && activeQuiz && currentQ && (
           <div className="p-6 h-full flex flex-col animate-fade-in">
-             <div className="flex justify-between items-end mb-6">
+             <div className="flex justify-between items-end mb-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
                 <div>
-                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{activeQuiz.profile.topic}</p>
-                   <p className="text-3xl font-black">{currentIndex + 1}<span className="text-slate-300 text-lg">/{activeQuiz.questions.length}</span></p>
+                   <p className="text-[9px] font-black text-indigo-600 uppercase mb-0.5 tracking-widest">Progress</p>
+                   <p className="text-3xl font-black tracking-tighter">{currentIndex + 1}<span className="text-slate-300 text-xl font-medium">/{activeQuiz.questions.length}</span></p>
                 </div>
-                <div className="text-[10px] font-black px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg">{activeQuiz.difficulty}</div>
+                <div className="flex flex-col items-end gap-1.5">
+                   <span className="text-[9px] font-black px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100 uppercase tracking-wider">{currentQ.section || 'Board Pattern'}</span>
+                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter italic">{currentQ.type}</span>
+                </div>
              </div>
 
-             <div className="flex-1 space-y-4 overflow-y-auto no-scrollbar pb-10">
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                  <h2 className="text-base font-bold text-slate-800 leading-relaxed">{activeQuiz.questions[currentIndex].text}</h2>
-                </div>
+             <div className="flex-1 space-y-5 overflow-y-auto no-scrollbar pb-32">
+                {currentQ.caseText && (
+                  <div className="bg-amber-50 p-6 rounded-[2.5rem] border border-amber-100 shadow-sm animate-fade-in">
+                     <div className="flex items-center gap-2 mb-3">
+                       <span className="p-1.5 bg-amber-500 rounded-xl text-white scale-75"><ChartBarIcon /></span>
+                       <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Case Scenario</p>
+                     </div>
+                     <p className="text-xs font-bold leading-relaxed text-slate-800 italic">"{currentQ.caseText}"</p>
+                  </div>
+                )}
 
-                <div className="grid gap-2">
-                  {activeQuiz.questions[currentIndex].options.map((opt, i) => {
-                    let style = "bg-white border-slate-100 text-slate-600";
-                    if (feedback) {
-                      if (i === activeQuiz.questions[currentIndex].correctIndex) style = "bg-emerald-50 border-emerald-500 text-emerald-700";
-                      else if (i === feedback.selected && !feedback.isCorrect) style = "bg-red-50 border-red-500 text-red-700";
-                      else style = "opacity-30 pointer-events-none";
-                    }
-                    return (
-                      <button key={i} disabled={!!feedback} onClick={() => handleAnswer(i)} className={`w-full p-3.5 text-left rounded-2xl border-2 transition-all font-bold flex items-center gap-3 ${style}`}>
-                        <span className="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400 flex-none">{String.fromCharCode(65 + i)}</span>
-                        <span className="text-sm leading-tight">{opt}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {feedback && (
-                  <div className="animate-fade-in space-y-3 pt-2">
-                    <div className={`p-5 rounded-3xl border-2 ${feedback.isCorrect ? 'bg-emerald-50 border-emerald-200' : 'bg-indigo-50 border-indigo-200'}`}>
-                      <div className="flex justify-between items-center mb-2">
-                        <p className={`text-[9px] font-black uppercase ${feedback.isCorrect ? 'text-emerald-600' : 'text-indigo-600'}`}>Syllabus Feedback</p>
-                        <button onClick={() => speak(activeQuiz.questions[currentIndex].explanation)} className="p-1.5 hover:bg-white rounded-full"><SpeakerIcon /></button>
-                      </div>
-                      <p className="text-xs font-bold text-slate-700 italic leading-relaxed">{activeQuiz.questions[currentIndex].explanation}</p>
+                {(isImageLoading || qImage) && (
+                  <div className="bg-white p-3 rounded-3xl border border-slate-200 shadow-sm flex flex-col gap-3">
+                    <div className="flex items-center gap-2 px-1 text-[9px] font-black text-indigo-600 uppercase tracking-widest">
+                      <ImageIcon /> Visual Aid
                     </div>
-                    {!feedback.isCorrect && <Button onClick={nextQuestion} className="h-12 rounded-2xl">Continue</Button>}
+                    {isImageLoading ? (
+                      <div className="aspect-video bg-slate-50 animate-pulse rounded-2xl flex items-center justify-center text-[9px] text-slate-300 font-black uppercase tracking-widest italic">Generating Diagram...</div>
+                    ) : (
+                      <img src={qImage} alt="Visual Aid" className="w-full h-auto rounded-2xl object-contain bg-white max-h-[250px] shadow-sm" />
+                    )}
+                  </div>
+                )}
+
+                <div className="bg-white p-7 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden">
+                   <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-600"></div>
+                   {currentQ.boardFavoriteReason && <div className="absolute -top-1 -right-1 px-3 py-1 bg-emerald-500 text-white text-[8px] font-black rounded-bl-2xl shadow-md uppercase tracking-widest">Board Favorite</div>}
+                   <h2 className="text-base font-bold text-slate-900 leading-snug tracking-tight">{currentQ.text}</h2>
+                </div>
+
+                {isMcqStyle ? (
+                  <div className="grid gap-2.5">
+                    {currentQ.options?.map((opt, i) => {
+                      let style = "bg-white border-slate-200 text-slate-600";
+                      if (feedback) {
+                        if (i === currentQ.correctIndex) style = "bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-100";
+                        else if (i === feedback.selected && !feedback.isCorrect) style = "bg-red-50 border-red-500 text-red-700 ring-2 ring-red-100";
+                        else style = "opacity-30 pointer-events-none scale-95";
+                      }
+                      return (
+                        <button key={i} disabled={!!feedback} onClick={() => handleMCQ(i)} className={`w-full p-4 text-left rounded-2xl border transition-all flex items-center gap-4 ${style}`}>
+                           <span className={`w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-black flex-none shadow-sm ${feedback && i === currentQ.correctIndex ? 'bg-emerald-500 text-white' : 'bg-slate-50 text-slate-500'}`}>{String.fromCharCode(65 + i)}</span>
+                           <span className="text-sm font-bold leading-tight">{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                     {!feedback?.showModel ? (
+                       <div className="space-y-4">
+                         <div className="p-6 bg-slate-100 rounded-[2.5rem] border border-slate-200 text-center">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 italic">Recall Section</p>
+                            <p className="text-xs text-slate-500 font-bold leading-relaxed px-4 italic">Think of your answer points first, then compare with the official marking scheme.</p>
+                         </div>
+                         <Button onClick={() => setFeedback({ showModel: true })} variant="secondary" className="rounded-2xl h-15 uppercase font-black tracking-widest text-[10px] shadow-lg shadow-emerald-100">Show Model Answer</Button>
+                         <button onClick={nextQuestion} className="w-full text-[9px] font-black text-slate-300 uppercase tracking-widest hover:text-indigo-600 transition-colors py-2">Skip Section</button>
+                       </div>
+                     ) : (
+                       <div className="bg-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100 space-y-5 animate-fade-in shadow-xl shadow-indigo-100/50">
+                          <div>
+                             <p className="text-[9px] font-black text-indigo-600 uppercase mb-2.5 tracking-widest">Examiner's Model Answer</p>
+                             <div className="text-xs font-bold leading-relaxed text-slate-700 p-5 bg-white rounded-3xl border border-indigo-100 shadow-sm italic">{currentQ.modelAnswer}</div>
+                          </div>
+                          {currentQ.markingScheme && (
+                            <div className="bg-white/60 p-5 rounded-3xl border border-indigo-100 shadow-sm">
+                               <p className="text-[9px] font-black text-indigo-600 uppercase mb-3">Marking Scheme</p>
+                               <ul className="text-[10px] font-bold text-slate-600 space-y-2.5">
+                                  {currentQ.markingScheme.map((s, idx) => <li key={idx} className="flex gap-2.5 text-indigo-900/80">
+                                    <span className="text-indigo-500">✔</span> {s}
+                                  </li>)}
+                               </ul>
+                            </div>
+                          )}
+                          <Button onClick={nextQuestion} className="rounded-2xl h-12 shadow-md uppercase font-black text-[10px] tracking-widest">Proceed</Button>
+                       </div>
+                     )}
+                  </div>
+                )}
+
+                {feedback && (feedback.isCorrect !== undefined || feedback.showModel) && (
+                  <div className="animate-fade-in p-6 bg-white rounded-[2.5rem] border-2 border-slate-100 shadow-2xl space-y-5">
+                     <div className="flex justify-between items-center border-b border-slate-50 pb-3">
+                        <p className="text-[9px] font-black uppercase text-indigo-600 flex items-center gap-2 tracking-widest">Explanation</p>
+                        <button onClick={() => speak(currentQ.explanation)} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90"><SpeakerIcon /></button>
+                     </div>
+                     <p className="text-xs font-bold text-slate-700 leading-relaxed italic pr-4">{currentQ.explanation}</p>
+                     {currentQ.boardFavoriteReason && (
+                       <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex gap-3 items-center">
+                         <span className="text-xl">🎯</span>
+                         <div>
+                            <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">Examiner Tip</p>
+                            <p className="text-[10px] font-bold text-emerald-900 leading-snug">{currentQ.boardFavoriteReason}</p>
+                         </div>
+                       </div>
+                     )}
+                     {(feedback.isCorrect === false) && (
+                       <Button onClick={nextQuestion} className="h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-100">Next Question</Button>
+                     )}
                   </div>
                 )}
              </div>
@@ -410,75 +387,30 @@ export default function App() {
         )}
 
         {currentScreen === AppScreen.RESULTS && activeQuiz && (
-          <div className="p-8 pb-32 animate-fade-in space-y-6 text-center">
-             <div className="w-20 h-20 bg-white rounded-3xl shadow-xl mx-auto flex items-center justify-center text-4xl border border-slate-100">🎓</div>
-             <div>
-                <h2 className="text-2xl font-black text-slate-900 italic">Merit Analysis</h2>
-                <p className="text-slate-400 text-[9px] font-black uppercase mt-1 tracking-widest">{user.name} • Proficiency: {Math.round((activeQuiz.score / activeQuiz.totalQuestions) * 100)}%</p>
-             </div>
-
-             <div className="bg-white rounded-[2rem] shadow-lg p-6 border border-slate-200">
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Accuracy</p>
-                <p className="text-5xl font-black text-indigo-600 mb-4">{Math.round((activeQuiz.score / activeQuiz.totalQuestions) * 100)}%</p>
-                <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
-                   <div><p className="text-[9px] font-black text-slate-400 uppercase">Points</p><p className="text-xl font-black text-amber-500">+{activeQuiz.earnedPoints}★</p></div>
-                   <div><p className="text-[9px] font-black text-slate-400 uppercase">Correct</p><p className="text-xl font-black text-slate-800">{activeQuiz.score}/{activeQuiz.totalQuestions}</p></div>
+          <div className="p-8 text-center space-y-10 animate-fade-in pb-32">
+             <div className="space-y-4">
+                <div className="w-24 h-24 bg-indigo-600 rounded-[2.5rem] mx-auto flex items-center justify-center text-4xl shadow-2xl shadow-indigo-200 border-4 border-white rotate-3">🏁</div>
+                <div className="space-y-1">
+                   <h2 className="text-4xl font-black text-slate-900 tracking-tighter italic">Mock Done</h2>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{user.school} | {user.selectedSection}</p>
                 </div>
              </div>
 
-             <div className="flex gap-3">
-                <Button onClick={generateCertificate} variant="secondary" className="rounded-xl h-12 text-[10px] font-black uppercase">Download Results</Button>
-                <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} variant="outline" className="rounded-xl h-12 text-[10px] font-black uppercase">Home</Button>
+             <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 grid grid-cols-2 gap-10 relative overflow-hidden ring-1 ring-slate-100">
+                <div className="absolute top-0 left-0 w-full h-2.5 bg-gradient-to-r from-indigo-500 via-emerald-500 to-amber-500"></div>
+                <div>
+                   <p className="text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest">Score</p>
+                   <p className="text-5xl font-black text-indigo-600 tabular-nums">{activeQuiz.score}<span className="text-slate-200 text-2xl font-black">/</span><span className="text-slate-300 text-xl font-black">{activeQuiz.questions.length}</span></p>
+                </div>
+                <div>
+                   <p className="text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest">Points</p>
+                   <p className="text-5xl font-black text-amber-500 tabular-nums">+{activeQuiz.score * 100}</p>
+                </div>
              </div>
-             <canvas ref={canvasRef} width="800" height="600" className="hidden" />
-          </div>
-        )}
 
-        {currentScreen === AppScreen.BADGES && (
-          <div className="p-8 animate-fade-in h-full overflow-y-auto no-scrollbar space-y-6">
-             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-black text-slate-900">Trophy Room</h2>
-                <button onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="text-[10px] font-black text-indigo-600 uppercase border border-indigo-100 px-3 py-1 rounded-lg bg-white">Back</button>
-             </div>
-             
-             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
-                Unlock badges by mastering topics. Once earned, click a badge to "Equip" it to your profile.
-             </p>
-
-             <div className="grid grid-cols-2 gap-3 pb-32">
-                {BADGES.map(badge => {
-                  const isEarned = (user.earnedBadges || []).includes(badge.id);
-                  const isEquipped = user.equippedBadgeId === badge.id;
-                  const currentVal = getProgression(badge.id);
-                  const progressPerc = Math.min((currentVal / badge.maxValue) * 100, 100);
-
-                  return (
-                    <div 
-                      key={badge.id} 
-                      onClick={() => isEarned && equipBadge(badge.id)}
-                      className={`p-5 rounded-3xl border-2 text-center relative group transition-all cursor-pointer ${isEarned ? (isEquipped ? 'bg-indigo-50 border-indigo-500 shadow-indigo-100 scale-[1.02]' : 'bg-white border-slate-100 shadow-sm opacity-100') : 'bg-slate-50 border-slate-50 opacity-60'}`}
-                    >
-                       <div className="text-3xl mb-2">{isEarned ? badge.icon : '🔒'}</div>
-                       <p className="text-[10px] font-black uppercase mb-1">{badge.name}</p>
-                       <p className="text-[8px] font-medium text-slate-400 mb-3">{isEarned ? badge.description : badge.condition}</p>
-                       
-                       {!isEarned && (
-                         <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden mt-1">
-                            <div className="h-full bg-indigo-300" style={{ width: `${progressPerc}%` }}></div>
-                         </div>
-                       )}
-
-                       {isEarned && (
-                         <div className="flex flex-col gap-2 mt-2">
-                           <button onClick={(e) => { e.stopPropagation(); shareBadge(badge); }} className="w-full py-1 bg-slate-50 rounded-lg flex items-center justify-center gap-1 text-[8px] font-black text-indigo-600 uppercase border border-indigo-50">
-                              <ShareIcon /> Save
-                           </button>
-                           {isEquipped && <span className="text-[8px] font-black text-indigo-500 uppercase">Equipped</span>}
-                         </div>
-                       )}
-                    </div>
-                  );
-                })}
+             <div className="flex flex-col gap-4">
+                <Button onClick={startQuiz} className="h-18 rounded-[2rem] uppercase font-black text-xs tracking-widest shadow-2xl shadow-indigo-200 active:translate-y-1">New Batch</Button>
+                <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} variant="outline" className="h-15 rounded-[2rem] uppercase font-black text-[10px] tracking-widest border-slate-200 text-slate-400">Exit Center</Button>
              </div>
           </div>
         )}

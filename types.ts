@@ -5,6 +5,28 @@ export enum Difficulty {
   EXPERT = 'Expert'
 }
 
+export enum QuestionType {
+  MCQ = 'MCQ',
+  CASE_STUDY = 'CASE_STUDY',
+  THEORY = 'THEORY',
+  ASSERTION_REASON = 'ASSERTION_REASON'
+}
+
+export enum ExamMode {
+  MCQ_ONLY = 'MCQ_ONLY',
+  CBSE_FULL_PATTERN = 'CBSE_FULL_PATTERN',
+  SECTION_WISE = 'SECTION_WISE'
+}
+
+export enum BoardSection {
+  SECTION_A = 'Section A (MCQs)',
+  SECTION_B = 'Section B (VSA)',
+  SECTION_C = 'Section C (SA)',
+  SECTION_D = 'Section D (LA)',
+  SECTION_E = 'Section E (Case Study)',
+  FULL_MOCK = 'Full Pattern (A-E)'
+}
+
 export interface Badge {
   id: string;
   name: string;
@@ -12,37 +34,49 @@ export interface Badge {
   description: string;
   condition: string;
   color: string;
-  maxValue: number; // For progression tracking
+  maxValue: number;
 }
 
 export interface UserProfile {
   name: string;
-  school?: string;
+  school: string;
+  section: string;
   board: string;
   gradeLevel: string;
   subject: string;
   topic: string;
+  isFullSyllabus: boolean;
   totalQuizzes: number;
   earnedBadges: string[];
-  equippedBadgeId?: string; // The badge currently shown in profile
+  equippedBadgeId?: string;
+  examMode: ExamMode;
+  selectedSection: BoardSection;
 }
 
 export interface QuizQuestion {
   id: number;
+  type: QuestionType;
+  section: string;
   text: string;
-  options: string[];
-  correctIndex: number;
+  caseText?: string;
+  visualDescription?: string;
+  options?: string[];
+  correctIndex?: number;
   explanation: string;
+  modelAnswer?: string;
+  markingScheme?: string[];
+  boardFavoriteReason?: string;
 }
 
 export interface QuizSession {
   profile: UserProfile;
   difficulty: Difficulty;
   questions: QuizQuestion[];
-  userAnswers: number[];
+  userAnswers: any[];
   score: number;
   totalQuestions: number;
   earnedPoints: number;
+  batchNumber: number;
 }
 
 export enum AppScreen {
@@ -54,42 +88,7 @@ export enum AppScreen {
 }
 
 export const BADGES: Badge[] = [
-  { id: 'first_step', name: 'Novice', icon: '🌱', description: 'Completed your first assessment.', condition: 'First Quiz', color: '#6366F1', maxValue: 1 },
-  { id: 'perfect_10', name: 'Perfect Scholar', icon: '🏆', description: 'Scored 100% in an assessment!', condition: 'Score 100%', color: '#F59E0B', maxValue: 1 },
-  { id: 'board_master', name: 'Board Specialist', icon: '🧠', description: 'Complete 5 quizzes in your board.', condition: '5 Quizzes', color: '#4F46E5', maxValue: 5 },
-  { id: 'high_roller', name: 'Point Baron', icon: '💰', description: 'Earn over 1,000 total points.', condition: '1000+ Points', color: '#10B981', maxValue: 1000 }
-];
-
-export const INDIAN_BOARDS = [
-  "CBSE (National)",
-  "ICSE (National)",
-  "IGCSE (International)",
-  "IB (International)",
-  "Andhra Pradesh (BIEAP)",
-  "Assam (AHSEC)",
-  "Bihar (BSEB)",
-  "Chhattisgarh (CGBSE)",
-  "Goa (GBSHSE)",
-  "Gujarat (GSEB)",
-  "Haryana (HBSE)",
-  "Himachal Pradesh (HPBOSE)",
-  "Jharkhand (JAC)",
-  "Karnataka (KSEEB)",
-  "Kerala (DHSE)",
-  "Madhya Pradesh (MPBSE)",
-  "Maharashtra (MSBSHSE)",
-  "Manipur (COHSEM)",
-  "Meghalaya (MBOSE)",
-  "Mizoram (MBSE)",
-  "Nagaland (NBSE)",
-  "Odisha (CHSE)",
-  "Punjab (PSEB)",
-  "Rajasthan (RBSE)",
-  "Sikkim (SBSE)",
-  "Tamil Nadu (TNBSE)",
-  "Telangana (TSBIE)",
-  "Tripura (TBSE)",
-  "Uttar Pradesh (UPMSP)",
-  "Uttarakhand (UBSE)",
-  "West Bengal (WBBSE)"
+  { id: 'board_ready', name: 'Board Ready', icon: '📝', description: 'Completed a 10-question CBSE Batch.', condition: '1 Batch', color: '#4F46E5', maxValue: 1 },
+  { id: 'case_master', name: 'Analyst', icon: '🧐', description: 'Mastered CBSE Case Studies.', condition: '5 Case Studies', color: '#10B981', maxValue: 5 },
+  { id: 'centum', name: 'Centum Scorer', icon: '💯', description: 'Scored 10/10 in a Mock Batch.', condition: 'Perfect Score', color: '#F59E0B', maxValue: 1 }
 ];
