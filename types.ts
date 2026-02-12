@@ -14,81 +14,44 @@ export enum QuestionType {
 
 export enum ExamMode {
   MCQ_ONLY = 'MCQ_ONLY',
-  CBSE_FULL_PATTERN = 'CBSE_FULL_PATTERN',
-  SECTION_WISE = 'SECTION_WISE'
+  CBSE_FULL_PATTERN = 'CBSE_FULL_PATTERN'
 }
 
-export enum BoardSection {
-  SECTION_A = 'Section A (MCQs)',
-  SECTION_B = 'Section B (VSA)',
-  SECTION_C = 'Section C (SA)',
-  SECTION_D = 'Section D (LA)',
-  SECTION_E = 'Section E (Case Study)',
-  FULL_MOCK = 'Full Pattern (A-E)'
-}
-
-export interface Badge {
-  id: string;
-  name: string;
-  icon: string;
-  description: string;
-  condition: string;
-  color: string;
-  maxValue: number;
+export enum StudyFocus {
+  SYLLABUS = 'Syllabus',
+  PATTERN = 'Exam Pattern',
+  TOPICS = 'Specific Topics'
 }
 
 export interface UserProfile {
   name: string;
-  school: string;
-  section: string;
-  board: string;
   gradeLevel: string;
   subject: string;
+  focus: StudyFocus;
   topic: string;
-  isFullSyllabus: boolean;
+  difficulty: Difficulty;
   totalQuizzes: number;
-  earnedBadges: string[];
-  equippedBadgeId?: string;
-  examMode: ExamMode;
-  selectedSection: BoardSection;
 }
 
 export interface QuizQuestion {
   id: number;
   type: QuestionType;
-  section: string;
   text: string;
-  caseText?: string;
-  visualDescription?: string;
-  options?: string[];
-  correctIndex?: number;
+  options: string[];
+  correctIndex: number;
   explanation: string;
-  modelAnswer?: string;
-  markingScheme?: string[];
-  boardFavoriteReason?: string;
 }
 
 export interface QuizSession {
   profile: UserProfile;
-  difficulty: Difficulty;
   questions: QuizQuestion[];
-  userAnswers: any[];
+  userAnswers: (number | null)[];
   score: number;
-  totalQuestions: number;
-  earnedPoints: number;
-  batchNumber: number;
 }
 
 export enum AppScreen {
   ENTRY = 'ENTRY',
   LOADING = 'LOADING',
   QUIZ = 'QUIZ',
-  RESULTS = 'RESULTS',
-  BADGES = 'BADGES'
+  RESULTS = 'RESULTS'
 }
-
-export const BADGES: Badge[] = [
-  { id: 'board_ready', name: 'Board Ready', icon: '📝', description: 'Completed a 10-question CBSE Batch.', condition: '1 Batch', color: '#4F46E5', maxValue: 1 },
-  { id: 'case_master', name: 'Analyst', icon: '🧐', description: 'Mastered CBSE Case Studies.', condition: '5 Case Studies', color: '#10B981', maxValue: 5 },
-  { id: 'centum', name: 'Centum Scorer', icon: '💯', description: 'Scored 10/10 in a Mock Batch.', condition: 'Perfect Score', color: '#F59E0B', maxValue: 1 }
-];
