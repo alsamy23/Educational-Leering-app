@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Difficulty, QuizSession, AppScreen, StudyFocus } from './types';
 import { generateQuizQuestions, generateSpeech, playAudio } from './services/geminiService';
 import { Button } from './components/Button';
+import { Analytics } from '@vercel/analytics/react';
 
 export default function App() {
   const [totalPoints, setTotalPoints] = useState<number>(() => Number(localStorage.getItem('se_pts') || 0));
@@ -295,6 +296,7 @@ export default function App() {
           </div>
         )}
       </main>
+      <Analytics />
     </div>
   );
 }
