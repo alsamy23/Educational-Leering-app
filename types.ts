@@ -1,20 +1,8 @@
-export enum Difficulty {
-  EASY = 'Easy',
-  MEDIUM = 'Medium',
-  HARD = 'Hard',
-  EXPERT = 'Expert'
-}
-
 export enum QuestionType {
   MCQ = 'MCQ',
+  WORD_PROBLEM = 'WORD_PROBLEM',
   CASE_STUDY = 'CASE_STUDY',
-  THEORY = 'THEORY',
-  ASSERTION_REASON = 'ASSERTION_REASON'
-}
-
-export enum ExamMode {
-  MCQ_ONLY = 'MCQ_ONLY',
-  CBSE_FULL_PATTERN = 'CBSE_FULL_PATTERN'
+  VISUAL_ANALYSIS = 'VISUAL_ANALYSIS'
 }
 
 export enum StudyFocus {
@@ -29,7 +17,7 @@ export interface UserProfile {
   subject: string;
   focus: StudyFocus;
   topic: string;
-  difficulty: Difficulty;
+  level: number; // Progressive level (1, 2, 3...)
   totalQuizzes: number;
 }
 
@@ -37,6 +25,7 @@ export interface QuizQuestion {
   id: number;
   type: QuestionType;
   text: string;
+  contextMaterial?: string; // Holds the Case Study text or Image Description
   options: string[];
   correctIndex: number;
   explanation: string;

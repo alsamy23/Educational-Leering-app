@@ -1,5 +1,5 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { Difficulty, QuizQuestion, UserProfile, QuestionType, StudyFocus } from '../types';
+import { GoogleGenAI, Modality } from "@google/genai";
+import { QuizQuestion, UserProfile, QuestionType, StudyFocus } from '../types';
 
 const getAI = () => {
   const apiKey = process.env.API_KEY;
@@ -7,99 +7,131 @@ const getAI = () => {
   return new GoogleGenAI({ apiKey });
 };
 
-const QUESTION_SCHEMA = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      id: { type: Type.INTEGER },
-      type: { type: Type.STRING, enum: [QuestionType.MCQ] },
-      text: { type: Type.STRING },
-      options: { type: Type.ARRAY, items: { type: Type.STRING } },
-      correctIndex: { type: Type.INTEGER },
-      explanation: { type: Type.STRING }
-    },
-    required: ["id", "type", "text", "options", "correctIndex", "explanation"]
-  }
-};
-
 const repairJson = (text: string): string => {
   let cleaned = text.trim();
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?/, '').replace(/```$/, '').trim();
+  // Remove markdown code blocks if present
+  if (cleaned.includes('```')) {
+    cleaned = cleaned.replace(/```(?:json)?/g, '').replace(/```/g, '');
   }
-  return cleaned;
+  return cleaned.trim();
 };
 
-export const generateQuizQuestions = async (profile: UserProfile): Promise<QuizQuestion[]> => {
+export const generateQuizQuestions = async (profile: UserProfile, isMockMode: boolean = false): Promise<QuizQuestion[]> => {
   const ai = getAI();
-  const focusContext = profile.focus === StudyFocus.SYLLABUS 
-    ? "the entire syllabus" 
-    : profile.focus === StudyFocus.PATTERN 
-    ? "the latest board exam pattern" 
-    : `the specific topic: ${profile.topic}`;
+  const gradeInt = parseInt(profile.gradeLevel) || 10;
+  
+  let focusContext = "";
+  if (isMockMode) {
+    focusContext = "a full Mock Exam covering mixed topics and patterns";
+  } else {
+    focusContext = profile.focus === StudyFocus.SYLLABUS 
+      ? `Level ${profile.level} coverage of the syllabus` 
+      : profile.focus === StudyFocus.PATTERN 
+      ? "Board Exam Pattern questions" 
+      : `Level ${profile.level} questions on: ${profile.topic}`;
+  }
 
-  const prompt = `Act as an Expert Educator for Grade ${profile.gradeLevel}.
+  // Randomizer
+  const seed = Math.random().toString(36).substring(7) + Date.now();
+
+  const prompt = `Act as an Expert Academic Mentor for Grade ${profile.gradeLevel}.
   Subject: ${profile.subject}.
-  Study Focus: ${focusContext}.
-  Difficulty: ${profile.difficulty}.
+  Context: ${focusContext}.
+  Current Level: ${isMockMode ? "Exam Standard" : profile.level}.
+  RandomSeed: ${seed}.
   
-  TASK: Generate exactly 5 high-yield MCQs to test subject knowledge.
+  TASK: Generate exactly 5 questions for this Batch.
   
-  RULES:
-  1. The 'explanation' must be deep and helpful for a student who gets the answer wrong.
-  2. Questions must strictly follow Grade ${profile.gradeLevel} standards.
-  3. Difficulty should be ${profile.difficulty}.
+  QUESTION TYPES DISTRIBUTION:
+  - If Grade >= 9: Include at least 1 'CASE_STUDY' and 1 'VISUAL_ANALYSIS' (describe a diagram/scene textually).
+  - If Grade < 9: Mostly MCQ and WORD_PROBLEM.
   
-  Output only a raw JSON array.`;
+  GUIDELINES:
+  - CASE_STUDY: Provide a short paragraph (50-80 words) in 'contextMaterial' that the student must analyze to answer the question.
+  - VISUAL_ANALYSIS: Describe a diagram, graph, or physical setup in 'contextMaterial' (e.g., "A circuit diagram shows two resistors in parallel...") and ask a question based on it.
+  - The 'explanation' must be detailed.
+  
+  OUTPUT FORMAT:
+  Return a strict JSON array of objects. Each object must have:
+  - id: number
+  - type: string ("MCQ", "WORD_PROBLEM", "CASE_STUDY", "VISUAL_ANALYSIS")
+  - contextMaterial: string (Required for CASE_STUDY and VISUAL_ANALYSIS. The scenario text.)
+  - text: string (The actual question)
+  - options: array of 4 strings
+  - correctIndex: number (0-3)
+  - explanation: string
+
+  Do not output markdown formatting like \`\`\`json. Just the raw JSON array.`;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: "You are an AI Exam Proctor. Generate valid JSON for 5 MCQs. Be precise and conceptually accurate.",
+        systemInstruction: "You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades.",
         responseMimeType: "application/json",
-        responseSchema: QUESTION_SCHEMA,
-        maxOutputTokens: 2500,
-        temperature: 0.3
+        maxOutputTokens: 4000,
+        temperature: 0.7
       }
     });
 
     const cleaned = repairJson(response.text || "[]");
-    return JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+    
+    // Basic validation
+    if (!Array.isArray(parsed)) throw new Error("Response is not an array");
+    return parsed.map((q: any, index: number) => ({
+        id: q.id || index,
+        type: q.type || QuestionType.MCQ,
+        text: q.text || "Question text missing",
+        contextMaterial: q.contextMaterial || undefined,
+        options: Array.isArray(q.options) ? q.options : ["A", "B", "C", "D"],
+        correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+        explanation: q.explanation || "No explanation provided."
+    }));
+
   } catch (err: any) {
     console.error("Gemini Error:", err);
-    throw err;
+    throw new Error("Failed to generate questions. Please try again.");
   }
 };
 
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   const ai = getAI();
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-preview-tts",
-    contents: [{ parts: [{ text: `Correction: ${text}` }] }],
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-    },
-  });
-  const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  if (!base64) throw new Error("TTS Failed");
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: `Insight: ${text}` }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+      },
+    });
+    const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!base64) throw new Error("TTS Failed");
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  } catch (e) {
+    console.error("TTS Error", e);
+    return new ArrayBuffer(0); // Fail silently for audio
+  }
 };
 
 export const playAudio = async (buffer: ArrayBuffer) => {
-  const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-  const data = new Int16Array(buffer);
-  const audioBuffer = ctx.createBuffer(1, data.length, 24000);
-  const channel = audioBuffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) channel[i] = data[i] / 32768.0;
-  const source = ctx.createBufferSource();
-  source.buffer = audioBuffer;
-  source.connect(ctx.destination);
-  source.start();
+  if (buffer.byteLength === 0) return;
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    const data = new Int16Array(buffer);
+    const audioBuffer = ctx.createBuffer(1, data.length, 24000);
+    const channel = audioBuffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) channel[i] = data[i] / 32768.0;
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(ctx.destination);
+    source.start();
+  } catch (e) {
+    console.error("Audio Playback Error", e);
+  }
 };
