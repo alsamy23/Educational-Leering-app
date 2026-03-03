@@ -38,9 +38,28 @@ export interface QuizSession {
   score: number;
 }
 
+export interface Group {
+  id: string;
+  name: string;
+  score: number;
+  members: string[];
+}
+
+export interface ClassroomSession {
+  id: string;
+  groups: Group[];
+  currentGroupIndex: number;
+  subject: string;
+  gradeLevel: string;
+  topic: string;
+  isStarted: boolean;
+}
+
 export enum AppScreen {
   ENTRY = 'ENTRY',
+  CLASSROOM_SETUP = 'CLASSROOM_SETUP',
   LOADING = 'LOADING',
   QUIZ = 'QUIZ',
-  RESULTS = 'RESULTS'
+  RESULTS = 'RESULTS',
+  LEADERBOARD = 'LEADERBOARD'
 }

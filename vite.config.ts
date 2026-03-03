@@ -7,11 +7,12 @@ export default defineConfig(({ mode }) => {
   // The third parameter '' loads all env vars regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '');
   
-  const apiKey = env.API_KEY || process.env.API_KEY || '';
+  const apiKey = env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || env.API_KEY || process.env.API_KEY || '';
 
   return {
     plugins: [react()],
     define: {
+      'process.env.GEMINI_API_KEY': JSON.stringify(apiKey),
       'process.env.API_KEY': JSON.stringify(apiKey)
     },
     server: {

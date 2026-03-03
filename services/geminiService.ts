@@ -2,8 +2,8 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import { QuizQuestion, UserProfile, QuestionType, StudyFocus } from '../types';
 
 const getAI = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API_KEY missing");
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  if (!apiKey) throw new Error("API_KEY missing. Please ensure GEMINI_API_KEY is set in the environment.");
   return new GoogleGenAI({ apiKey });
 };
 
@@ -16,9 +16,15 @@ const repairJson = (text: string): string => {
   return cleaned.trim();
 };
 
-export const generateQuizQuestions = async (profile: UserProfile, isMockMode: boolean = false): Promise<QuizQuestion[]> => {
+export const generateQuizQuestions = async (
+  profile: UserProfile, 
+  isMockMode: boolean = false, 
+  groupName?: string,
+  topicOverride?: string
+): Promise<QuizQuestion[]> => {
   const ai = getAI();
   const gradeInt = parseInt(profile.gradeLevel) || 10;
+  const topic = topicOverride || profile.topic;
   
   let focusContext = "";
   if (isMockMode) {
@@ -28,15 +34,19 @@ export const generateQuizQuestions = async (profile: UserProfile, isMockMode: bo
       ? `Level ${profile.level} coverage of the syllabus` 
       : profile.focus === StudyFocus.PATTERN 
       ? "Board Exam Pattern questions" 
-      : `Level ${profile.level} questions on: ${profile.topic}`;
+      : `Level ${profile.level} questions on: ${topic}`;
   }
+
+  const groupContext = groupName ? `This is for Group: ${groupName}. Ensure questions are unique and challenging for this group.` : "";
 
   // Randomizer
   const seed = Math.random().toString(36).substring(7) + Date.now();
 
   const prompt = `Act as an Expert Academic Mentor for Grade ${profile.gradeLevel}.
   Subject: ${profile.subject}.
+  Topic: ${topic}.
   Context: ${focusContext}.
+  ${groupContext}
   Current Level: ${isMockMode ? "Exam Standard" : profile.level}.
   RandomSeed: ${seed}.
   
@@ -65,7 +75,7 @@ export const generateQuizQuestions = async (profile: UserProfile, isMockMode: bo
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         systemInstruction: "You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades.",
