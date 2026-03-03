@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { QuizQuestion, UserProfile, QuestionType, StudyFocus } from '../types';
 
 const getAI = () => {
@@ -53,25 +53,13 @@ export const generateQuizQuestions = async (
   TASK: Generate exactly 5 questions for this Batch.
   
   QUESTION TYPES DISTRIBUTION:
-  - If Grade >= 9: Include at least 1 'CASE_STUDY' and 1 'VISUAL_ANALYSIS' (describe a diagram/scene textually).
+  - If Grade >= 9: Include at least 1 'CASE_STUDY' and 1 'VISUAL_ANALYSIS'.
   - If Grade < 9: Mostly MCQ and WORD_PROBLEM.
   
   GUIDELINES:
   - CASE_STUDY: Provide a short paragraph (50-80 words) in 'contextMaterial' that the student must analyze to answer the question.
   - VISUAL_ANALYSIS: Describe a diagram, graph, or physical setup in 'contextMaterial' (e.g., "A circuit diagram shows two resistors in parallel...") and ask a question based on it.
-  - The 'explanation' must be detailed.
-  
-  OUTPUT FORMAT:
-  Return a strict JSON array of objects. Each object must have:
-  - id: number
-  - type: string ("MCQ", "WORD_PROBLEM", "CASE_STUDY", "VISUAL_ANALYSIS")
-  - contextMaterial: string (Required for CASE_STUDY and VISUAL_ANALYSIS. The scenario text.)
-  - text: string (The actual question)
-  - options: array of 4 strings
-  - correctIndex: number (0-3)
-  - explanation: string
-
-  Do not output markdown formatting like \`\`\`json. Just the raw JSON array.`;
+  - The 'explanation' must be detailed.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -80,7 +68,27 @@ export const generateQuizQuestions = async (
       config: {
         systemInstruction: "You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades.",
         responseMimeType: "application/json",
-        maxOutputTokens: 4000,
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.NUMBER },
+              type: { type: Type.STRING, description: "MCQ, WORD_PROBLEM, CASE_STUDY, or VISUAL_ANALYSIS" },
+              contextMaterial: { type: Type.STRING, description: "Scenario text for CASE_STUDY or VISUAL_ANALYSIS" },
+              text: { type: Type.STRING, description: "The question text" },
+              options: { 
+                type: Type.ARRAY, 
+                items: { type: Type.STRING },
+                description: "Exactly 4 options"
+              },
+              correctIndex: { type: Type.NUMBER, description: "0-3" },
+              explanation: { type: Type.STRING, description: "Detailed explanation of the correct answer" }
+            },
+            required: ["id", "type", "text", "options", "correctIndex", "explanation"]
+          }
+        },
+        maxOutputTokens: 8192,
         temperature: 0.7
       }
     });
@@ -101,8 +109,11 @@ export const generateQuizQuestions = async (
     }));
 
   } catch (err: any) {
-    console.error("Gemini Error:", err);
-    throw new Error("Failed to generate questions. Please try again.");
+    console.error("Gemini Generation Error:", err);
+    if (err instanceof SyntaxError) {
+      throw new Error("AI returned malformed data. This usually happens when the response is too long or complex. Please try again.");
+    }
+    throw new Error(err.message || "Failed to generate questions. Please try again.");
   }
 };
 
