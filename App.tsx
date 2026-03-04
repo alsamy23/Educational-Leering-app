@@ -162,6 +162,7 @@ export default function App() {
   const [hasApiKey, setHasApiKey] = useState<boolean>(() => {
     return !!process.env.GEMINI_API_KEY || !!process.env.API_KEY;
   });
+  const [pendingAction, setPendingAction] = useState<{ type: 'batch' | 'classroom', data?: any } | null>(null);
   const badgeCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -184,6 +185,14 @@ export default function App() {
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       await window.aistudio.openSelectKey();
       setHasApiKey(true);
+      if (pendingAction) {
+        if (pendingAction.type === 'batch') {
+          startBatch(pendingAction.data);
+        } else if (pendingAction.type === 'classroom') {
+          startClassroomSession(pendingAction.data);
+        }
+        setPendingAction(null);
+      }
     }
   };
 
@@ -213,6 +222,13 @@ export default function App() {
       setError("Name and Subject are required.");
       return;
     }
+
+    if (!hasApiKey) {
+      setPendingAction({ type: 'batch', data: mockMode });
+      setCurrentScreen(AppScreen.API_KEY_REQUIRED);
+      return;
+    }
+
     setError(null);
     setIsMockMode(mockMode);
     setCurrentScreen(AppScreen.LOADING);
@@ -246,6 +262,12 @@ export default function App() {
   };
 
   const startClassroomSession = async (groups: Group[]) => {
+    if (!hasApiKey) {
+      setPendingAction({ type: 'classroom', data: groups });
+      setCurrentScreen(AppScreen.API_KEY_REQUIRED);
+      return;
+    }
+
     setCurrentScreen(AppScreen.LOADING);
     setLoadingMsg(`Initializing Classroom Session for ${user.subject}...`);
 
@@ -436,7 +458,7 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-y-auto no-scrollbar relative">
-        {!hasApiKey && (
+        {currentScreen === AppScreen.API_KEY_REQUIRED && (
           <div className="p-6 h-full flex flex-col items-center justify-center text-center space-y-6 animate-fade-in">
             <div className="bg-amber-50 p-8 rounded-[2rem] border-2 border-amber-200 space-y-4">
               <div className="text-5xl">🔑</div>
@@ -453,13 +475,18 @@ export default function App() {
                 Learn about billing & API keys
               </a>
             </div>
-            <Button onClick={handleSelectKey} className="w-full h-16 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100">
-              Select API Key
-            </Button>
+            <div className="flex flex-col gap-3 w-full">
+              <Button onClick={handleSelectKey} className="w-full h-16 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100">
+                Select API Key
+              </Button>
+              <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} variant="outline" className="h-14 rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] border-slate-200 bg-white">
+                Back to Enrollment
+              </Button>
+            </div>
           </div>
         )}
 
-        {hasApiKey && currentScreen === AppScreen.ENTRY && (
+        {currentScreen === AppScreen.ENTRY && (
           <div className="p-6 space-y-6 animate-fade-in pb-10">
             <div className="bg-indigo-600 p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
                <div className="absolute top-0 right-0 p-4 opacity-10 text-8xl rotate-12">🏫</div>
