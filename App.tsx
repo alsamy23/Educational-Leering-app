@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession } from './types';
 import { generateQuizQuestions, generateSpeech, playAudio } from './services/geminiService';
 import { Button } from './components/Button';
+import { Analytics } from '@vercel/analytics/react';
 
 const MotivationalPopup = ({ show, label = "Spectacular!" }: { show: boolean, label?: string }) => {
   if (!show) return null;
@@ -766,6 +767,7 @@ export default function App() {
           </div>
         )}
       </main>
+      <Analytics />
     </div>
   );
 }
