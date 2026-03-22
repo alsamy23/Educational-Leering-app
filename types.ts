@@ -19,6 +19,7 @@ export interface UserProfile {
   topic: string;
   level: number; // Progressive level (1, 2, 3...)
   totalQuizzes: number;
+  role?: 'admin' | 'user';
 }
 
 export interface QuizQuestion {
@@ -38,11 +39,19 @@ export interface QuizSession {
   score: number;
 }
 
+export enum DifficultyLevel {
+  LOW = 'Low',
+  MEDIUM = 'Medium',
+  HIGH = 'High',
+  DEFAULT = 'Default'
+}
+
 export interface Group {
   id: string;
   name: string;
   score: number;
   members: string[];
+  difficulty?: DifficultyLevel;
 }
 
 export interface ClassroomSession {
@@ -56,11 +65,13 @@ export interface ClassroomSession {
 }
 
 export enum AppScreen {
+  SIGN_IN = 'SIGN_IN',
   ENTRY = 'ENTRY',
   CLASSROOM_SETUP = 'CLASSROOM_SETUP',
   LOADING = 'LOADING',
   QUIZ = 'QUIZ',
   RESULTS = 'RESULTS',
   LEADERBOARD = 'LEADERBOARD',
-  API_KEY_REQUIRED = 'API_KEY_REQUIRED'
+  API_KEY_REQUIRED = 'API_KEY_REQUIRED',
+  ADMIN_DASHBOARD = 'ADMIN_DASHBOARD'
 }

@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession } from './types';
+import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel } from './types';
 import { generateQuizQuestions, generateSpeech, playAudio } from './services/geminiService';
 import { Button } from './components/Button';
+import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
 const MotivationalPopup = ({ show, label = "Spectacular!" }: { show: boolean, label?: string }) => {
   if (!show) return null;
@@ -40,6 +43,10 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
 
   const updateGroupName = (id: string, name: string) => {
     setGroups(groups.map(g => g.id === id ? { ...g, name } : g));
+  };
+
+  const updateGroupDifficulty = (id: string, difficulty: DifficultyLevel) => {
+    setGroups(groups.map(g => g.id === id ? { ...g, difficulty } : g));
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,7 +97,7 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
         <div className="space-y-3">
           {groups.map((group) => (
             <div key={group.id} className="flex gap-2 items-center">
-              <div className="flex-1 space-y-1">
+              <div className="flex-1 space-y-2">
                 <input 
                   type="text" 
                   value={group.name} 
@@ -98,10 +105,25 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
                   className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 text-sm font-bold" 
                   placeholder={`Group ${group.id} Name`}
                 />
+                <div className="flex gap-1">
+                  {Object.values(DifficultyLevel).map(level => (
+                    <button
+                      key={level}
+                      onClick={() => updateGroupDifficulty(group.id, level)}
+                      className={`flex-1 py-1.5 rounded-lg text-[8px] font-black uppercase border transition-all ${
+                        (group.difficulty || DifficultyLevel.DEFAULT) === level 
+                          ? 'bg-indigo-600 text-white border-indigo-600' 
+                          : 'bg-white text-slate-400 border-slate-100 hover:border-indigo-100'
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
               </div>
               <button 
                 onClick={() => removeGroup(group.id)}
-                className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors self-start mt-1"
                 disabled={groups.length <= 2}
               >
                 ✕
@@ -132,9 +154,78 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
   );
 };
 
+const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const { collection, getDocs } = await import('firebase/firestore');
+        const usersRef = collection(db, 'users');
+        const snapshot = await getDocs(usersRef);
+        const usersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setUsers(usersData);
+      } catch (err) {
+        console.error("Error fetching users:", err);
+        setError("Failed to load users. Ensure you have admin privileges.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  return (
+    <div className="p-6 space-y-6 animate-fade-in pb-10 h-full flex flex-col">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-black text-slate-800 tracking-tighter">Admin Dashboard</h2>
+        <Button onClick={onBack} variant="outline" className="h-8 px-4 rounded-xl font-black uppercase tracking-widest text-[10px] border-slate-200 bg-white">
+          Back
+        </Button>
+      </div>
+
+      <div className="bg-white p-6 rounded-[2rem] border shadow-sm flex-1 overflow-y-auto">
+        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Registered Users ({users.length})</h3>
+        
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+          </div>
+        ) : error ? (
+          <div className="text-red-500 text-xs font-bold text-center py-10 bg-red-50 rounded-xl">{error}</div>
+        ) : users.length === 0 ? (
+          <div className="text-slate-400 text-xs font-bold text-center py-10">No users found.</div>
+        ) : (
+          <div className="space-y-3">
+            {users.map(u => (
+              <div key={u.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+                <div>
+                  <div className="font-black text-slate-800 text-sm flex items-center gap-2">
+                    {u.name || 'Anonymous'}
+                    {u.role === 'admin' && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase tracking-widest">Admin</span>}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 mt-1">
+                    Grade {u.gradeLevel} • Level {u.level} • {u.totalPoints || 0} pts
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Quizzes: {u.totalQuizzes || 0}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [totalPoints, setTotalPoints] = useState<number>(() => Number(localStorage.getItem('se_pts') || 0));
-  const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.ENTRY);
+  const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.LOADING);
   
   // Progress Map: key = "Subject-Grade", value = Level
   const [progressMap, setProgressMap] = useState<Record<string, number>>(() => {
@@ -162,20 +253,98 @@ export default function App() {
   const [hasApiKey, setHasApiKey] = useState<boolean>(() => {
     return !!process.env.GEMINI_API_KEY || !!process.env.API_KEY;
   });
+  const [hasGroqKey, setHasGroqKey] = useState<boolean>(() => {
+    return !!process.env.GROQ_API_KEY;
+  });
   const [pendingAction, setPendingAction] = useState<{ type: 'batch' | 'classroom', data?: any } | null>(null);
   const badgeCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setAuthUser(currentUser);
+      setIsAuthReady(true);
+      
+      if (currentUser) {
+        try {
+          const docRef = doc(db, 'users', currentUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setUser({
+              name: data.name || currentUser.displayName || '',
+              gradeLevel: data.gradeLevel || '10',
+              subject: data.subject || '',
+              focus: data.focus || StudyFocus.SYLLABUS,
+              topic: data.topic || '',
+              level: data.level || 1,
+              totalQuizzes: data.totalQuizzes || 0,
+              role: data.role || (currentUser.email === 'alsamy36@gmail.com' ? 'admin' : 'user')
+            });
+            setTotalPoints(data.totalPoints || 0);
+            if (data.progressMap) {
+              setProgressMap(data.progressMap);
+            }
+          } else {
+            // Create new user profile
+            const newUser = {
+              uid: currentUser.uid,
+              name: currentUser.displayName || '',
+              gradeLevel: '10',
+              subject: '',
+              focus: StudyFocus.SYLLABUS,
+              topic: '',
+              level: 1,
+              totalQuizzes: 0,
+              totalPoints: 0,
+              progressMap: {},
+              role: (currentUser.email === 'alsamy36@gmail.com' ? 'admin' : 'user') as 'admin' | 'user'
+            };
+            await setDoc(docRef, newUser);
+            setUser(newUser);
+          }
+          setCurrentScreen(AppScreen.ENTRY);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
+        }
+      } else {
+        setCurrentScreen(AppScreen.SIGN_IN);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const saveProgressToCloud = async (newPoints: number, newMap: Record<string, number>, newLevel: number) => {
+    if (!authUser) return;
+    try {
+      const docRef = doc(db, 'users', authUser.uid);
+      await updateDoc(docRef, {
+        totalPoints: newPoints,
+        progressMap: newMap,
+        level: newLevel,
+        subject: user.subject,
+        gradeLevel: user.gradeLevel,
+        topic: user.topic
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${authUser.uid}`);
+    }
+  };
 
   useEffect(() => {
     const checkKey = async () => {
       // If environment key is present, we are good to go
       if (!!process.env.GEMINI_API_KEY || !!process.env.API_KEY) {
         setHasApiKey(true);
-        return;
-      }
-
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+      } else if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const selected = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(selected);
+      }
+
+      if (!!process.env.GROQ_API_KEY) {
+        setHasGroqKey(true);
       }
     };
     checkKey();
@@ -223,7 +392,7 @@ export default function App() {
       return;
     }
 
-    if (!hasApiKey) {
+    if (!hasApiKey && !hasGroqKey) {
       setPendingAction({ type: 'batch', data: mockMode });
       setCurrentScreen(AppScreen.API_KEY_REQUIRED);
       return;
@@ -262,7 +431,7 @@ export default function App() {
   };
 
   const startClassroomSession = async (groups: Group[]) => {
-    if (!hasApiKey) {
+    if (!hasApiKey && !hasGroqKey) {
       setPendingAction({ type: 'classroom', data: groups });
       setCurrentScreen(AppScreen.API_KEY_REQUIRED);
       return;
@@ -283,7 +452,7 @@ export default function App() {
       };
 
       // Generate questions for the first group immediately
-      const questions = await generateQuizQuestions(user, false, groups[0].name, user.topic);
+      const questions = await generateQuizQuestions(user, false, groups[0].name, user.topic, groups[0].difficulty);
       const quiz: QuizSession = { profile: user, questions, userAnswers: [], score: 0 };
       
       setGroupQuizzes({ [groups[0].id]: quiz });
@@ -316,7 +485,7 @@ export default function App() {
     setLoadingMsg(`Preparing Batch for ${classroomSession.groups[nextIdx].name}...`);
 
     try {
-      const questions = await generateQuizQuestions(user, false, classroomSession.groups[nextIdx].name, user.topic);
+      const questions = await generateQuizQuestions(user, false, classroomSession.groups[nextIdx].name, user.topic, classroomSession.groups[nextIdx].difficulty);
       const quiz: QuizSession = { profile: user, questions, userAnswers: [], score: 0 };
       
       setGroupQuizzes(prev => ({ ...prev, [classroomSession.groups[nextIdx].id]: quiz }));
@@ -376,14 +545,23 @@ export default function App() {
       return;
     }
 
-    setTotalPoints(p => p + (activeQuiz.score * 100));
+    const newPoints = totalPoints + (activeQuiz.score * 100);
+    setTotalPoints(newPoints);
     
     // Level Up Logic if not in Mock Mode and score is decent
+    let newLevel = user.level;
+    let newProgressMap = { ...progressMap };
+    
     if (!isMockMode && activeQuiz.score >= 3) {
-      const newLevel = user.level + 1;
+      newLevel = user.level + 1;
       const key = getProgressKey();
-      setProgressMap(prev => ({ ...prev, [key]: newLevel }));
+      newProgressMap = { ...progressMap, [key]: newLevel };
+      setProgressMap(newProgressMap);
       setUser(prev => ({ ...prev, level: newLevel }));
+    }
+    
+    if (authUser) {
+      saveProgressToCloud(newPoints, newProgressMap, newLevel);
     }
     
     setCurrentScreen(AppScreen.RESULTS);
@@ -451,34 +629,105 @@ export default function App() {
            </h1>
            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Academic Excellence</span>
         </div>
-        <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1.5">
-          <span className="text-amber-500 font-bold text-xs">★</span>
-          <span className="font-black text-slate-800 text-xs">{totalPoints.toLocaleString()}</span>
+        <div className="flex items-center gap-3">
+          <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1.5">
+            <span className="text-amber-500 font-bold text-xs">★</span>
+            <span className="font-black text-slate-800 text-xs">{totalPoints.toLocaleString()}</span>
+          </div>
+          {isAuthReady && (
+            authUser ? (
+              <div className="flex items-center gap-3">
+                {user.role === 'admin' && (
+                  <button onClick={() => setCurrentScreen(AppScreen.ADMIN_DASHBOARD)} className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 uppercase tracking-widest transition-colors">
+                    Admin
+                  </button>
+                )}
+                <button onClick={logout} className="text-[10px] font-black text-slate-500 hover:text-slate-700 uppercase tracking-widest">
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button onClick={loginWithGoogle} className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl hover:bg-indigo-100 uppercase tracking-widest transition-colors">
+                Sign In
+              </button>
+            )
+          )}
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto no-scrollbar relative">
+        {currentScreen === AppScreen.ADMIN_DASHBOARD && (
+          <AdminDashboard onBack={() => setCurrentScreen(AppScreen.ENTRY)} />
+        )}
+
+        {currentScreen === AppScreen.SIGN_IN && (
+          <div className="p-6 h-full flex flex-col items-center justify-center text-center space-y-6 animate-fade-in">
+            <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-xl space-y-6 w-full max-w-sm">
+              <div className="text-6xl animate-bounce">🎓</div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-black text-slate-800 tracking-tighter">Welcome to ScholarEarn</h2>
+                <p className="text-xs text-slate-500 font-bold leading-relaxed">
+                  Sign in to save your progress, earn badges, and compete in classroom battles!
+                </p>
+              </div>
+              <Button 
+                onClick={async () => {
+                  try {
+                    await loginWithGoogle();
+                  } catch (e) {
+                    setError("Failed to sign in. Please try again.");
+                  }
+                }} 
+                className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-100 flex items-center justify-center gap-3"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Sign in with Google
+              </Button>
+              {error && <p className="text-red-500 text-[10px] font-bold">{error}</p>}
+            </div>
+          </div>
+        )}
+
         {currentScreen === AppScreen.API_KEY_REQUIRED && (
           <div className="p-6 h-full flex flex-col items-center justify-center text-center space-y-6 animate-fade-in">
             <div className="bg-amber-50 p-8 rounded-[2rem] border-2 border-amber-200 space-y-4">
               <div className="text-5xl">🔑</div>
               <h2 className="text-xl font-black text-slate-800">API Key Required</h2>
               <p className="text-xs text-slate-500 font-bold leading-relaxed">
-                To use the <span className="text-indigo-600">Gemini 2.5 Flash</span> model, you need to select your own API key from a paid Google Cloud project.
+                To use the AI models, you need to select your own API key. We support both <span className="text-indigo-600 font-bold">Gemini</span> and <span className="text-orange-600 font-bold">Groq</span>.
               </p>
-              <a 
-                href="https://ai.google.dev/gemini-api/docs/billing" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-[10px] text-indigo-500 underline font-bold block"
-              >
-                Learn about billing & API keys
-              </a>
+              <div className="flex flex-col gap-2 pt-2">
+                <a 
+                  href="https://ai.google.dev/gemini-api/docs/billing" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-indigo-500 underline font-bold block"
+                >
+                  Get Gemini API Key
+                </a>
+                <a 
+                  href="https://console.groq.com/keys" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-orange-500 underline font-bold block"
+                >
+                  Get Groq API Key
+                </a>
+              </div>
             </div>
             <div className="flex flex-col gap-3 w-full">
               <Button onClick={handleSelectKey} className="w-full h-16 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100">
-                Select API Key
+                Select Gemini Key
               </Button>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or use Groq (Developer Only)</div>
+              <p className="text-[9px] text-slate-400 px-4">
+                Note: Groq key must currently be set in the project environment variables (GROQ_API_KEY).
+              </p>
               <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} variant="outline" className="h-14 rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] border-slate-200 bg-white">
                 Back to Enrollment
               </Button>
@@ -578,6 +827,34 @@ export default function App() {
             </div>
             
             {error && <p className="text-center text-red-500 text-[10px] font-black uppercase bg-red-50 p-3 rounded-xl border border-red-100">{error}</p>}
+
+            <div className="pt-4 border-t border-slate-100">
+              <div className="bg-slate-100/50 p-4 rounded-2xl flex flex-col items-center text-center space-y-2">
+                <div className="space-y-0.5">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Feedback & Support</p>
+                  <p className="text-[10px] font-bold text-slate-500">Have suggestions? We'd love to hear from you!</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a 
+                    href="mailto:alsamy36@gmail.com" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-[11px] font-black text-indigo-600 hover:text-indigo-700 transition-colors"
+                  >
+                    alsamy36@gmail.com
+                  </a>
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText('alsamy36@gmail.com');
+                      alert('Email copied to clipboard!');
+                    }}
+                    className="text-[9px] font-black text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors uppercase"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -596,9 +873,15 @@ export default function App() {
              </div>
              <div className="space-y-1">
                 <h3 className="text-lg font-black text-slate-800 italic">"{loadingMsg}"</h3>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                  {isMockMode ? "Randomizing Questions..." : `Preparing Level ${user.level} Challenge`}
-                </p>
+                {!isAuthReady ? (
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                    Connecting to Cloud...
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                    {isMockMode ? "Randomizing Questions..." : `Preparing Level ${user.level} Challenge`}
+                  </p>
+                )}
              </div>
           </div>
         )}
