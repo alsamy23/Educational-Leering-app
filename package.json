@@ -10,9 +10,9 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.32.0",
+    "@google/genai": "^1.46.0",
     "firebase": "^12.11.0",
-    "groq-sdk": "^0.37.0",
+    "groq-sdk": "^1.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
