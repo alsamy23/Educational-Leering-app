@@ -5,7 +5,7 @@ import {
   Upload, ArrowLeft, LogIn, LogOut, Star, Key, Mail, Copy, 
   BookOpen, Eye, Calculator, CheckCircle2, AlertCircle, 
   ChevronRight, Download, Search, User as UserIcon, Settings, History,
-  LayoutDashboard, Home
+  LayoutDashboard, Home, SignalLow, SignalMedium, SignalHigh, Signal
 } from 'lucide-react';
 import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel, TestRecord } from './types';
 import { generateQuizQuestions, generateSpeech, playAudio } from './services/geminiService';
@@ -128,16 +128,19 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
                   placeholder={`Group ${group.id} Name`}
                 />
                 <div className="flex gap-1">
-                  {Object.values(DifficultyLevel).map(level => (
+                  {Object.values(DifficultyLevel).filter(l => l !== DifficultyLevel.DEFAULT).map(level => (
                     <button
                       key={level}
                       onClick={() => updateGroupDifficulty(group.id, level)}
-                      className={`flex-1 py-1.5 rounded-lg text-[8px] font-black uppercase border transition-all ${
-                        (group.difficulty || DifficultyLevel.DEFAULT) === level 
+                      className={`flex-1 py-1.5 rounded-lg text-[8px] font-black uppercase border transition-all flex items-center justify-center gap-1 ${
+                        (group.difficulty || DifficultyLevel.LOW) === level 
                           ? 'bg-indigo-600 text-white border-indigo-600' 
                           : 'bg-white text-slate-400 border-slate-100 hover:border-indigo-100'
                       }`}
                     >
+                      {level === DifficultyLevel.LOW && <SignalLow className="w-3 h-3" />}
+                      {level === DifficultyLevel.MEDIUM && <SignalMedium className="w-3 h-3" />}
+                      {level === DifficultyLevel.HIGH && <SignalHigh className="w-3 h-3" />}
                       {level}
                     </button>
                   ))}
