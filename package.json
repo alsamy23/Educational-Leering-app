@@ -11,10 +11,16 @@
   },
   "dependencies": {
     "@google/genai": "^1.46.0",
+    "@tailwindcss/vite": "^4.2.2",
+    "clsx": "^2.1.1",
     "firebase": "^12.11.0",
     "groq-sdk": "^1.1.1",
+    "lucide-react": "^1.0.1",
+    "motion": "^12.38.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

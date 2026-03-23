@@ -1,4 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Sparkles, GraduationCap, School, Rocket, Shield, Trophy, X, Plus, 
+  Upload, ArrowLeft, LogIn, LogOut, Star, Key, Mail, Copy, 
+  BookOpen, Eye, Calculator, CheckCircle2, AlertCircle, 
+  ChevronRight, Download, Search, User as UserIcon, Settings
+} from 'lucide-react';
 import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel } from './types';
 import { generateQuizQuestions, generateSpeech, playAudio } from './services/geminiService';
 import { Button } from './components/Button';
@@ -7,15 +14,29 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
 const MotivationalPopup = ({ show, label = "Spectacular!" }: { show: boolean, label?: string }) => {
-  if (!show) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-      <div className="animate-scale-up bg-white p-8 rounded-[2rem] shadow-2xl border-4 border-amber-300 flex flex-col items-center transform transition-all rotate-3">
-        <div className="text-7xl animate-bounce mb-4 filter drop-shadow-md">🌟</div>
-        <h3 className="text-2xl font-black text-indigo-600 uppercase tracking-tighter italic">{label}</h3>
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Level Up Your Mind!</p>
-      </div>
-    </div>
+    <AnimatePresence>
+      {show && (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.5, rotate: -10 }}
+          animate={{ opacity: 1, scale: 1, rotate: 3 }}
+          exit={{ opacity: 0, scale: 0.5, rotate: 10 }}
+          className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+        >
+          <div className="bg-white p-8 rounded-[2rem] shadow-2xl border-4 border-amber-300 flex flex-col items-center transform">
+            <motion.div 
+              animate={{ y: [0, -20, 0] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              className="mb-4"
+            >
+              <Sparkles className="w-16 h-16 text-amber-400 filter drop-shadow-md" />
+            </motion.div>
+            <h3 className="text-2xl font-black text-indigo-600 uppercase tracking-tighter italic">{label}</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Level Up Your Mind!</p>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -126,7 +147,7 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
                 className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors self-start mt-1"
                 disabled={groups.length <= 2}
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
           ))}
@@ -135,9 +156,9 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
         {groups.length < 5 && (
           <button 
             onClick={addGroup}
-            className="w-full py-3 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase hover:border-indigo-200 hover:text-indigo-400 transition-all"
+            className="w-full py-3 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase hover:border-indigo-200 hover:text-indigo-400 transition-all flex items-center justify-center gap-2"
           >
-            + Add Group
+            <Plus className="w-4 h-4" /> Add Group
           </button>
         )}
       </div>
@@ -188,7 +209,9 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       </div>
 
       <div className="bg-white p-6 rounded-[2rem] border shadow-sm flex-1 overflow-y-auto">
-        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Registered Users ({users.length})</h3>
+        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <UserIcon className="w-4 h-4" /> Registered Users ({users.length})
+        </h3>
         
         {loading ? (
           <div className="flex justify-center py-10">
@@ -248,6 +271,7 @@ export default function App() {
   const [showMotivation, setShowMotivation] = useState(false);
   const [isMockMode, setIsMockMode] = useState(false);
   const [isClassroomMode, setIsClassroomMode] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [classroomSession, setClassroomSession] = useState<ClassroomSession | null>(null);
   const [groupQuizzes, setGroupQuizzes] = useState<Record<string, QuizSession>>({});
   const [hasApiKey, setHasApiKey] = useState<boolean>(() => {
@@ -610,9 +634,9 @@ export default function App() {
   // Render Logic for different question types
   const renderQuestionLabel = (type: QuestionType) => {
       switch(type) {
-          case QuestionType.CASE_STUDY: return <span className="text-[9px] font-black px-2 py-1 bg-purple-100 text-purple-700 rounded uppercase tracking-tighter">Case Study</span>;
-          case QuestionType.VISUAL_ANALYSIS: return <span className="text-[9px] font-black px-2 py-1 bg-blue-100 text-blue-700 rounded uppercase tracking-tighter">Visual Analysis</span>;
-          case QuestionType.WORD_PROBLEM: return <span className="text-[9px] font-black px-2 py-1 bg-amber-100 text-amber-700 rounded uppercase tracking-tighter">Word Problem</span>;
+          case QuestionType.CASE_STUDY: return <span className="text-[9px] font-black px-2 py-1 bg-purple-100 text-purple-700 rounded uppercase tracking-tighter flex items-center gap-1"><BookOpen className="w-3 h-3" /> Case Study</span>;
+          case QuestionType.VISUAL_ANALYSIS: return <span className="text-[9px] font-black px-2 py-1 bg-blue-100 text-blue-700 rounded uppercase tracking-tighter flex items-center gap-1"><Eye className="w-3 h-3" /> Visual Analysis</span>;
+          case QuestionType.WORD_PROBLEM: return <span className="text-[9px] font-black px-2 py-1 bg-amber-100 text-amber-700 rounded uppercase tracking-tighter flex items-center gap-1"><Calculator className="w-3 h-3" /> Word Problem</span>;
           default: return null;
       }
   };
@@ -622,16 +646,18 @@ export default function App() {
       <MotivationalPopup show={showMotivation} label={activeQuiz?.score === 5 ? "Perfect Batch!" : "Brilliant!"} />
       
       <header className="p-5 bg-white border-b flex justify-between items-center z-10 shadow-sm">
-        <div onClick={() => setCurrentScreen(AppScreen.ENTRY)} className="cursor-pointer">
-           <h1 className="text-lg font-black text-indigo-600 tracking-tighter flex items-center gap-2">
-             ScholarEarn
-             {isClassroomMode && <span className="text-[8px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded uppercase tracking-widest">Classroom</span>}
-           </h1>
-           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Academic Excellence</span>
-        </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                    <GraduationCap className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h1 className="text-lg font-black tracking-tighter text-slate-800">ScholarEarn</h1>
+                    <p className="text-[8px] font-black text-indigo-600 uppercase tracking-[0.2em] -mt-1">AI Academic Hub</p>
+                  </div>
+                </div>
         <div className="flex items-center gap-3">
           <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1.5">
-            <span className="text-amber-500 font-bold text-xs">★</span>
+            <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
             <span className="font-black text-slate-800 text-xs">{totalPoints.toLocaleString()}</span>
           </div>
           {isAuthReady && (
@@ -663,7 +689,13 @@ export default function App() {
         {currentScreen === AppScreen.SIGN_IN && (
           <div className="p-6 h-full flex flex-col items-center justify-center text-center space-y-6 animate-fade-in">
             <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-xl space-y-6 w-full max-w-sm">
-              <div className="text-6xl animate-bounce">🎓</div>
+              <motion.div 
+                animate={{ y: [0, -10, 0] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className="flex justify-center"
+              >
+                <GraduationCap className="w-20 h-20 text-indigo-600" />
+              </motion.div>
               <div className="space-y-2">
                 <h2 className="text-2xl font-black text-slate-800 tracking-tighter">Welcome to ScholarEarn</h2>
                 <p className="text-xs text-slate-500 font-bold leading-relaxed">
@@ -674,8 +706,9 @@ export default function App() {
                 onClick={async () => {
                   try {
                     await loginWithGoogle();
-                  } catch (e) {
-                    setError("Failed to sign in. Please try again.");
+                  } catch (e: any) {
+                    console.error("Sign in error:", e);
+                    setError(`Failed to sign in: ${e.code || e.message || "Please try again."}`);
                   }
                 }} 
                 className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-100 flex items-center justify-center gap-3"
@@ -696,7 +729,9 @@ export default function App() {
         {currentScreen === AppScreen.API_KEY_REQUIRED && (
           <div className="p-6 h-full flex flex-col items-center justify-center text-center space-y-6 animate-fade-in">
             <div className="bg-amber-50 p-8 rounded-[2rem] border-2 border-amber-200 space-y-4">
-              <div className="text-5xl">🔑</div>
+              <div className="flex justify-center">
+                <Key className="w-16 h-16 text-amber-500" />
+              </div>
               <h2 className="text-xl font-black text-slate-800">API Key Required</h2>
               <p className="text-xs text-slate-500 font-bold leading-relaxed">
                 To use the AI models, you need to select your own API key. We support both <span className="text-indigo-600 font-bold">Gemini</span> and <span className="text-orange-600 font-bold">Groq</span>.
@@ -738,7 +773,9 @@ export default function App() {
         {currentScreen === AppScreen.ENTRY && (
           <div className="p-6 space-y-6 animate-fade-in pb-10">
             <div className="bg-indigo-600 p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-10 text-8xl rotate-12">🏫</div>
+               <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12">
+                 <School className="w-32 h-32" />
+               </div>
                <div className="relative z-10">
                  <h2 className="text-3xl font-black italic tracking-tighter">{isClassroomMode ? "Classroom Battle" : "Your Path"}</h2>
                  <p className="text-indigo-100 text-xs opacity-90 font-bold mt-1 max-w-[80%]">
@@ -828,8 +865,7 @@ export default function App() {
             
             {error && <p className="text-center text-red-500 text-[10px] font-black uppercase bg-red-50 p-3 rounded-xl border border-red-100">{error}</p>}
 
-            <div className="pt-4 border-t border-slate-100">
-              <div className="bg-slate-100/50 p-4 rounded-2xl flex flex-col items-center text-center space-y-2">
+          <div className="bg-slate-100/50 p-4 rounded-2xl flex flex-col items-center text-center space-y-2">
                 <div className="space-y-0.5">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Feedback & Support</p>
                   <p className="text-[10px] font-bold text-slate-500">Have suggestions? We'd love to hear from you!</p>
@@ -839,22 +875,23 @@ export default function App() {
                     href="mailto:alsamy36@gmail.com" 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="text-[11px] font-black text-indigo-600 hover:text-indigo-700 transition-colors"
+                    className="text-[11px] font-black text-indigo-600 hover:text-indigo-700 transition-colors flex items-center gap-1"
                   >
-                    alsamy36@gmail.com
+                    <Mail className="w-3 h-3" /> alsamy36@gmail.com
                   </a>
                   <button 
                     onClick={() => {
                       navigator.clipboard.writeText('alsamy36@gmail.com');
-                      alert('Email copied to clipboard!');
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
                     }}
-                    className="text-[9px] font-black text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors uppercase"
+                    className="text-[9px] font-black text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors uppercase flex items-center gap-1"
                   >
-                    Copy
+                    {copied ? <CheckCircle2 className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                    {copied ? 'Copied' : 'Copy'}
                   </button>
                 </div>
               </div>
-            </div>
           </div>
         )}
 
@@ -913,7 +950,7 @@ export default function App() {
              {currentQ.contextMaterial && (
                <div className={`p-6 rounded-[2rem] border-2 relative overflow-hidden animate-fade-in ${currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'bg-blue-50 border-blue-100' : 'bg-purple-50 border-purple-100'}`}>
                   <div className="flex items-center gap-2 mb-2 opacity-70">
-                    <span className="text-xl">{currentQ.type === QuestionType.VISUAL_ANALYSIS ? '👁️' : '📖'}</span>
+                    {currentQ.type === QuestionType.VISUAL_ANALYSIS ? <Eye className="w-5 h-5" /> : <BookOpen className="w-5 h-5" />}
                     <span className="text-[10px] font-black uppercase tracking-widest">
                       {currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'Visual Context' : 'Read Case Study'}
                     </span>
@@ -963,8 +1000,12 @@ export default function App() {
         {currentScreen === AppScreen.RESULTS && activeQuiz && (
           <div className="p-8 text-center space-y-8 animate-fade-in pb-20">
              <div className="space-y-2">
-                <div className="text-6xl mb-4">
-                  {activeQuiz.score >= 3 ? "🚀" : "🛡️"}
+                <div className="flex justify-center mb-4">
+                  {activeQuiz.score >= 3 ? (
+                    <Rocket className="w-20 h-20 text-indigo-600" />
+                  ) : (
+                    <Shield className="w-20 h-20 text-slate-400" />
+                  )}
                 </div>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Batch Complete</h2>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{isMockMode ? "Mock Exam" : `Level ${user.level} Progress`}</p>
@@ -1015,7 +1056,9 @@ export default function App() {
         {currentScreen === AppScreen.LEADERBOARD && classroomSession && (
           <div className="p-8 space-y-8 animate-fade-in pb-20">
              <div className="text-center space-y-2">
-                <div className="text-6xl mb-4">🏆</div>
+                <div className="flex justify-center mb-4">
+                  <Trophy className="w-24 h-24 text-amber-500" />
+                </div>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Classroom Excellence</h2>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Final Group Rankings</p>
              </div>
