@@ -15,9 +15,30 @@
   body {
     @apply bg-slate-50 text-slate-900 antialiased h-screen w-screen overflow-hidden selection:bg-indigo-100 selection:text-indigo-700;
   }
+  
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-full border-2 border-transparent bg-clip-padding hover:bg-indigo-400 transition-colors;
+  }
 }
 
 @layer components {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full border-2 border-transparent bg-clip-padding hover:bg-indigo-300;
+  }
   .animate-fade-in {
     animation: fade-in 0.4s ease-out forwards;
   }

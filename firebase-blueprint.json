@@ -17,6 +17,20 @@
         "progressMap": { 
           "type": "object",
           "description": "Map of subject-grade to level"
+        },
+        "testHistory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "topic": { "type": "string" },
+              "score": { "type": "number" },
+              "total": { "type": "number" },
+              "date": { "type": "string", "format": "date-time" },
+              "type": { "type": "string", "enum": ["individual", "classroom"] },
+              "subject": { "type": "string" }
+            }
+          }
         }
       },
       "required": ["uid", "name", "gradeLevel", "totalPoints", "level"]

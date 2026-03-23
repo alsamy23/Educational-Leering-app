@@ -73,6 +73,7 @@ service cloud.firestore {
              data.totalPoints is number && data.totalPoints >= 0 &&
              (!( 'totalQuizzes' in data ) || (data.totalQuizzes is number && data.totalQuizzes >= 0)) &&
              (!( 'progressMap' in data ) || data.progressMap is map) &&
+             (!( 'testHistory' in data ) || data.testHistory is list) &&
              (!( 'role' in data ) || (data.role is string && data.role in ['admin', 'user']));
     }
 

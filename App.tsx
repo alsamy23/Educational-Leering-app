@@ -4,9 +4,10 @@ import {
   Sparkles, GraduationCap, School, Rocket, Shield, Trophy, X, Plus, 
   Upload, ArrowLeft, LogIn, LogOut, Star, Key, Mail, Copy, 
   BookOpen, Eye, Calculator, CheckCircle2, AlertCircle, 
-  ChevronRight, Download, Search, User as UserIcon, Settings
+  ChevronRight, Download, Search, User as UserIcon, Settings, History,
+  LayoutDashboard, Home
 } from 'lucide-react';
-import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel } from './types';
+import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel, TestRecord } from './types';
 import { generateQuizQuestions, generateSpeech, playAudio } from './services/geminiService';
 import { Button } from './components/Button';
 import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './firebase';
@@ -175,6 +176,72 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
   );
 };
 
+const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ user, onBack }) => {
+  const history = user.testHistory || [];
+  
+  return (
+    <div className="p-6 space-y-6 animate-fade-in pb-10 h-full flex flex-col">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-black text-slate-800 tracking-tighter">My Progress</h2>
+        <Button onClick={onBack} variant="outline" className="h-8 px-4 w-auto text-[10px] font-black uppercase tracking-widest">Back</Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-indigo-600 p-5 rounded-[2rem] text-white shadow-lg shadow-indigo-100">
+          <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Total Points</p>
+          <p className="text-2xl font-black tracking-tighter">{user.totalPoints?.toLocaleString() || 0}</p>
+        </div>
+        <div className="bg-emerald-500 p-5 rounded-[2rem] text-white shadow-lg shadow-emerald-100">
+          <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Current Level</p>
+          <p className="text-2xl font-black tracking-tighter">{user.level}</p>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex-1 overflow-y-auto no-scrollbar">
+        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <History className="w-4 h-4" /> Test History
+        </h3>
+        
+        {history.length === 0 ? (
+          <div className="text-center py-12 space-y-3">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto">
+              <History className="w-8 h-8 text-slate-200" />
+            </div>
+            <p className="text-xs font-bold text-slate-400">No tests taken yet. Start learning!</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {history.map((record, i) => (
+              <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest ${
+                      record.type === 'classroom' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'
+                    }`}>
+                      {record.type}
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-400">
+                      {new Date(record.date).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-[13px] font-black text-slate-800 leading-tight">{record.topic}</p>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{record.subject}</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-black text-slate-800 tracking-tighter">{record.score}/{record.total}</div>
+                  <div className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                    {Math.round((record.score / record.total) * 100)}%
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -259,7 +326,7 @@ export default function App() {
     const saved = localStorage.getItem('se_user');
     return saved ? JSON.parse(saved) : {
       name: '', gradeLevel: '10', subject: '', focus: StudyFocus.SYLLABUS, topic: '',
-      level: 1, totalQuizzes: 0
+      level: 1, totalQuizzes: 0, totalPoints: 0, testHistory: []
     };
   });
 
@@ -305,6 +372,8 @@ export default function App() {
               topic: data.topic || '',
               level: data.level || 1,
               totalQuizzes: data.totalQuizzes || 0,
+              totalPoints: data.totalPoints || 0,
+              testHistory: data.testHistory || [],
               role: data.role || (currentUser.email === 'alsamy36@gmail.com' ? 'admin' : 'user')
             });
             setTotalPoints(data.totalPoints || 0);
@@ -313,8 +382,7 @@ export default function App() {
             }
           } else {
             // Create new user profile
-            const newUser = {
-              uid: currentUser.uid,
+            const newUser: UserProfile = {
               name: currentUser.displayName || 'Scholar',
               gradeLevel: '10',
               subject: '',
@@ -324,9 +392,10 @@ export default function App() {
               totalQuizzes: 0,
               totalPoints: 0,
               progressMap: {},
+              testHistory: [],
               role: (currentUser.email === 'alsamy36@gmail.com' ? 'admin' : 'user') as 'admin' | 'user'
             };
-            await setDoc(docRef, newUser);
+            await setDoc(docRef, { ...newUser, uid: currentUser.uid });
             setUser(newUser);
           }
           setCurrentScreen(AppScreen.ENTRY);
@@ -348,7 +417,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const saveProgressToCloud = async (newPoints: number, newMap: Record<string, number>, newLevel: number) => {
+  const saveProgressToCloud = async (newPoints: number, newMap: Record<string, number>, newLevel: number, newHistory?: TestRecord[]) => {
     if (!authUser) return;
     try {
       const docRef = doc(db, 'users', authUser.uid);
@@ -356,6 +425,7 @@ export default function App() {
         totalPoints: newPoints,
         progressMap: newMap,
         level: newLevel,
+        testHistory: newHistory || user.testHistory || [],
         subject: user.subject,
         gradeLevel: user.gradeLevel,
         topic: user.topic
@@ -570,9 +640,26 @@ export default function App() {
   const finishBatch = () => {
     if (!activeQuiz) return;
     
+    const newRecord: TestRecord = {
+      topic: user.topic || 'General Quiz',
+      score: activeQuiz.score,
+      total: activeQuiz.questions.length,
+      date: new Date().toISOString(),
+      type: isClassroomMode ? 'classroom' : 'individual',
+      subject: user.subject
+    };
+
+    const newHistory = [newRecord, ...(user.testHistory || [])].slice(0, 50); // Keep last 50
+
     if (isClassroomMode && classroomSession) {
       const currentGroup = classroomSession.groups[classroomSession.currentGroupIndex];
       currentGroup.score += activeQuiz.score;
+      
+      if (authUser) {
+        saveProgressToCloud(totalPoints, progressMap, user.level, newHistory);
+      }
+      setUser(prev => ({ ...prev, testHistory: newHistory }));
+      
       setCurrentScreen(AppScreen.RESULTS);
       return;
     }
@@ -589,11 +676,12 @@ export default function App() {
       const key = getProgressKey();
       newProgressMap = { ...progressMap, [key]: newLevel };
       setProgressMap(newProgressMap);
-      setUser(prev => ({ ...prev, level: newLevel }));
     }
     
+    setUser(prev => ({ ...prev, level: newLevel, testHistory: newHistory }));
+
     if (authUser) {
-      saveProgressToCloud(newPoints, newProgressMap, newLevel);
+      saveProgressToCloud(newPoints, newProgressMap, newLevel, newHistory);
     }
     
     setCurrentScreen(AppScreen.RESULTS);
@@ -650,49 +738,104 @@ export default function App() {
   };
 
   return (
-    <div className="h-full bg-slate-50 flex flex-col max-w-lg mx-auto border-x border-slate-200 shadow-2xl overflow-hidden font-sans relative">
+    <div className="h-screen bg-slate-50 flex font-sans overflow-hidden selection:bg-indigo-100 selection:text-indigo-700">
       <MotivationalPopup show={showMotivation} label={activeQuiz?.score === 5 ? "Perfect Batch!" : "Brilliant!"} />
       
-      <header className="p-5 bg-white border-b flex justify-between items-center z-10 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
-                    <GraduationCap className="w-6 h-6 text-indigo-600" />
-                  </div>
-                  <div>
-                    <h1 className="text-lg font-black tracking-tighter text-slate-800">ScholarEarn</h1>
-                    <p className="text-[8px] font-black text-indigo-600 uppercase tracking-[0.2em] -mt-1">AI Academic Hub</p>
-                  </div>
-                </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1.5">
-            <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
-            <span className="font-black text-slate-800 text-xs">{totalPoints.toLocaleString()}</span>
+      {/* Sidebar for Desktop */}
+      {authUser && currentScreen !== AppScreen.SIGN_IN && currentScreen !== AppScreen.QUIZ && currentScreen !== AppScreen.LOADING && (
+        <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-slate-200 p-6 z-20">
+          <div className="flex items-center gap-3 mb-10">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <GraduationCap className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black tracking-tighter text-slate-800 leading-none">ScholarEarn</h1>
+              <p className="text-[8px] font-black text-indigo-600 uppercase tracking-[0.2em]">AI Academic Hub</p>
+            </div>
           </div>
-          {isAuthReady && (
-            authUser ? (
-              <div className="flex items-center gap-3">
-                {user.role === 'admin' && (
-                  <button onClick={() => setCurrentScreen(AppScreen.ADMIN_DASHBOARD)} className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 uppercase tracking-widest transition-colors">
-                    Admin
-                  </button>
-                )}
-                <button onClick={logout} className="text-[10px] font-black text-slate-500 hover:text-slate-700 uppercase tracking-widest">
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <button onClick={loginWithGoogle} className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl hover:bg-indigo-100 uppercase tracking-widest transition-colors">
-                Sign In
-              </button>
-            )
-          )}
-        </div>
-      </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar relative">
-        {currentScreen === AppScreen.ADMIN_DASHBOARD && (
-          <AdminDashboard onBack={() => setCurrentScreen(AppScreen.ENTRY)} />
-        )}
+          <nav className="flex-1 space-y-2">
+            <button 
+              onClick={() => setCurrentScreen(AppScreen.ENTRY)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-black transition-all ${currentScreen === AppScreen.ENTRY ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              <Home className="w-5 h-5" />
+              Home
+            </button>
+            <button 
+              onClick={() => setCurrentScreen(AppScreen.PROGRESS)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-black transition-all ${currentScreen === AppScreen.PROGRESS ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              <History className="w-5 h-5" />
+              My Progress
+            </button>
+            {user.role === 'admin' && (
+              <button 
+                onClick={() => setCurrentScreen(AppScreen.ADMIN_DASHBOARD)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-black transition-all ${currentScreen === AppScreen.ADMIN_DASHBOARD ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                <LayoutDashboard className="w-5 h-5" />
+                Admin
+              </button>
+            )}
+          </nav>
+
+          <div className="pt-6 border-t border-slate-100 space-y-4">
+            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                <span className="font-black text-slate-800 text-sm">{totalPoints.toLocaleString()}</span>
+              </div>
+              <span className="text-[10px] font-black text-amber-600 uppercase">Points</span>
+            </div>
+            <button 
+              onClick={logout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-black text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+            >
+              <LogOut className="w-5 h-5" />
+              Logout
+            </button>
+          </div>
+        </aside>
+      )}
+
+      <div className="flex-1 flex flex-col min-w-0 relative h-full overflow-hidden">
+        <header className="p-5 bg-white border-b flex justify-between items-center z-10 shadow-sm lg:hidden">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <GraduationCap className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black tracking-tighter text-slate-800">ScholarEarn</h1>
+              <p className="text-[8px] font-black text-indigo-600 uppercase tracking-[0.2em] -mt-1">AI Academic Hub</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1.5">
+              <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+              <span className="font-black text-slate-800 text-xs">{totalPoints.toLocaleString()}</span>
+            </div>
+            {isAuthReady && authUser && (
+              <button 
+                onClick={() => setCurrentScreen(AppScreen.PROGRESS)} 
+                className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors"
+              >
+                <History className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative bg-slate-50/50 scroll-smooth">
+          <div className="max-w-6xl mx-auto w-full h-full lg:px-12 xl:px-20">
+            <div className="max-w-2xl mx-auto lg:max-w-none h-full py-6 lg:py-10">
+              {currentScreen === AppScreen.ADMIN_DASHBOARD && (
+                <AdminDashboard onBack={() => setCurrentScreen(AppScreen.ENTRY)} />
+              )}
+
+              {currentScreen === AppScreen.PROGRESS && (
+                <ProgressScreen user={user} onBack={() => setCurrentScreen(AppScreen.ENTRY)} />
+              )}
 
         {currentScreen === AppScreen.SIGN_IN && (
           <div className="p-6 h-full flex flex-col items-center justify-center text-center space-y-6 animate-fade-in">
@@ -1103,7 +1246,11 @@ export default function App() {
              </Button>
           </div>
         )}
-      </main>
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
+  );
   );
 }

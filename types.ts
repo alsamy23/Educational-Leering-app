@@ -11,6 +11,15 @@ export enum StudyFocus {
   TOPICS = 'Specific Topics'
 }
 
+export interface TestRecord {
+  topic: string;
+  score: number;
+  total: number;
+  date: string;
+  type: 'individual' | 'classroom';
+  subject: string;
+}
+
 export interface UserProfile {
   name: string;
   gradeLevel: string;
@@ -19,6 +28,9 @@ export interface UserProfile {
   topic: string;
   level: number; // Progressive level (1, 2, 3...)
   totalQuizzes: number;
+  totalPoints: number;
+  testHistory?: TestRecord[];
+  progressMap?: Record<string, number>;
   role?: 'admin' | 'user';
 }
 
@@ -73,5 +85,6 @@ export enum AppScreen {
   RESULTS = 'RESULTS',
   LEADERBOARD = 'LEADERBOARD',
   API_KEY_REQUIRED = 'API_KEY_REQUIRED',
-  ADMIN_DASHBOARD = 'ADMIN_DASHBOARD'
+  ADMIN_DASHBOARD = 'ADMIN_DASHBOARD',
+  PROGRESS = 'PROGRESS'
 }
