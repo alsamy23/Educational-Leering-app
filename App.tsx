@@ -716,7 +716,11 @@ export default function App() {
                     await loginWithGoogle();
                   } catch (e: any) {
                     console.error("Sign in error:", e);
-                    setError(`Failed to sign in: ${e.code || e.message || "Please try again."}`);
+                    if (e.code === 'auth/unauthorized-domain') {
+                      setError(`Domain Unauthorized: Please add ${window.location.hostname} to your Firebase Authorized Domains.`);
+                    } else {
+                      setError(`Failed to sign in: ${e.code || e.message || "Please try again."}`);
+                    }
                   }
                 }} 
                 className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-100 flex items-center justify-center gap-3"
