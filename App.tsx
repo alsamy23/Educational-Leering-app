@@ -298,7 +298,7 @@ export default function App() {
           if (docSnap.exists()) {
             const data = docSnap.data();
             setUser({
-              name: data.name || currentUser.displayName || '',
+              name: data.name || currentUser.displayName || 'Scholar',
               gradeLevel: data.gradeLevel || '10',
               subject: data.subject || '',
               focus: data.focus || StudyFocus.SYLLABUS,
@@ -315,7 +315,7 @@ export default function App() {
             // Create new user profile
             const newUser = {
               uid: currentUser.uid,
-              name: currentUser.displayName || '',
+              name: currentUser.displayName || 'Scholar',
               gradeLevel: '10',
               subject: '',
               focus: StudyFocus.SYLLABUS,
@@ -330,8 +330,16 @@ export default function App() {
             setUser(newUser);
           }
           setCurrentScreen(AppScreen.ENTRY);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
+        } catch (err: any) {
+          console.error("Auth state change error:", err);
+          setError(`Profile error: ${err.message || "Could not load or create profile."}`);
+          setCurrentScreen(AppScreen.SIGN_IN);
+          // Don't throw here to avoid breaking the listener, but log it
+          try {
+            handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
+          } catch (e) {
+            // handleFirestoreError throws, we just want it to log
+          }
         }
       } else {
         setCurrentScreen(AppScreen.SIGN_IN);
