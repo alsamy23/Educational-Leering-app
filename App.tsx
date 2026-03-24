@@ -358,56 +358,61 @@ export default function App() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
-  useEffect(() => {
-    const loadProfile = async (identifier: string, isEmail: boolean = false) => {
-      try {
-        const docRef = doc(db, 'users', identifier);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setUser({
-            name: data.name || (isEmail ? identifier.split('@')[0] : 'Scholar'),
-            gradeLevel: data.gradeLevel || '10',
-            subject: data.subject || '',
-            focus: data.focus || StudyFocus.SYLLABUS,
-            topic: data.topic || '',
-            level: data.level || 1,
-            totalQuizzes: data.totalQuizzes || 0,
-            totalPoints: data.totalPoints || 0,
-            testHistory: data.testHistory || [],
-            role: data.role || (identifier === 'alsamy36@gmail.com' ? 'admin' : 'user')
-          });
-          setTotalPoints(data.totalPoints || 0);
-          if (data.progressMap) {
-            setProgressMap(data.progressMap);
-          }
-        } else {
-          // Create new user profile
-          const newUser: UserProfile = {
-            name: isEmail ? identifier.split('@')[0] : 'Scholar',
-            gradeLevel: '10',
-            subject: '',
-            focus: StudyFocus.SYLLABUS,
-            topic: '',
-            level: 1,
-            totalQuizzes: 0,
-            totalPoints: 0,
-            progressMap: {},
-            testHistory: [],
-            role: (identifier === 'alsamy36@gmail.com' ? 'admin' : 'user') as 'admin' | 'user'
-          };
-          await setDoc(docRef, { ...newUser, uid: identifier });
-          setUser(newUser);
+  const loadProfile = async (identifier: string, isEmail: boolean = false) => {
+    console.log(`Loading profile for ${identifier} (isEmail: ${isEmail})`);
+    try {
+      const docRef = doc(db, 'users', identifier);
+      const docSnap = await getDoc(docRef);
+      console.log(`Profile doc exists: ${docSnap.exists()}`);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setUser({
+          name: data.name || (isEmail ? identifier.split('@')[0] : 'Scholar'),
+          gradeLevel: data.gradeLevel || '10',
+          subject: data.subject || '',
+          focus: data.focus || StudyFocus.SYLLABUS,
+          topic: data.topic || '',
+          level: data.level || 1,
+          totalQuizzes: data.totalQuizzes || 0,
+          totalPoints: data.totalPoints || 0,
+          testHistory: data.testHistory || [],
+          role: data.role || (identifier === 'alsamy36@gmail.com' ? 'admin' : 'user')
+        });
+        setTotalPoints(data.totalPoints || 0);
+        if (data.progressMap) {
+          setProgressMap(data.progressMap);
         }
-        setCurrentScreen(AppScreen.ENTRY);
-      } catch (err: any) {
-        console.error("Profile load error:", err);
-        setError(`Profile error: ${err.message || "Could not load or create profile."}`);
-        setCurrentScreen(AppScreen.SIGN_IN);
+      } else {
+        // Create new user profile
+        console.log(`Creating new profile for ${identifier}`);
+        const newUser: UserProfile = {
+          name: isEmail ? identifier.split('@')[0] : 'Scholar',
+          gradeLevel: '10',
+          subject: '',
+          focus: StudyFocus.SYLLABUS,
+          topic: '',
+          level: 1,
+          totalQuizzes: 0,
+          totalPoints: 0,
+          progressMap: {},
+          testHistory: [],
+          role: (identifier === 'alsamy36@gmail.com' ? 'admin' : 'user') as 'admin' | 'user'
+        };
+        await setDoc(docRef, { ...newUser, uid: identifier });
+        setUser(newUser);
       }
-    };
+      console.log(`Profile loaded successfully, switching to ENTRY screen`);
+      setCurrentScreen(AppScreen.ENTRY);
+    } catch (err: any) {
+      console.error("Profile load error:", err);
+      setError(`Profile error: ${err.message || "Could not load or create profile."}`);
+      setCurrentScreen(AppScreen.SIGN_IN);
+    }
+  };
 
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      console.log(`Auth state changed: ${currentUser?.uid || 'null'}`);
       setAuthUser(currentUser);
       setIsAuthReady(true);
       
@@ -434,7 +439,7 @@ export default function App() {
     try {
       setSessionEmail(cleanEmail);
       localStorage.setItem('se_session_email', cleanEmail);
-      // The useEffect will handle loading the profile
+      await loadProfile(cleanEmail, true);
     } catch (err: any) {
       setError(`Login failed: ${err.message}`);
       setCurrentScreen(AppScreen.SIGN_IN);
