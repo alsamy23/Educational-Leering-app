@@ -317,6 +317,8 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
 };
 
 export default function App() {
+  const [sessionEmail, setSessionEmail] = useState<string | null>(() => localStorage.getItem('se_session_email'));
+  const [emailInput, setEmailInput] = useState('');
   const [totalPoints, setTotalPoints] = useState<number>(() => Number(localStorage.getItem('se_pts') || 0));
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.LOADING);
   
@@ -357,73 +359,104 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
+    const loadProfile = async (identifier: string, isEmail: boolean = false) => {
+      try {
+        const docRef = doc(db, 'users', identifier);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setUser({
+            name: data.name || (isEmail ? identifier.split('@')[0] : 'Scholar'),
+            gradeLevel: data.gradeLevel || '10',
+            subject: data.subject || '',
+            focus: data.focus || StudyFocus.SYLLABUS,
+            topic: data.topic || '',
+            level: data.level || 1,
+            totalQuizzes: data.totalQuizzes || 0,
+            totalPoints: data.totalPoints || 0,
+            testHistory: data.testHistory || [],
+            role: data.role || (identifier === 'alsamy36@gmail.com' ? 'admin' : 'user')
+          });
+          setTotalPoints(data.totalPoints || 0);
+          if (data.progressMap) {
+            setProgressMap(data.progressMap);
+          }
+        } else {
+          // Create new user profile
+          const newUser: UserProfile = {
+            name: isEmail ? identifier.split('@')[0] : 'Scholar',
+            gradeLevel: '10',
+            subject: '',
+            focus: StudyFocus.SYLLABUS,
+            topic: '',
+            level: 1,
+            totalQuizzes: 0,
+            totalPoints: 0,
+            progressMap: {},
+            testHistory: [],
+            role: (identifier === 'alsamy36@gmail.com' ? 'admin' : 'user') as 'admin' | 'user'
+          };
+          await setDoc(docRef, { ...newUser, uid: identifier });
+          setUser(newUser);
+        }
+        setCurrentScreen(AppScreen.ENTRY);
+      } catch (err: any) {
+        console.error("Profile load error:", err);
+        setError(`Profile error: ${err.message || "Could not load or create profile."}`);
+        setCurrentScreen(AppScreen.SIGN_IN);
+      }
+    };
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setAuthUser(currentUser);
       setIsAuthReady(true);
       
       if (currentUser) {
-        try {
-          const docRef = doc(db, 'users', currentUser.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            setUser({
-              name: data.name || currentUser.displayName || 'Scholar',
-              gradeLevel: data.gradeLevel || '10',
-              subject: data.subject || '',
-              focus: data.focus || StudyFocus.SYLLABUS,
-              topic: data.topic || '',
-              level: data.level || 1,
-              totalQuizzes: data.totalQuizzes || 0,
-              totalPoints: data.totalPoints || 0,
-              testHistory: data.testHistory || [],
-              role: data.role || (currentUser.email === 'alsamy36@gmail.com' ? 'admin' : 'user')
-            });
-            setTotalPoints(data.totalPoints || 0);
-            if (data.progressMap) {
-              setProgressMap(data.progressMap);
-            }
-          } else {
-            // Create new user profile
-            const newUser: UserProfile = {
-              name: currentUser.displayName || 'Scholar',
-              gradeLevel: '10',
-              subject: '',
-              focus: StudyFocus.SYLLABUS,
-              topic: '',
-              level: 1,
-              totalQuizzes: 0,
-              totalPoints: 0,
-              progressMap: {},
-              testHistory: [],
-              role: (currentUser.email === 'alsamy36@gmail.com' ? 'admin' : 'user') as 'admin' | 'user'
-            };
-            await setDoc(docRef, { ...newUser, uid: currentUser.uid });
-            setUser(newUser);
-          }
-          setCurrentScreen(AppScreen.ENTRY);
-        } catch (err: any) {
-          console.error("Auth state change error:", err);
-          setError(`Profile error: ${err.message || "Could not load or create profile."}`);
-          setCurrentScreen(AppScreen.SIGN_IN);
-          // Don't throw here to avoid breaking the listener, but log it
-          try {
-            handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
-          } catch (e) {
-            // handleFirestoreError throws, we just want it to log
-          }
-        }
+        await loadProfile(currentUser.uid);
+      } else if (sessionEmail) {
+        await loadProfile(sessionEmail, true);
       } else {
         setCurrentScreen(AppScreen.SIGN_IN);
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionEmail]);
+
+  const handleEmailLogin = async () => {
+    if (!emailInput || !emailInput.includes('@')) {
+      setError("Please enter a valid email.");
+      return;
+    }
+    const cleanEmail = emailInput.toLowerCase().trim();
+    setLoadingMsg("Logging in...");
+    setCurrentScreen(AppScreen.LOADING);
+    
+    try {
+      setSessionEmail(cleanEmail);
+      localStorage.setItem('se_session_email', cleanEmail);
+      // The useEffect will handle loading the profile
+    } catch (err: any) {
+      setError(`Login failed: ${err.message}`);
+      setCurrentScreen(AppScreen.SIGN_IN);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setSessionEmail(null);
+      localStorage.removeItem('se_session_email');
+      setCurrentScreen(AppScreen.SIGN_IN);
+    } catch (err: any) {
+      console.error("Logout error:", err);
+    }
+  };
 
   const saveProgressToCloud = async (newPoints: number, newMap: Record<string, number>, newLevel: number, newHistory?: TestRecord[]) => {
-    if (!authUser) return;
+    const identifier = authUser?.uid || sessionEmail;
+    if (!identifier) return;
     try {
-      const docRef = doc(db, 'users', authUser.uid);
+      const docRef = doc(db, 'users', identifier);
       await updateDoc(docRef, {
         totalPoints: newPoints,
         progressMap: newMap,
@@ -434,7 +467,7 @@ export default function App() {
         topic: user.topic
       });
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${authUser.uid}`);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${identifier}`);
     }
   };
 
@@ -473,11 +506,34 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('se_pts', totalPoints.toString());
     localStorage.setItem('se_user', JSON.stringify(user));
-  }, [totalPoints, user]);
-
-  useEffect(() => {
-    localStorage.setItem('se_progress', JSON.stringify(progressMap));
-  }, [progressMap]);
+    
+    // Auto-save profile changes to cloud if logged in
+    const identifier = authUser?.uid || sessionEmail;
+    if (identifier && isAuthReady) {
+      const saveProfile = async () => {
+        try {
+          const docRef = doc(db, 'users', identifier);
+          await updateDoc(docRef, {
+            name: user.name,
+            gradeLevel: user.gradeLevel,
+            subject: user.subject,
+            topic: user.topic,
+            focus: user.focus,
+            level: user.level,
+            totalPoints: totalPoints,
+            progressMap: progressMap,
+            testHistory: user.testHistory || []
+          });
+        } catch (err) {
+          // Silent fail for auto-save to avoid annoying errors during typing
+          console.warn("Auto-save profile error:", err);
+        }
+      };
+      
+      const timeoutId = setTimeout(saveProfile, 2000); // Debounce 2s
+      return () => clearTimeout(timeoutId);
+    }
+  }, [totalPoints, user, progressMap, authUser, sessionEmail, isAuthReady]);
 
   // Determine key for progress tracking
   const getProgressKey = () => `${user.subject.trim().toLowerCase()}-${user.gradeLevel}`;
@@ -658,7 +714,7 @@ export default function App() {
       const currentGroup = classroomSession.groups[classroomSession.currentGroupIndex];
       currentGroup.score += activeQuiz.score;
       
-      if (authUser) {
+      if (authUser || sessionEmail) {
         saveProgressToCloud(totalPoints, progressMap, user.level, newHistory);
       }
       setUser(prev => ({ ...prev, testHistory: newHistory }));
@@ -683,7 +739,7 @@ export default function App() {
     
     setUser(prev => ({ ...prev, level: newLevel, testHistory: newHistory }));
 
-    if (authUser) {
+    if (authUser || sessionEmail) {
       saveProgressToCloud(newPoints, newProgressMap, newLevel, newHistory);
     }
     
@@ -745,7 +801,7 @@ export default function App() {
       <MotivationalPopup show={showMotivation} label={activeQuiz?.score === 5 ? "Perfect Batch!" : "Brilliant!"} />
       
       {/* Sidebar for Desktop */}
-      {authUser && currentScreen !== AppScreen.SIGN_IN && currentScreen !== AppScreen.QUIZ && currentScreen !== AppScreen.LOADING && (
+      {(authUser || sessionEmail) && currentScreen !== AppScreen.SIGN_IN && currentScreen !== AppScreen.QUIZ && currentScreen !== AppScreen.LOADING && (
         <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-slate-200 p-6 z-20">
           <div className="flex items-center gap-3 mb-10">
             <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
@@ -792,7 +848,7 @@ export default function App() {
               <span className="text-[10px] font-black text-amber-600 uppercase">Points</span>
             </div>
             <button 
-              onClick={logout}
+              onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-black text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
             >
               <LogOut className="w-5 h-5" />
@@ -818,7 +874,7 @@ export default function App() {
               <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
               <span className="font-black text-slate-800 text-xs">{totalPoints.toLocaleString()}</span>
             </div>
-            {isAuthReady && authUser && (
+            {isAuthReady && (authUser || sessionEmail) && (
               <button 
                 onClick={() => setCurrentScreen(AppScreen.PROGRESS)} 
                 className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors"
@@ -853,9 +909,38 @@ export default function App() {
               <div className="space-y-2">
                 <h2 className="text-2xl font-black text-slate-800 tracking-tighter">Welcome to ScholarEarn</h2>
                 <p className="text-xs text-slate-500 font-bold leading-relaxed">
-                  Sign in to save your progress, earn badges, and compete in classroom battles!
+                  Enter your email to save your progress and earn badges!
                 </p>
               </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left block">Your Email</label>
+                  <input 
+                    type="email" 
+                    value={emailInput} 
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder="scholar@example.com"
+                    className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 text-sm font-bold"
+                  />
+                </div>
+                <Button 
+                  onClick={handleEmailLogin}
+                  className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-100"
+                >
+                  Sign In with Email
+                </Button>
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-slate-100"></span>
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-300">
+                  <span className="bg-white px-2">Or</span>
+                </div>
+              </div>
+
               <Button 
                 onClick={async () => {
                   try {
@@ -869,7 +954,8 @@ export default function App() {
                     }
                   }
                 }} 
-                className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-100 flex items-center justify-center gap-3"
+                variant="outline"
+                className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
