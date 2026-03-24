@@ -357,9 +357,12 @@ export default function App() {
 
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
   const loadProfile = async (identifier: string, isEmail: boolean = false) => {
     console.log(`Loading profile for ${identifier} (isEmail: ${isEmail})`);
+    setIsSyncing(true);
     try {
       const docRef = doc(db, 'users', identifier);
       const docSnap = await getDoc(docRef);
@@ -403,10 +406,13 @@ export default function App() {
       }
       console.log(`Profile loaded successfully, switching to ENTRY screen`);
       setCurrentScreen(AppScreen.ENTRY);
+      setLastSyncTime(new Date());
     } catch (err: any) {
       console.error("Profile load error:", err);
       setError(`Profile error: ${err.message || "Could not load or create profile."}`);
       setCurrentScreen(AppScreen.SIGN_IN);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -417,8 +423,10 @@ export default function App() {
       setIsAuthReady(true);
       
       if (currentUser) {
+        setError(null); // Clear errors on successful auth
         await loadProfile(currentUser.uid);
       } else if (sessionEmail) {
+        setError(null); // Clear errors on successful session
         await loadProfile(sessionEmail, true);
       } else {
         setCurrentScreen(AppScreen.SIGN_IN);
@@ -432,6 +440,7 @@ export default function App() {
       setError("Please enter a valid email.");
       return;
     }
+    setError(null); // Clear previous errors
     const cleanEmail = emailInput.toLowerCase().trim();
     setLoadingMsg("Logging in...");
     setCurrentScreen(AppScreen.LOADING);
@@ -460,6 +469,7 @@ export default function App() {
   const saveProgressToCloud = async (newPoints: number, newMap: Record<string, number>, newLevel: number, newHistory?: TestRecord[]) => {
     const identifier = authUser?.uid || sessionEmail;
     if (!identifier) return;
+    setIsSyncing(true);
     try {
       const docRef = doc(db, 'users', identifier);
       await updateDoc(docRef, {
@@ -471,8 +481,11 @@ export default function App() {
         gradeLevel: user.gradeLevel,
         topic: user.topic
       });
+      setLastSyncTime(new Date());
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${identifier}`);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -516,6 +529,7 @@ export default function App() {
     const identifier = authUser?.uid || sessionEmail;
     if (identifier && isAuthReady) {
       const saveProfile = async () => {
+        setIsSyncing(true);
         try {
           const docRef = doc(db, 'users', identifier);
           await updateDoc(docRef, {
@@ -529,9 +543,12 @@ export default function App() {
             progressMap: progressMap,
             testHistory: user.testHistory || []
           });
+          setLastSyncTime(new Date());
         } catch (err) {
           // Silent fail for auto-save to avoid annoying errors during typing
           console.warn("Auto-save profile error:", err);
+        } finally {
+          setIsSyncing(false);
         }
       };
       
@@ -845,12 +862,20 @@ export default function App() {
           </nav>
 
           <div className="pt-6 border-t border-slate-100 space-y-4">
-            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                <span className="font-black text-slate-800 text-sm">{totalPoints.toLocaleString()}</span>
+            <div className={`p-4 rounded-2xl border transition-all duration-500 flex items-center justify-between ${(authUser || sessionEmail) ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-100'}`}>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <Star className={`w-4 h-4 transition-colors ${(authUser || sessionEmail) ? 'text-green-500 fill-green-500' : 'text-amber-500 fill-amber-500'}`} />
+                  <span className={`font-black text-sm transition-colors ${(authUser || sessionEmail) ? 'text-green-600' : 'text-slate-800'}`}>{totalPoints.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <div className={`w-1.5 h-1.5 rounded-full ${(authUser || sessionEmail) ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                    {isSyncing ? 'Syncing...' : (authUser || sessionEmail) ? 'Cloud Synchronizing 24/7' : 'Offline'}
+                  </span>
+                </div>
               </div>
-              <span className="text-[10px] font-black text-amber-600 uppercase">Points</span>
+              <span className={`text-[10px] font-black uppercase transition-colors ${(authUser || sessionEmail) ? 'text-green-600' : 'text-amber-600'}`}>Points</span>
             </div>
             <button 
               onClick={handleLogout}
@@ -875,9 +900,10 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1.5">
-              <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
-              <span className="font-black text-slate-800 text-xs">{totalPoints.toLocaleString()}</span>
+            <div className={`px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${(authUser || sessionEmail) ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+              <Star className={`w-3 h-3 transition-colors ${(authUser || sessionEmail) ? 'text-green-500 fill-green-500' : 'text-amber-500 fill-amber-500'}`} />
+              <span className={`font-black text-xs transition-colors ${(authUser || sessionEmail) ? 'text-green-600' : 'text-slate-800'}`}>{totalPoints.toLocaleString()}</span>
+              {(authUser || sessionEmail) && <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />}
             </div>
             {isAuthReady && (authUser || sessionEmail) && (
               <button 
@@ -948,6 +974,7 @@ export default function App() {
 
               <Button 
                 onClick={async () => {
+                  setError(null); // Clear previous errors
                   try {
                     await loginWithGoogle();
                   } catch (e: any) {
