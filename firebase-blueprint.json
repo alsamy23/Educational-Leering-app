@@ -8,6 +8,7 @@
         "uid": { "type": "string", "description": "The user's authentication UID." },
         "name": { "type": "string" },
         "gradeLevel": { "type": "string" },
+        "section": { "type": "string" },
         "subject": { "type": "string" },
         "focus": { "type": "string" },
         "topic": { "type": "string" },
@@ -28,7 +29,9 @@
               "total": { "type": "number" },
               "date": { "type": "string", "format": "date-time" },
               "type": { "type": "string", "enum": ["individual", "classroom"] },
-              "subject": { "type": "string" }
+              "subject": { "type": "string" },
+              "grade": { "type": "string" },
+              "section": { "type": "string" }
             }
           }
         }

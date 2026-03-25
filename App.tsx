@@ -228,7 +228,9 @@ const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ u
                     </span>
                   </div>
                   <p className="text-[13px] font-black text-slate-800 leading-tight">{record.topic}</p>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{record.subject}</p>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                    {record.subject} {record.grade ? `• Grade ${record.grade}` : ''} {record.section ? `• Sec ${record.section}` : ''}
+                  </p>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-black text-slate-800 tracking-tighter">{record.score}/{record.total}</div>
@@ -330,7 +332,7 @@ export default function App() {
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('se_user');
     return saved ? JSON.parse(saved) : {
-      name: '', gradeLevel: '10', subject: '', focus: StudyFocus.SYLLABUS, topic: '',
+      name: '', gradeLevel: '10', section: '', subject: '', focus: StudyFocus.SYLLABUS, topic: '',
       level: 1, totalQuizzes: 0, totalPoints: 0, testHistory: []
     };
   });
@@ -372,6 +374,7 @@ export default function App() {
         setUser({
           name: data.name || (isEmail ? identifier.split('@')[0] : 'Scholar'),
           gradeLevel: data.gradeLevel || '10',
+          section: data.section || '',
           subject: data.subject || '',
           focus: data.focus || StudyFocus.SYLLABUS,
           topic: data.topic || '',
@@ -479,6 +482,7 @@ export default function App() {
         testHistory: newHistory || user.testHistory || [],
         subject: user.subject,
         gradeLevel: user.gradeLevel,
+        section: user.section || '',
         topic: user.topic
       });
       setLastSyncTime(new Date());
@@ -630,6 +634,7 @@ export default function App() {
         currentGroupIndex: 0,
         subject: user.subject,
         gradeLevel: user.gradeLevel,
+        section: user.section || '',
         topic: user.topic,
         isStarted: true
       };
@@ -727,7 +732,9 @@ export default function App() {
       total: activeQuiz.questions.length,
       date: new Date().toISOString(),
       type: isClassroomMode ? 'classroom' : 'individual',
-      subject: user.subject
+      subject: user.subject,
+      grade: user.gradeLevel,
+      section: user.section
     };
 
     const newHistory = [newRecord, ...(user.testHistory || [])].slice(0, 50); // Keep last 50
@@ -1074,15 +1081,26 @@ export default function App() {
                     </div>
                   )}
                   
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Grade</label>
-                      <select value={user.gradeLevel} onChange={e => setUser({...user, gradeLevel: e.target.value})} className="input-field w-full px-4 py-4 rounded-2xl bg-slate-50 text-sm font-bold appearance-none">
-                         <option value="12">12th Grade</option>
-                         <option value="11">11th Grade</option>
-                         <option value="10">10th Grade</option>
-                         {[...Array(9)].map((_, i) => <option key={9-i} value={9-i}>Grade {9-i}</option>)}
-                      </select>
+                      <input 
+                        type="text" 
+                        value={user.gradeLevel} 
+                        onChange={e => setUser({...user, gradeLevel: e.target.value})} 
+                        className="input-field w-full px-4 py-4 rounded-2xl bg-slate-50 text-sm font-bold" 
+                        placeholder="e.g. 12" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Section</label>
+                      <input 
+                        type="text" 
+                        value={user.section || ''} 
+                        onChange={e => setUser({...user, section: e.target.value})} 
+                        className="input-field w-full px-4 py-4 rounded-2xl bg-slate-50 text-sm font-bold" 
+                        placeholder="e.g. A" 
+                      />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Subject</label>

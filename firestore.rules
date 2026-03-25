@@ -12,6 +12,7 @@ service cloud.firestore {
     //   - uid: string (required)
     //   - name: string (required, length < 50)
     //   - gradeLevel: string (required, length < 10)
+    //   - section: string (optional, length < 10)
     //   - subject: string (optional, length < 50)
     //   - focus: string (optional, length < 50)
     //   - topic: string (optional, length < 100)
@@ -66,6 +67,7 @@ service cloud.firestore {
              validStringLength('uid', 1, 100) &&
              validStringLength('name', 1, 50) &&
              validStringLength('gradeLevel', 1, 10) &&
+             isValidOptionalString('section', 0, 10) &&
              isValidOptionalString('subject', 0, 50) &&
              isValidOptionalString('focus', 0, 50) &&
              isValidOptionalString('topic', 0, 100) &&

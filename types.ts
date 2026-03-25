@@ -18,11 +18,14 @@ export interface TestRecord {
   date: string;
   type: 'individual' | 'classroom';
   subject: string;
+  grade?: string;
+  section?: string;
 }
 
 export interface UserProfile {
   name: string;
   gradeLevel: string;
+  section?: string;
   subject: string;
   focus: StudyFocus;
   topic: string;
@@ -72,6 +75,7 @@ export interface ClassroomSession {
   currentGroupIndex: number;
   subject: string;
   gradeLevel: string;
+  section: string;
   topic: string;
   isStarted: boolean;
 }
