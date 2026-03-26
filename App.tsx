@@ -24,16 +24,16 @@ const MotivationalPopup = ({ show, label = "Spectacular!" }: { show: boolean, la
           exit={{ opacity: 0, scale: 0.5, rotate: 10 }}
           className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
         >
-          <div className="bg-white p-8 rounded-[2rem] shadow-2xl border-4 border-amber-300 flex flex-col items-center transform">
+          <div className="bg-surface-container-lowest/80 glass-card p-8 rounded-[2.5rem] shadow-2xl border border-white/40 flex flex-col items-center transform">
             <motion.div 
               animate={{ y: [0, -20, 0] }}
               transition={{ repeat: Infinity, duration: 1.5 }}
               className="mb-4"
             >
-              <Sparkles className="w-16 h-16 text-amber-400 filter drop-shadow-md" />
+              <Sparkles className="w-16 h-16 text-tertiary filter drop-shadow-md" />
             </motion.div>
-            <h3 className="text-2xl font-black text-indigo-600 uppercase tracking-tighter italic">{label}</h3>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Level Up Your Mind!</p>
+            <h3 className="text-2xl font-headline font-extrabold text-primary uppercase tracking-tighter italic">{label}</h3>
+            <p className="text-xs font-body font-body font-bold text-on-surface-variant uppercase tracking-widest mt-1">Level Up Your Mind!</p>
           </div>
         </motion.div>
       )}
@@ -95,9 +95,9 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
 
   return (
     <div className="p-6 space-y-6 animate-fade-in pb-10">
-      <div className="bg-white p-6 rounded-[2rem] border shadow-sm space-y-5">
+      <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] shadow-lg shadow-black/5 border border-white/40 space-y-5">
         <div className="flex justify-between items-center">
-          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Group Configuration</h3>
+          <h3 className="text-sm font-headline font-extrabold text-on-surface-variant uppercase tracking-widest">Group Configuration</h3>
           <div className="flex gap-2">
              <input 
                type="file" 
@@ -108,11 +108,11 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
              />
              <button 
                onClick={() => fileInputRef.current?.click()}
-               className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 transition-colors uppercase"
+               className="text-[9px] font-headline font-extrabold text-primary bg-primary-container/20 px-2 py-1 rounded-lg hover:bg-primary-container/40 transition-colors uppercase"
              >
                Upload Accessions
              </button>
-             <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">{groups.length}/5</span>
+             <span className="text-[10px] font-body font-bold text-outline bg-surface px-2 py-1 rounded-lg">{groups.length}/5</span>
           </div>
         </div>
 
@@ -124,7 +124,7 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
                   type="text" 
                   value={group.name} 
                   onChange={e => updateGroupName(group.id, e.target.value)} 
-                  className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 text-sm font-bold" 
+                  className="input-field w-full px-4 py-3 rounded-xl bg-surface text-sm font-body font-bold" 
                   placeholder={`Group ${group.id} Name`}
                 />
                 <div className="flex gap-1">
@@ -132,10 +132,10 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
                     <button
                       key={level}
                       onClick={() => updateGroupDifficulty(group.id, level)}
-                      className={`flex-1 py-1.5 rounded-lg text-[8px] font-black uppercase border transition-all flex items-center justify-center gap-1 ${
+                      className={`flex-1 py-1.5 rounded-lg text-[8px] font-headline font-extrabold uppercase border transition-all flex items-center justify-center gap-1 ${
                         (group.difficulty || DifficultyLevel.LOW) === level 
-                          ? 'bg-indigo-600 text-white border-indigo-600' 
-                          : 'bg-white text-slate-400 border-slate-100 hover:border-indigo-100'
+                          ? 'bg-primary text-on-primary border-primary' 
+                          : 'bg-surface-container-lowest text-outline border-outline-variant/10 hover:border-primary-container'
                       }`}
                     >
                       {level === DifficultyLevel.LOW && <SignalLow className="w-3 h-3" />}
@@ -148,7 +148,7 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
               </div>
               <button 
                 onClick={() => removeGroup(group.id)}
-                className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors self-start mt-1"
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-error-container/30 text-error hover:bg-error-container transition-colors self-start mt-1"
                 disabled={groups.length <= 2}
               >
                 <X className="w-4 h-4" />
@@ -160,7 +160,7 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
         {groups.length < 5 && (
           <button 
             onClick={addGroup}
-            className="w-full py-3 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase hover:border-indigo-200 hover:text-indigo-400 transition-all flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl border-2 border-dashed border-outline-variant/20 text-outline text-[10px] font-headline font-extrabold uppercase hover:border-primary-container hover:text-primary/80 transition-all flex items-center justify-center gap-2"
           >
             <Plus className="w-4 h-4" /> Add Group
           </button>
@@ -168,10 +168,10 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
       </div>
 
       <div className="grid gap-3">
-        <Button onClick={() => onStart(groups)} className="h-16 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 flex-1">
+        <Button onClick={() => onStart(groups)} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
           Start Classroom Battle
         </Button>
-        <Button onClick={onCancel} variant="outline" className="h-14 rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] border-slate-200 bg-white">
+        <Button onClick={onCancel} variant="outline" className="h-14 rounded-[1.5rem] font-headline font-extrabold uppercase tracking-widest text-[10px] border-outline-variant/20 bg-surface-container-lowest">
           Cancel
         </Button>
       </div>
@@ -185,56 +185,56 @@ const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ u
   return (
     <div className="p-6 space-y-6 animate-fade-in pb-10 h-full flex flex-col">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-black text-slate-800 tracking-tighter">My Progress</h2>
-        <Button onClick={onBack} variant="outline" className="h-8 px-4 w-auto text-[10px] font-black uppercase tracking-widest">Back</Button>
+        <h2 className="text-2xl font-headline font-extrabold text-on-surface tracking-tighter">My Progress</h2>
+        <Button onClick={onBack} variant="outline" className="h-8 px-4 w-auto text-[10px] font-headline font-extrabold uppercase tracking-widest">Back</Button>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-indigo-600 p-5 rounded-[2rem] text-white shadow-lg shadow-indigo-100">
-          <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Total Points</p>
-          <p className="text-2xl font-black tracking-tighter">{user.totalPoints?.toLocaleString() || 0}</p>
+        <div className="bg-primary p-5 rounded-[2rem] text-on-primary shadow-lg shadow-primary/20">
+          <p className="text-[10px] font-headline font-extrabold uppercase tracking-widest opacity-70">Total Points</p>
+          <p className="text-2xl font-headline font-extrabold tracking-tighter">{user.totalPoints?.toLocaleString() || 0}</p>
         </div>
-        <div className="bg-emerald-500 p-5 rounded-[2rem] text-white shadow-lg shadow-emerald-100">
-          <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Current Level</p>
-          <p className="text-2xl font-black tracking-tighter">{user.level}</p>
+        <div className="bg-secondary p-5 rounded-[2rem] text-on-secondary shadow-lg shadow-secondary/20">
+          <p className="text-[10px] font-headline font-extrabold uppercase tracking-widest opacity-70">Current Level</p>
+          <p className="text-2xl font-headline font-extrabold tracking-tighter">{user.level}</p>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex-1 overflow-y-auto no-scrollbar">
-        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+      <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] border border-white/40 shadow-lg shadow-black/5 flex-1 overflow-y-auto no-scrollbar">
+        <h3 className="text-sm font-headline font-extrabold text-outline uppercase tracking-widest mb-4 flex items-center gap-2">
           <History className="w-4 h-4" /> Test History
         </h3>
         
         {history.length === 0 ? (
           <div className="text-center py-12 space-y-3">
-            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto">
-              <History className="w-8 h-8 text-slate-200" />
+            <div className="w-16 h-16 bg-surface rounded-full flex items-center justify-center mx-auto">
+              <History className="w-8 h-8 text-outline-variant/50" />
             </div>
-            <p className="text-xs font-bold text-slate-400">No tests taken yet. Start learning!</p>
+            <p className="text-xs font-body font-bold text-outline">No tests taken yet. Start learning!</p>
           </div>
         ) : (
           <div className="space-y-3">
             {history.map((record, i) => (
-              <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+              <div key={i} className="p-4 bg-surface rounded-[2rem] border border-outline-variant/10 flex justify-between items-center">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest ${
-                      record.type === 'classroom' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded uppercase font-headline font-extrabold tracking-widest ${
+                      record.type === 'classroom' ? 'bg-primary-container/40 text-primary' : 'bg-secondary-container text-secondary'
                     }`}>
                       {record.type}
                     </span>
-                    <span className="text-[9px] font-bold text-slate-400">
+                    <span className="text-[9px] font-body font-bold text-outline">
                       {new Date(record.date).toLocaleDateString()}
                     </span>
                   </div>
-                  <p className="text-[13px] font-black text-slate-800 leading-tight">{record.topic}</p>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                  <p className="text-[13px] font-headline font-extrabold text-on-surface leading-tight">{record.topic}</p>
+                  <p className="text-[9px] font-body font-bold text-outline uppercase tracking-wider">
                     {record.subject} {record.grade ? `• Grade ${record.grade}` : ''} {record.section ? `• Sec ${record.section}` : ''}
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-black text-slate-800 tracking-tighter">{record.score}/{record.total}</div>
-                  <div className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                  <div className="text-lg font-headline font-extrabold text-on-surface tracking-tighter">{record.score}/{record.total}</div>
+                  <div className="text-[9px] font-headline font-extrabold text-primary bg-primary-container/20 px-1.5 py-0.5 rounded">
                     {Math.round((record.score / record.total) * 100)}%
                   </div>
                 </div>
@@ -274,14 +274,14 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   return (
     <div className="p-6 space-y-6 animate-fade-in pb-10 h-full flex flex-col">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-black text-slate-800 tracking-tighter">Admin Dashboard</h2>
-        <Button onClick={onBack} variant="outline" className="h-8 px-4 rounded-xl font-black uppercase tracking-widest text-[10px] border-slate-200 bg-white">
+        <h2 className="text-2xl font-headline font-extrabold text-on-surface tracking-tighter">Admin Dashboard</h2>
+        <Button onClick={onBack} variant="outline" className="h-8 px-4 rounded-xl font-headline font-extrabold uppercase tracking-widest text-[10px] border-outline-variant/20 bg-surface-container-lowest">
           Back
         </Button>
       </div>
 
-      <div className="bg-white p-6 rounded-[2rem] border shadow-sm flex-1 overflow-y-auto">
-        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+      <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] border border-white/40 shadow-lg shadow-black/5 flex-1 overflow-y-auto">
+        <h3 className="text-sm font-headline font-extrabold text-outline uppercase tracking-widest mb-4 flex items-center gap-2">
           <UserIcon className="w-4 h-4" /> Registered Users ({users.length})
         </h3>
         
@@ -290,24 +290,24 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
             <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
           </div>
         ) : error ? (
-          <div className="text-red-500 text-xs font-bold text-center py-10 bg-red-50 rounded-xl">{error}</div>
+          <div className="text-error text-xs font-body font-bold text-center py-10 bg-error-container/30 rounded-xl">{error}</div>
         ) : users.length === 0 ? (
-          <div className="text-slate-400 text-xs font-bold text-center py-10">No users found.</div>
+          <div className="text-outline text-xs font-body font-bold text-center py-10">No users found.</div>
         ) : (
           <div className="space-y-3">
             {users.map(u => (
-              <div key={u.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+              <div key={u.id} className="p-4 bg-surface rounded-[2rem] border border-outline-variant/10 flex justify-between items-center">
                 <div>
-                  <div className="font-black text-slate-800 text-sm flex items-center gap-2">
+                  <div className="font-headline font-extrabold text-on-surface text-sm flex items-center gap-2">
                     {u.name || 'Anonymous'}
-                    {u.role === 'admin' && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase tracking-widest">Admin</span>}
+                    {u.role === 'admin' && <span className="text-[8px] bg-tertiary-container text-on-tertiary-container px-1.5 py-0.5 rounded uppercase tracking-widest">Admin</span>}
                   </div>
-                  <div className="text-[10px] font-bold text-slate-400 mt-1">
+                  <div className="text-[10px] font-body font-bold text-outline mt-1">
                     Grade {u.gradeLevel} • Level {u.level} • {u.totalPoints || 0} pts
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Quizzes: {u.totalQuizzes || 0}</div>
+                  <div className="text-[10px] font-headline font-extrabold text-primary uppercase tracking-widest">Quizzes: {u.totalQuizzes || 0}</div>
                 </div>
               </div>
             ))}
@@ -818,41 +818,41 @@ export default function App() {
   // Render Logic for different question types
   const renderQuestionLabel = (type: QuestionType) => {
       switch(type) {
-          case QuestionType.CASE_STUDY: return <span className="text-[9px] font-black px-2 py-1 bg-purple-100 text-purple-700 rounded uppercase tracking-tighter flex items-center gap-1"><BookOpen className="w-3 h-3" /> Case Study</span>;
-          case QuestionType.VISUAL_ANALYSIS: return <span className="text-[9px] font-black px-2 py-1 bg-blue-100 text-blue-700 rounded uppercase tracking-tighter flex items-center gap-1"><Eye className="w-3 h-3" /> Visual Analysis</span>;
-          case QuestionType.WORD_PROBLEM: return <span className="text-[9px] font-black px-2 py-1 bg-amber-100 text-amber-700 rounded uppercase tracking-tighter flex items-center gap-1"><Calculator className="w-3 h-3" /> Word Problem</span>;
+          case QuestionType.CASE_STUDY: return <span className="text-[9px] font-headline font-extrabold px-2 py-1 bg-primary-container text-primary rounded uppercase tracking-tighter flex items-center gap-1"><BookOpen className="w-3 h-3" /> Case Study</span>;
+          case QuestionType.VISUAL_ANALYSIS: return <span className="text-[9px] font-headline font-extrabold px-2 py-1 bg-secondary-container text-secondary rounded uppercase tracking-tighter flex items-center gap-1"><Eye className="w-3 h-3" /> Visual Analysis</span>;
+          case QuestionType.WORD_PROBLEM: return <span className="text-[9px] font-headline font-extrabold px-2 py-1 bg-tertiary-container text-on-tertiary-container rounded uppercase tracking-tighter flex items-center gap-1"><Calculator className="w-3 h-3" /> Word Problem</span>;
           default: return null;
       }
   };
 
   return (
-    <div className="h-screen bg-slate-50 flex font-sans overflow-hidden selection:bg-indigo-100 selection:text-indigo-700">
+    <div className="h-screen bg-surface flex font-sans overflow-hidden selection:bg-primary-container/40 selection:text-on-primary-container">
       <MotivationalPopup show={showMotivation} label={activeQuiz?.score === 5 ? "Perfect Batch!" : "Brilliant!"} />
       
       {/* Sidebar for Desktop */}
       {(authUser || sessionEmail) && currentScreen !== AppScreen.SIGN_IN && currentScreen !== AppScreen.QUIZ && currentScreen !== AppScreen.LOADING && (
-        <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-slate-200 p-6 z-20">
+        <aside className="hidden lg:flex flex-col w-64 bg-surface-container-lowest border-r border-outline-variant/20 p-6 z-20">
           <div className="flex items-center gap-3 mb-10">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-indigo-600" />
+            <div className="w-10 h-10 rounded-xl bg-primary-container/20 flex items-center justify-center">
+              <GraduationCap className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-lg font-black tracking-tighter text-slate-800 leading-none">ScholarEarn</h1>
-              <p className="text-[8px] font-black text-indigo-600 uppercase tracking-[0.2em]">AI Academic Hub</p>
+              <h1 className="text-lg font-headline font-extrabold tracking-tighter text-on-surface leading-none">ScholarEarn</h1>
+              <p className="text-[8px] font-headline font-extrabold text-primary uppercase tracking-[0.2em]">AI Academic Hub</p>
             </div>
           </div>
 
           <nav className="flex-1 space-y-2">
             <button 
               onClick={() => setCurrentScreen(AppScreen.ENTRY)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-black transition-all ${currentScreen === AppScreen.ENTRY ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-[2rem] text-sm font-headline font-extrabold transition-all ${currentScreen === AppScreen.ENTRY ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface'}`}
             >
               <Home className="w-5 h-5" />
               Home
             </button>
             <button 
               onClick={() => setCurrentScreen(AppScreen.PROGRESS)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-black transition-all ${currentScreen === AppScreen.PROGRESS ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-[2rem] text-sm font-headline font-extrabold transition-all ${currentScreen === AppScreen.PROGRESS ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface'}`}
             >
               <History className="w-5 h-5" />
               My Progress
@@ -860,7 +860,7 @@ export default function App() {
             {user.role === 'admin' && (
               <button 
                 onClick={() => setCurrentScreen(AppScreen.ADMIN_DASHBOARD)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-black transition-all ${currentScreen === AppScreen.ADMIN_DASHBOARD ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[2rem] text-sm font-headline font-extrabold transition-all ${currentScreen === AppScreen.ADMIN_DASHBOARD ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface'}`}
               >
                 <LayoutDashboard className="w-5 h-5" />
                 Admin
@@ -868,25 +868,25 @@ export default function App() {
             )}
           </nav>
 
-          <div className="pt-6 border-t border-slate-100 space-y-4">
-            <div className={`p-4 rounded-2xl border transition-all duration-500 flex items-center justify-between ${(authUser || sessionEmail) ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-100'}`}>
+          <div className="pt-6 border-t border-outline-variant/10 space-y-4">
+            <div className={`p-4 rounded-[2rem] border transition-all duration-500 flex items-center justify-between ${(authUser || sessionEmail) ? 'bg-secondary-container/20 border-secondary-container' : 'bg-tertiary-container/30 border-amber-100'}`}>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <Star className={`w-4 h-4 transition-colors ${(authUser || sessionEmail) ? 'text-green-500 fill-green-500' : 'text-amber-500 fill-amber-500'}`} />
-                  <span className={`font-black text-sm transition-colors ${(authUser || sessionEmail) ? 'text-green-600' : 'text-slate-800'}`}>{totalPoints.toLocaleString()}</span>
+                  <Star className={`w-4 h-4 transition-colors ${(authUser || sessionEmail) ? 'text-secondary fill-secondary' : 'text-tertiary fill-amber-500'}`} />
+                  <span className={`font-headline font-extrabold text-sm transition-colors ${(authUser || sessionEmail) ? 'text-secondary' : 'text-on-surface'}`}>{totalPoints.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center gap-1 mt-1">
-                  <div className={`w-1.5 h-1.5 rounded-full ${(authUser || sessionEmail) ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                  <div className={`w-1.5 h-1.5 rounded-full ${(authUser || sessionEmail) ? 'bg-secondary animate-pulse' : 'bg-surface-container-highest'}`} />
+                  <span className="text-[8px] font-body font-bold text-outline uppercase tracking-wider">
                     {isSyncing ? 'Syncing...' : (authUser || sessionEmail) ? 'Cloud Synchronizing 24/7' : 'Offline'}
                   </span>
                 </div>
               </div>
-              <span className={`text-[10px] font-black uppercase transition-colors ${(authUser || sessionEmail) ? 'text-green-600' : 'text-amber-600'}`}>Points</span>
+              <span className={`text-[10px] font-headline font-extrabold uppercase transition-colors ${(authUser || sessionEmail) ? 'text-secondary' : 'text-tertiary'}`}>Points</span>
             </div>
             <button 
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-black text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-[2rem] text-sm font-headline font-extrabold text-outline hover:text-error hover:bg-error-container/30 transition-all"
             >
               <LogOut className="w-5 h-5" />
               Logout
@@ -896,26 +896,26 @@ export default function App() {
       )}
 
       <div className="flex-1 flex flex-col min-w-0 relative h-full overflow-hidden">
-        <header className="p-5 bg-white border-b flex justify-between items-center z-10 shadow-sm lg:hidden">
+        <header className="p-5 bg-surface-container-lowest border-b flex justify-between items-center z-10 shadow-lg shadow-black/5 lg:hidden">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-indigo-600" />
+            <div className="w-10 h-10 rounded-xl bg-primary-container/20 flex items-center justify-center">
+              <GraduationCap className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-lg font-black tracking-tighter text-slate-800">ScholarEarn</h1>
-              <p className="text-[8px] font-black text-indigo-600 uppercase tracking-[0.2em] -mt-1">AI Academic Hub</p>
+              <h1 className="text-lg font-headline font-extrabold tracking-tighter text-on-surface">ScholarEarn</h1>
+              <p className="text-[8px] font-headline font-extrabold text-primary uppercase tracking-[0.2em] -mt-1">AI Academic Hub</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className={`px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${(authUser || sessionEmail) ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-              <Star className={`w-3 h-3 transition-colors ${(authUser || sessionEmail) ? 'text-green-500 fill-green-500' : 'text-amber-500 fill-amber-500'}`} />
-              <span className={`font-black text-xs transition-colors ${(authUser || sessionEmail) ? 'text-green-600' : 'text-slate-800'}`}>{totalPoints.toLocaleString()}</span>
-              {(authUser || sessionEmail) && <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />}
+            <div className={`px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${(authUser || sessionEmail) ? 'bg-secondary-container/20 border-secondary-container' : 'bg-tertiary-container/30 border-tertiary-container'}`}>
+              <Star className={`w-3 h-3 transition-colors ${(authUser || sessionEmail) ? 'text-secondary fill-secondary' : 'text-tertiary fill-amber-500'}`} />
+              <span className={`font-headline font-extrabold text-xs transition-colors ${(authUser || sessionEmail) ? 'text-secondary' : 'text-on-surface'}`}>{totalPoints.toLocaleString()}</span>
+              {(authUser || sessionEmail) && <div className="w-1 h-1 rounded-full bg-secondary animate-pulse" />}
             </div>
             {isAuthReady && (authUser || sessionEmail) && (
               <button 
                 onClick={() => setCurrentScreen(AppScreen.PROGRESS)} 
-                className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors"
+                className="w-8 h-8 rounded-lg bg-secondary-container/30 text-secondary flex items-center justify-center hover:bg-secondary-container transition-colors"
               >
                 <History className="w-4 h-4" />
               </button>
@@ -923,7 +923,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative bg-slate-50/50 scroll-smooth">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative bg-surface/50 scroll-smooth">
           <div className="max-w-6xl mx-auto w-full h-full lg:px-12 xl:px-20">
             <div className="max-w-2xl mx-auto lg:max-w-none h-full py-6 lg:py-10">
               {currentScreen === AppScreen.ADMIN_DASHBOARD && (
@@ -936,35 +936,35 @@ export default function App() {
 
         {currentScreen === AppScreen.SIGN_IN && (
           <div className="p-6 h-full flex flex-col items-center justify-center text-center space-y-6 animate-fade-in">
-            <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-xl space-y-6 w-full max-w-sm">
+            <div className="bg-surface-container-lowest/80 glass-card p-8 rounded-[2.5rem] border border-white/40 shadow-xl space-y-6 w-full max-w-sm">
               <motion.div 
                 animate={{ y: [0, -10, 0] }}
                 transition={{ repeat: Infinity, duration: 2 }}
                 className="flex justify-center"
               >
-                <GraduationCap className="w-20 h-20 text-indigo-600" />
+                <GraduationCap className="w-20 h-20 text-primary" />
               </motion.div>
               <div className="space-y-2">
-                <h2 className="text-2xl font-black text-slate-800 tracking-tighter">Welcome to ScholarEarn</h2>
-                <p className="text-xs text-slate-500 font-bold leading-relaxed">
+                <h2 className="text-2xl font-headline font-extrabold text-on-surface tracking-tighter">Welcome to ScholarEarn</h2>
+                <p className="text-xs text-on-surface-variant font-body font-bold leading-relaxed">
                   Enter your email to save your progress and earn badges!
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left block">Your Email</label>
+                  <label className="text-[10px] font-headline font-extrabold text-outline uppercase tracking-widest text-left block">Your Email</label>
                   <input 
                     type="email" 
                     value={emailInput} 
                     onChange={(e) => setEmailInput(e.target.value)}
                     placeholder="scholar@example.com"
-                    className="input-field w-full px-4 py-3 rounded-xl bg-slate-50 text-sm font-bold"
+                    className="input-field w-full px-4 py-3 rounded-xl bg-surface text-sm font-body font-bold"
                   />
                 </div>
                 <Button 
                   onClick={handleEmailLogin}
-                  className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-100"
+                  className="w-full h-14 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-lg shadow-primary/20"
                 >
                   Sign In with Email
                 </Button>
@@ -972,10 +972,10 @@ export default function App() {
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-slate-100"></span>
+                  <span className="w-full border-t border-outline-variant/10"></span>
                 </div>
-                <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-300">
-                  <span className="bg-white px-2">Or</span>
+                <div className="relative flex justify-center text-[10px] uppercase font-headline font-extrabold text-outline-variant">
+                  <span className="bg-surface-container-lowest px-2">Or</span>
                 </div>
               </div>
 
@@ -994,7 +994,7 @@ export default function App() {
                   }
                 }} 
                 variant="outline"
-                className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3"
+                className="w-full h-14 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs flex items-center justify-center gap-3"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -1004,27 +1004,27 @@ export default function App() {
                 </svg>
                 Sign in with Google
               </Button>
-              {error && <p className="text-red-500 text-[10px] font-bold">{error}</p>}
+              {error && <p className="text-error text-[10px] font-body font-bold">{error}</p>}
             </div>
           </div>
         )}
 
         {currentScreen === AppScreen.API_KEY_REQUIRED && (
           <div className="p-6 h-full flex flex-col items-center justify-center text-center space-y-6 animate-fade-in">
-            <div className="bg-amber-50 p-8 rounded-[2rem] border-2 border-amber-200 space-y-4">
+            <div className="bg-tertiary-container/30 p-8 rounded-[2rem] border-2 border-tertiary-container space-y-4">
               <div className="flex justify-center">
-                <Key className="w-16 h-16 text-amber-500" />
+                <Key className="w-16 h-16 text-tertiary" />
               </div>
-              <h2 className="text-xl font-black text-slate-800">API Key Required</h2>
-              <p className="text-xs text-slate-500 font-bold leading-relaxed">
-                To use the AI models, you need to select your own API key. We support both <span className="text-indigo-600 font-bold">Gemini</span> and <span className="text-orange-600 font-bold">Groq</span>.
+              <h2 className="text-xl font-headline font-extrabold text-on-surface">API Key Required</h2>
+              <p className="text-xs text-on-surface-variant font-body font-bold leading-relaxed">
+                To use the AI models, you need to select your own API key. We support both <span className="text-primary font-body font-bold">Gemini</span> and <span className="text-orange-600 font-body font-bold">Groq</span>.
               </p>
               <div className="flex flex-col gap-2 pt-2">
                 <a 
                   href="https://ai.google.dev/gemini-api/docs/billing" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="text-[10px] text-indigo-500 underline font-bold block"
+                  className="text-[10px] text-primary underline font-body font-bold block"
                 >
                   Get Gemini API Key
                 </a>
@@ -1032,21 +1032,21 @@ export default function App() {
                   href="https://console.groq.com/keys" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="text-[10px] text-orange-500 underline font-bold block"
+                  className="text-[10px] text-orange-500 underline font-body font-bold block"
                 >
                   Get Groq API Key
                 </a>
               </div>
             </div>
             <div className="flex flex-col gap-3 w-full">
-              <Button onClick={handleSelectKey} className="w-full h-16 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100">
+              <Button onClick={handleSelectKey} className="w-full h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20">
                 Select Gemini Key
               </Button>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or use Groq (Developer Only)</div>
-              <p className="text-[9px] text-slate-400 px-4">
+              <div className="text-[10px] font-body font-bold text-outline uppercase tracking-widest">Or use Groq (Developer Only)</div>
+              <p className="text-[9px] text-outline px-4">
                 Note: Groq key must currently be set in the project environment variables (GROQ_API_KEY).
               </p>
-              <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} variant="outline" className="h-14 rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] border-slate-200 bg-white">
+              <Button onClick={() => setCurrentScreen(AppScreen.ENTRY)} variant="outline" className="h-14 rounded-[1.5rem] font-headline font-extrabold uppercase tracking-widest text-[10px] border-outline-variant/20 bg-surface-container-lowest">
                 Back to Enrollment
               </Button>
             </div>
@@ -1055,85 +1055,85 @@ export default function App() {
 
         {currentScreen === AppScreen.ENTRY && (
           <div className="p-6 space-y-6 animate-fade-in pb-10">
-            <div className="bg-indigo-600 p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
+            <div className="bg-primary p-8 rounded-[2rem] text-on-primary shadow-xl relative overflow-hidden">
                <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12">
                  <School className="w-32 h-32" />
                </div>
                <div className="relative z-10">
-                 <h2 className="text-3xl font-black italic tracking-tighter">{isClassroomMode ? "Classroom Battle" : "Your Path"}</h2>
-                 <p className="text-indigo-100 text-xs opacity-90 font-bold mt-1 max-w-[80%]">
+                 <h2 className="text-3xl font-headline font-extrabold italic tracking-tighter">{isClassroomMode ? "Classroom Battle" : "Your Path"}</h2>
+                 <p className="text-on-primary-container text-xs opacity-90 font-body font-bold mt-1 max-w-[80%]">
                    {isClassroomMode ? "Engage your students with AI-powered group challenges." : "Personalized for you. Resume your journey or take a mock exam."}
                  </p>
                </div>
             </div>
 
-            <div className="bg-white p-6 rounded-[2rem] border shadow-sm space-y-5">
-               <div className="flex bg-slate-100 p-1 rounded-2xl">
-                  <button onClick={() => setIsClassroomMode(false)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${!isClassroomMode ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>Individual</button>
-                  <button onClick={() => setIsClassroomMode(true)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${isClassroomMode ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>Classroom</button>
+            <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] border border-white/40 shadow-lg shadow-black/5 space-y-5">
+               <div className="flex bg-surface-container p-1 rounded-[2rem]">
+                  <button onClick={() => setIsClassroomMode(false)} className={`flex-1 py-3 rounded-xl text-[10px] font-headline font-extrabold uppercase transition-all ${!isClassroomMode ? 'bg-surface-container-lowest shadow-lg shadow-black/5 text-primary' : 'text-outline'}`}>Individual</button>
+                  <button onClick={() => setIsClassroomMode(true)} className={`flex-1 py-3 rounded-xl text-[10px] font-headline font-extrabold uppercase transition-all ${isClassroomMode ? 'bg-surface-container-lowest shadow-lg shadow-black/5 text-primary' : 'text-outline'}`}>Classroom</button>
                </div>
 
                <div className="space-y-4">
                   {!isClassroomMode && (
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Identity</label>
-                      <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-4 py-4 rounded-2xl bg-slate-50 text-sm font-bold" placeholder="Your Name" />
+                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Identity</label>
+                      <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" placeholder="Your Name" />
                     </div>
                   )}
                   
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Grade</label>
+                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Grade</label>
                       <input 
                         type="text" 
                         value={user.gradeLevel} 
                         onChange={e => setUser({...user, gradeLevel: e.target.value})} 
-                        className="input-field w-full px-4 py-4 rounded-2xl bg-slate-50 text-sm font-bold" 
+                        className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" 
                         placeholder="e.g. 12" 
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Section</label>
+                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Section</label>
                       <input 
                         type="text" 
                         value={user.section || ''} 
                         onChange={e => setUser({...user, section: e.target.value})} 
-                        className="input-field w-full px-4 py-4 rounded-2xl bg-slate-50 text-sm font-bold" 
+                        className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" 
                         placeholder="e.g. A" 
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Subject</label>
-                      <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-4 py-4 rounded-2xl bg-slate-50 text-sm font-bold" placeholder="e.g. Science" />
+                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Subject</label>
+                      <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" placeholder="e.g. Science" />
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Specific Topic</label>
-                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full px-4 py-4 rounded-2xl bg-slate-50 text-sm font-bold" placeholder="e.g. Photosynthesis" />
+                    <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Specific Topic</label>
+                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" placeholder="e.g. Photosynthesis" />
                   </div>
                </div>
 
                {/* Level Indicator */}
                {!isClassroomMode && user.subject && (
-                 <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-between animate-fade-in">
+                 <div className="p-4 bg-primary-container/20 rounded-[2rem] border border-primary-container flex items-center justify-between animate-fade-in">
                     <div>
-                      <p className="text-[10px] font-black text-indigo-400 uppercase">Current Progress</p>
-                      <p className="text-xl font-black text-indigo-700">Level {user.level}</p>
+                      <p className="text-[10px] font-headline font-extrabold text-primary/80 uppercase">Current Progress</p>
+                      <p className="text-xl font-headline font-extrabold text-on-primary-container">Level {user.level}</p>
                     </div>
                     <div className="text-right">
-                       <p className="text-[9px] font-bold text-indigo-400">Next Batch</p>
-                       <span className="text-xs font-bold text-indigo-600">5 Questions</span>
+                       <p className="text-[9px] font-body font-bold text-primary/80">Next Batch</p>
+                       <span className="text-xs font-body font-bold text-primary">5 Questions</span>
                     </div>
                  </div>
                )}
 
                {isBoardGrade && (
                  <div className="space-y-2 pt-2 border-t animate-fade-in">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Focus Area</label>
+                    <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Focus Area</label>
                     <div className="grid grid-cols-3 gap-2">
                        {Object.values(StudyFocus).map(f => (
-                         <button key={f} onClick={() => setUser({...user, focus: f})} className={`py-3 rounded-xl text-[9px] font-black uppercase border transition-all ${user.focus === f ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>{f}</button>
+                         <button key={f} onClick={() => setUser({...user, focus: f})} className={`py-3 rounded-xl text-[9px] font-headline font-extrabold uppercase border transition-all ${user.focus === f ? 'bg-primary text-on-primary border-primary shadow-md' : 'bg-surface text-outline border-outline-variant/10'}`}>{f}</button>
                        ))}
                     </div>
                  </div>
@@ -1143,33 +1143,33 @@ export default function App() {
             <div className="grid gap-3">
               {!isClassroomMode ? (
                 <>
-                  <Button onClick={() => startBatch(false)} className="h-16 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 flex-1">
+                  <Button onClick={() => startBatch(false)} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
                     {user.level > 1 ? `Resume Level ${user.level}` : 'Start Level 1 Batch'}
                   </Button>
-                  <Button onClick={() => startBatch(true)} variant="outline" className="h-14 rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] border-slate-200 bg-white">
+                  <Button onClick={() => startBatch(true)} variant="outline" className="h-14 rounded-[1.5rem] font-headline font-extrabold uppercase tracking-widest text-[10px] border-outline-variant/20 bg-surface-container-lowest">
                     Practice Mock Exam
                   </Button>
                 </>
               ) : (
-                <Button onClick={startClassroomSetup} className="h-16 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 flex-1">
+                <Button onClick={startClassroomSetup} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
                   Setup Classroom Battle
                 </Button>
               )}
             </div>
             
-            {error && <p className="text-center text-red-500 text-[10px] font-black uppercase bg-red-50 p-3 rounded-xl border border-red-100">{error}</p>}
+            {error && <p className="text-center text-error text-[10px] font-headline font-extrabold uppercase bg-error-container/30 p-3 rounded-xl border border-red-100">{error}</p>}
 
-          <div className="bg-slate-100/50 p-4 rounded-2xl flex flex-col items-center text-center space-y-2">
+          <div className="bg-surface-container/50 p-4 rounded-[2rem] flex flex-col items-center text-center space-y-2">
                 <div className="space-y-0.5">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Feedback & Support</p>
-                  <p className="text-[10px] font-bold text-slate-500">Have suggestions? We'd love to hear from you!</p>
+                  <p className="text-[9px] font-headline font-extrabold text-outline uppercase tracking-widest">Feedback & Support</p>
+                  <p className="text-[10px] font-body font-bold text-on-surface-variant">Have suggestions? We'd love to hear from you!</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <a 
                     href="mailto:alsamy36@gmail.com" 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="text-[11px] font-black text-indigo-600 hover:text-indigo-700 transition-colors flex items-center gap-1"
+                    className="text-[11px] font-headline font-extrabold text-primary hover:text-on-primary-container transition-colors flex items-center gap-1"
                   >
                     <Mail className="w-3 h-3" /> alsamy36@gmail.com
                   </a>
@@ -1179,9 +1179,9 @@ export default function App() {
                       setCopied(true);
                       setTimeout(() => setCopied(false), 2000);
                     }}
-                    className="text-[9px] font-black text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors uppercase flex items-center gap-1"
+                    className="text-[9px] font-headline font-extrabold text-outline bg-surface-container-lowest px-2 py-1 rounded-lg border border-outline-variant/20 hover:bg-surface transition-colors uppercase flex items-center gap-1"
                   >
-                    {copied ? <CheckCircle2 className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                    {copied ? <CheckCircle2 className="w-3 h-3 text-secondary" /> : <Copy className="w-3 h-3" />}
                     {copied ? 'Copied' : 'Copy'}
                   </button>
                 </div>
@@ -1199,17 +1199,17 @@ export default function App() {
         {currentScreen === AppScreen.LOADING && (
           <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-6">
              <div className="relative">
-               <div className="w-20 h-20 border-8 border-slate-100 rounded-full"></div>
-               <div className="w-20 h-20 border-8 border-indigo-600 rounded-full border-t-transparent animate-spin absolute top-0 left-0"></div>
+               <div className="w-20 h-20 border-8 border-outline-variant/10 rounded-full"></div>
+               <div className="w-20 h-20 border-8 border-primary rounded-full border-t-transparent animate-spin absolute top-0 left-0"></div>
              </div>
              <div className="space-y-1">
-                <h3 className="text-lg font-black text-slate-800 italic">"{loadingMsg}"</h3>
+                <h3 className="text-lg font-headline font-extrabold text-on-surface italic">"{loadingMsg}"</h3>
                 {!isAuthReady ? (
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  <p className="text-[10px] text-outline font-body font-bold uppercase tracking-widest">
                     Connecting to Cloud...
                   </p>
                 ) : (
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  <p className="text-[10px] text-outline font-body font-bold uppercase tracking-widest">
                     {isMockMode ? "Randomizing Questions..." : `Preparing Level ${user.level} Challenge`}
                   </p>
                 )}
@@ -1220,71 +1220,71 @@ export default function App() {
         {currentScreen === AppScreen.QUIZ && currentQ && (
           <div className="p-6 space-y-6 animate-fade-in pb-20">
              {/* Progress Bar */}
-             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div>
+             <div className="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
+                <div className="h-full bg-primary transition-all duration-500" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div>
              </div>
 
-             <div className="flex justify-between items-end bg-white p-5 rounded-3xl border shadow-sm">
+             <div className="flex justify-between items-end bg-surface-container-lowest/80 glass-card p-5 rounded-[2.5rem] border border-white/40 shadow-lg shadow-black/5">
                 <div>
                    {isClassroomMode && classroomSession && (
-                     <p className="text-[10px] font-black text-indigo-600 uppercase mb-1">
+                     <p className="text-[10px] font-headline font-extrabold text-primary uppercase mb-1">
                        Group: {classroomSession.groups[classroomSession.currentGroupIndex].name}
                      </p>
                    )}
-                   <p className="text-[10px] font-black text-indigo-600 uppercase mb-1">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
-                   <p className="text-3xl font-black tabular-nums">{currentIndex + 1}<span className="text-slate-200 text-xl font-medium">/5</span></p>
+                   <p className="text-[10px] font-headline font-extrabold text-primary uppercase mb-1">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
+                   <p className="text-3xl font-headline font-extrabold tabular-nums">{currentIndex + 1}<span className="text-outline-variant/50 text-xl font-medium">/5</span></p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                    {renderQuestionLabel(currentQ.type)}
-                   <span className="text-[8px] font-bold text-slate-400 uppercase italic">Subject: {user.subject}</span>
+                   <span className="text-[8px] font-body font-bold text-outline uppercase italic">Subject: {user.subject}</span>
                 </div>
              </div>
 
              {/* Case Study / Context Box */}
              {currentQ.contextMaterial && (
-               <div className={`p-6 rounded-[2rem] border-2 relative overflow-hidden animate-fade-in ${currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'bg-blue-50 border-blue-100' : 'bg-purple-50 border-purple-100'}`}>
+               <div className={`p-6 rounded-[2rem] border-2 relative overflow-hidden animate-fade-in ${currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'bg-secondary-container/20 border-secondary-container' : 'bg-primary-container/20 border-primary-container'}`}>
                   <div className="flex items-center gap-2 mb-2 opacity-70">
                     {currentQ.type === QuestionType.VISUAL_ANALYSIS ? <Eye className="w-5 h-5" /> : <BookOpen className="w-5 h-5" />}
-                    <span className="text-[10px] font-black uppercase tracking-widest">
+                    <span className="text-[10px] font-headline font-extrabold uppercase tracking-widest">
                       {currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'Visual Context' : 'Read Case Study'}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-700 font-medium leading-relaxed italic">
+                  <p className="text-sm text-on-surface font-medium leading-relaxed italic">
                     {currentQ.contextMaterial}
                   </p>
                </div>
              )}
 
-             <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm relative overflow-hidden">
-                <div className={`absolute top-0 left-0 w-2 h-full ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-amber-500' : 'bg-indigo-600'}`}></div>
-                <h2 className="text-lg font-bold text-slate-900 leading-snug">{currentQ.text}</h2>
+             <div className="bg-surface-container-lowest/80 glass-card p-8 rounded-[2.5rem] border border-white/40 shadow-lg shadow-black/5 relative overflow-hidden">
+                <div className={`absolute top-0 left-0 w-2 h-full ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`}></div>
+                <h2 className="text-lg font-body font-bold text-on-surface leading-snug">{currentQ.text}</h2>
              </div>
 
              <div className="grid gap-3">
                 {currentQ.options.map((opt, i) => {
-                  let style = "bg-white border-slate-100 text-slate-600 hover:border-indigo-200";
+                  let style = "bg-surface-container-lowest border-outline-variant/10 text-on-surface-variant hover:border-primary-container";
                   if (feedback) {
-                    if (i === currentQ.correctIndex) style = "bg-emerald-50 border-emerald-500 text-emerald-700 ring-4 ring-emerald-100";
-                    else if (i === feedback.selected && !feedback.isCorrect) style = "bg-red-50 border-red-500 text-red-700 ring-4 ring-red-100";
+                    if (i === currentQ.correctIndex) style = "bg-secondary-container/30 border-secondary text-on-secondary-container ring-4 ring-secondary-container";
+                    else if (i === feedback.selected && !feedback.isCorrect) style = "bg-error-container/30 border-error text-on-error-container ring-4 ring-error-container";
                     else style = "opacity-40 grayscale pointer-events-none";
                   }
                   return (
                     <button key={i} disabled={!!feedback} onClick={() => handleMCQ(i)} className={`w-full p-5 text-left rounded-[1.5rem] border-2 transition-all flex items-center gap-5 ${style} active:scale-95`}>
-                       <span className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black flex-none ${feedback && i === currentQ.correctIndex ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>{String.fromCharCode(65 + i)}</span>
-                       <span className="text-sm font-bold leading-tight">{opt}</span>
+                       <span className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-headline font-extrabold flex-none ${feedback && i === currentQ.correctIndex ? 'bg-secondary text-on-secondary' : 'bg-surface-container text-outline'}`}>{String.fromCharCode(65 + i)}</span>
+                       <span className="text-sm font-body font-bold leading-tight">{opt}</span>
                     </button>
                   );
                 })}
              </div>
 
              {feedback && (
-               <div className="p-6 bg-slate-50 rounded-[2rem] border-2 border-slate-200 animate-fade-in space-y-3">
-                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                     <p className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">Feedback</p>
+               <div className="p-6 bg-surface rounded-[2rem] border-2 border-outline-variant/20 animate-fade-in space-y-3">
+                  <div className="flex justify-between items-center border-b border-outline-variant/20 pb-2">
+                     <p className="text-[10px] font-headline font-extrabold uppercase text-primary tracking-widest">Feedback</p>
                   </div>
-                  <p className="text-xs font-bold text-slate-600 leading-relaxed italic">{currentQ.explanation}</p>
+                  <p className="text-xs font-body font-bold text-on-surface-variant leading-relaxed italic">{currentQ.explanation}</p>
                   {!feedback.isCorrect && (
-                    <Button onClick={nextQuestion} className="h-12 rounded-xl font-black uppercase text-[10px]">Next</Button>
+                    <Button onClick={nextQuestion} className="h-12 rounded-xl font-headline font-extrabold uppercase text-[10px]">Next</Button>
                   )}
                </div>
              )}
@@ -1296,28 +1296,28 @@ export default function App() {
              <div className="space-y-2">
                 <div className="flex justify-center mb-4">
                   {activeQuiz.score >= 3 ? (
-                    <Rocket className="w-20 h-20 text-indigo-600" />
+                    <Rocket className="w-20 h-20 text-primary" />
                   ) : (
-                    <Shield className="w-20 h-20 text-slate-400" />
+                    <Shield className="w-20 h-20 text-outline" />
                   )}
                 </div>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Batch Complete</h2>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{isMockMode ? "Mock Exam" : `Level ${user.level} Progress`}</p>
+                <h2 className="text-3xl font-headline font-extrabold text-on-surface tracking-tighter">Batch Complete</h2>
+                <p className="text-[10px] font-headline font-extrabold text-outline uppercase tracking-widest">{isMockMode ? "Mock Exam" : `Level ${user.level} Progress`}</p>
              </div>
 
-             <div className="bg-white p-8 rounded-[3rem] shadow-xl border relative overflow-hidden">
+             <div className="bg-surface-container-lowest/80 glass-card p-8 rounded-[3rem] shadow-xl border border-white/40 relative overflow-hidden">
                 <div className="grid grid-cols-2 gap-4">
-                   <div className="p-4 bg-indigo-50 rounded-3xl">
-                      <p className="text-[10px] font-black text-indigo-400 uppercase mb-1">Score</p>
-                      <p className="text-4xl font-black text-indigo-600">{activeQuiz.score}<span className="text-xl text-indigo-300">/5</span></p>
+                   <div className="p-4 bg-primary-container/20 rounded-[2.5rem]">
+                      <p className="text-[10px] font-headline font-extrabold text-primary/80 uppercase mb-1">Score</p>
+                      <p className="text-4xl font-headline font-extrabold text-primary">{activeQuiz.score}<span className="text-xl text-primary-container">/5</span></p>
                    </div>
-                   <div className="p-4 bg-amber-50 rounded-3xl">
-                      <p className="text-[10px] font-black text-amber-400 uppercase mb-1">Earned</p>
-                      <p className="text-4xl font-black text-amber-500">+{activeQuiz.score * 10}</p>
+                   <div className="p-4 bg-tertiary-container/30 rounded-[2.5rem]">
+                      <p className="text-[10px] font-headline font-extrabold text-tertiary uppercase mb-1">Earned</p>
+                      <p className="text-4xl font-headline font-extrabold text-tertiary">+{activeQuiz.score * 10}</p>
                    </div>
                 </div>
                 {!isMockMode && activeQuiz.score >= 3 && (
-                   <div className="mt-6 p-3 bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest animate-pulse">
+                   <div className="mt-6 p-3 bg-secondary text-on-secondary rounded-xl text-xs font-body font-bold uppercase tracking-widest animate-pulse">
                      Level Up Unlocked!
                    </div>
                 )}
@@ -1325,21 +1325,21 @@ export default function App() {
 
              <div className="grid grid-cols-1 gap-3">
                 {isClassroomMode ? (
-                  <Button onClick={nextGroup} className="h-16 rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-200">
+                  <Button onClick={nextGroup} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-xs tracking-widest shadow-xl shadow-primary/30">
                     {classroomSession && classroomSession.currentGroupIndex < classroomSession.groups.length - 1 ? "Next Group Turn" : "View Final Leaderboard"}
                   </Button>
                 ) : (
-                  <Button onClick={() => startBatch(isMockMode)} className="h-16 rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-200">
+                  <Button onClick={() => startBatch(isMockMode)} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-xs tracking-widest shadow-xl shadow-primary/30">
                     {isMockMode ? "New Mock Exam" : activeQuiz.score >= 3 ? `Start Level ${user.level}` : "Retry Batch"}
                   </Button>
                 )}
                 <div className="grid grid-cols-2 gap-3">
-                  <Button onClick={downloadBadge} variant="secondary" className="h-14 rounded-2xl font-black uppercase text-[10px]">Save Badge</Button>
+                  <Button onClick={downloadBadge} variant="secondary" className="h-14 rounded-[2rem] font-headline font-extrabold uppercase text-[10px]">Save Badge</Button>
                   <Button onClick={() => {
                     setCurrentScreen(AppScreen.ENTRY);
                     setIsClassroomMode(false);
                     setClassroomSession(null);
-                  }} variant="outline" className="h-14 rounded-2xl font-black uppercase text-[10px]">Exit</Button>
+                  }} variant="outline" className="h-14 rounded-[2rem] font-headline font-extrabold uppercase text-[10px]">Exit</Button>
                 </div>
              </div>
              
@@ -1351,26 +1351,26 @@ export default function App() {
           <div className="p-8 space-y-8 animate-fade-in pb-20">
              <div className="text-center space-y-2">
                 <div className="flex justify-center mb-4">
-                  <Trophy className="w-24 h-24 text-amber-500" />
+                  <Trophy className="w-24 h-24 text-tertiary" />
                 </div>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Classroom Excellence</h2>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Final Group Rankings</p>
+                <h2 className="text-3xl font-headline font-extrabold text-on-surface tracking-tighter">Classroom Excellence</h2>
+                <p className="text-[10px] font-headline font-extrabold text-outline uppercase tracking-widest">Final Group Rankings</p>
              </div>
 
              <div className="space-y-3">
                 {[...classroomSession.groups].sort((a, b) => b.score - a.score).map((group, idx) => (
-                  <div key={group.id} className={`p-6 rounded-[2rem] border-2 flex items-center justify-between ${idx === 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-100'}`}>
+                  <div key={group.id} className={`p-6 rounded-[2rem] border-2 flex items-center justify-between ${idx === 0 ? 'bg-tertiary-container/30 border-tertiary-container' : 'bg-surface-container-lowest border-outline-variant/10'}`}>
                      <div className="flex items-center gap-4">
-                        <span className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg ${idx === 0 ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                        <span className={`w-10 h-10 rounded-full flex items-center justify-center font-headline font-extrabold text-lg ${idx === 0 ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container text-outline'}`}>
                           {idx + 1}
                         </span>
                         <div>
-                           <p className="text-sm font-black text-slate-800">{group.name}</p>
-                           <p className="text-[9px] font-bold text-slate-400 uppercase">Group ID: {group.id}</p>
+                           <p className="text-sm font-headline font-extrabold text-on-surface">{group.name}</p>
+                           <p className="text-[9px] font-body font-bold text-outline uppercase">Group ID: {group.id}</p>
                         </div>
                      </div>
                      <div className="text-right">
-                        <p className="text-2xl font-black text-indigo-600">{group.score}<span className="text-xs text-indigo-300 ml-1">PTS</span></p>
+                        <p className="text-2xl font-headline font-extrabold text-primary">{group.score}<span className="text-xs text-primary-container ml-1">PTS</span></p>
                      </div>
                   </div>
                 ))}
@@ -1380,7 +1380,7 @@ export default function App() {
                setCurrentScreen(AppScreen.ENTRY);
                setIsClassroomMode(false);
                setClassroomSession(null);
-             }} className="h-16 rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-200 w-full">
+             }} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-xs tracking-widest shadow-xl shadow-primary/30 w-full">
                Back to Main Menu
              </Button>
           </div>

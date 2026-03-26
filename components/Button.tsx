@@ -20,16 +20,16 @@ export const Button: React.FC<ButtonProps> = ({
   ...props 
 }) => {
   const variants = {
-    primary: "bg-primary text-white hover:bg-primary-dark shadow-lg shadow-primary/20",
-    secondary: "bg-secondary text-white hover:bg-emerald-600 shadow-lg shadow-emerald-200",
-    outline: "border-2 border-slate-200 text-slate-700 hover:border-primary hover:text-primary bg-white",
-    danger: "bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-200"
+    primary: "bg-primary text-on-primary hover:bg-primary-dim shadow-lg shadow-primary/20",
+    secondary: "bg-secondary text-on-secondary hover:bg-secondary/90 shadow-lg shadow-secondary/20",
+    outline: "border-2 border-outline-variant/20 text-on-surface hover:border-primary hover:text-primary bg-surface-container-lowest",
+    danger: "bg-error text-on-error hover:bg-error/90 shadow-lg shadow-error/20"
   };
 
   return (
     <button 
       className={cn(
-        "w-full py-3 px-4 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all duration-200 active:scale-95 flex items-center justify-center gap-2",
+        "w-full py-3 px-4 rounded-xl font-headline font-extrabold uppercase tracking-widest text-[10px] transition-all duration-200 active:scale-95 flex items-center justify-center gap-2",
         variants[variant],
         (disabled || isLoading) && "opacity-50 cursor-not-allowed active:scale-100",
         className
