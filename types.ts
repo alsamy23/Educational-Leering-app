@@ -52,6 +52,7 @@ export interface QuizSession {
   questions: QuizQuestion[];
   userAnswers: (number | null)[];
   score: number;
+  questionTimer?: number; // in seconds
 }
 
 export enum DifficultyLevel {
@@ -78,6 +79,7 @@ export interface ClassroomSession {
   section: string;
   topic: string;
   isStarted: boolean;
+  questionTimer?: number; // in seconds
 }
 
 export enum AppScreen {

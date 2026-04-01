@@ -41,13 +41,14 @@ const MotivationalPopup = ({ show, label = "Spectacular!" }: { show: boolean, la
   );
 };
 
-const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) => void, onCancel: () => void }) => {
+const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[], timer: number) => void, onCancel: () => void }) => {
   const [groups, setGroups] = useState<Group[]>([
     { id: '1', name: 'Alpha Squad', score: 0, members: [] },
     { id: '2', name: 'Beta Brains', score: 0, members: [] },
     { id: '3', name: 'Gamma Giants', score: 0, members: [] },
     { id: '4', name: 'Delta Dynamos', score: 0, members: [] },
   ]);
+  const [timer, setTimer] = useState<number>(45);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -157,6 +158,23 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
           ))}
         </div>
 
+        <div className="pt-4 border-t border-outline-variant/10 space-y-3">
+          <div className="flex justify-between items-center">
+            <label className="text-[10px] font-headline font-extrabold text-outline uppercase tracking-widest">Question Timer</label>
+            <select 
+              value={timer} 
+              onChange={(e) => setTimer(Number(e.target.value))}
+              className="bg-surface border border-outline-variant/20 rounded-lg px-3 py-1.5 text-xs font-body font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value={30}>30 Seconds</option>
+              <option value={45}>45 Seconds (Default)</option>
+              <option value={50}>50 Seconds</option>
+              <option value={60}>1 Minute</option>
+              <option value={120}>2 Minutes</option>
+            </select>
+          </div>
+        </div>
+
         {groups.length < 5 && (
           <button 
             onClick={addGroup}
@@ -168,7 +186,7 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[]) 
       </div>
 
       <div className="grid gap-3">
-        <Button onClick={() => onStart(groups)} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
+        <Button onClick={() => onStart(groups, timer)} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
           Start Classroom Battle
         </Button>
         <Button onClick={onCancel} variant="outline" className="h-14 rounded-[1.5rem] font-headline font-extrabold uppercase tracking-widest text-[10px] border-outline-variant/20 bg-surface-container-lowest">
@@ -345,6 +363,8 @@ export default function App() {
   const [showMotivation, setShowMotivation] = useState(false);
   const [isMockMode, setIsMockMode] = useState(false);
   const [isClassroomMode, setIsClassroomMode] = useState(false);
+  const [questionTimer, setQuestionTimer] = useState<number>(45);
+  const [timeLeft, setTimeLeft] = useState<number>(45);
   const [copied, setCopied] = useState(false);
   const [classroomSession, setClassroomSession] = useState<ClassroomSession | null>(null);
   const [groupQuizzes, setGroupQuizzes] = useState<Record<string, QuizSession>>({});
@@ -518,7 +538,7 @@ export default function App() {
         if (pendingAction.type === 'batch') {
           startBatch(pendingAction.data);
         } else if (pendingAction.type === 'classroom') {
-          startClassroomSession(pendingAction.data);
+          startClassroomSession(pendingAction.data.groups, pendingAction.data.timer);
         }
         setPendingAction(null);
       }
@@ -594,8 +614,9 @@ export default function App() {
     
     try {
       const questions = await generateQuizQuestions(user, mockMode);
-      setActiveQuiz({ profile: user, questions, userAnswers: [], score: 0 });
+      setActiveQuiz({ profile: user, questions, userAnswers: [], score: 0, questionTimer });
       setCurrentIndex(0);
+      setTimeLeft(questionTimer);
       setCurrentScreen(AppScreen.QUIZ);
     } catch (err: any) {
       if (err.message?.includes("Requested entity was not found")) {
@@ -617,9 +638,9 @@ export default function App() {
     setCurrentScreen(AppScreen.CLASSROOM_SETUP);
   };
 
-  const startClassroomSession = async (groups: Group[]) => {
+  const startClassroomSession = async (groups: Group[], timer: number) => {
     if (!hasApiKey && !hasGroqKey) {
-      setPendingAction({ type: 'classroom', data: groups });
+      setPendingAction({ type: 'classroom', data: { groups, timer } });
       setCurrentScreen(AppScreen.API_KEY_REQUIRED);
       return;
     }
@@ -636,17 +657,19 @@ export default function App() {
         gradeLevel: user.gradeLevel,
         section: user.section || '',
         topic: user.topic,
-        isStarted: true
+        isStarted: true,
+        questionTimer: timer
       };
 
       // Generate questions for the first group immediately
       const questions = await generateQuizQuestions(user, false, groups[0].name, user.topic, groups[0].difficulty);
-      const quiz: QuizSession = { profile: user, questions, userAnswers: [], score: 0 };
+      const quiz: QuizSession = { profile: user, questions, userAnswers: [], score: 0, questionTimer: timer };
       
       setGroupQuizzes({ [groups[0].id]: quiz });
       setActiveQuiz(quiz);
       setClassroomSession(session);
       setCurrentIndex(0);
+      setTimeLeft(timer);
       setCurrentScreen(AppScreen.QUIZ);
     } catch (err: any) {
       console.error("Classroom Start Error:", err);
@@ -674,12 +697,13 @@ export default function App() {
 
     try {
       const questions = await generateQuizQuestions(user, false, classroomSession.groups[nextIdx].name, user.topic, classroomSession.groups[nextIdx].difficulty);
-      const quiz: QuizSession = { profile: user, questions, userAnswers: [], score: 0 };
+      const quiz: QuizSession = { profile: user, questions, userAnswers: [], score: 0, questionTimer: classroomSession.questionTimer };
       
       setGroupQuizzes(prev => ({ ...prev, [classroomSession.groups[nextIdx].id]: quiz }));
       setActiveQuiz(quiz);
       setClassroomSession({ ...classroomSession, currentGroupIndex: nextIdx });
       setCurrentIndex(0);
+      setTimeLeft(classroomSession.questionTimer || 45);
       setFeedback(null);
       setCurrentScreen(AppScreen.QUIZ);
     } catch (err: any) {
@@ -718,10 +742,25 @@ export default function App() {
     setShowMotivation(false);
     if (activeQuiz && currentIndex < activeQuiz.questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
+      setTimeLeft(activeQuiz.questionTimer || 45);
     } else if (activeQuiz) {
       finishBatch();
     }
   };
+
+  // Timer Effect
+  useEffect(() => {
+    let timer: any;
+    if (currentScreen === AppScreen.QUIZ && !feedback && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft(prev => prev - 1);
+      }, 1000);
+    } else if (timeLeft === 0 && currentScreen === AppScreen.QUIZ && !feedback) {
+      // Time's up!
+      handleMCQ(-1); // Mark as incorrect
+    }
+    return () => clearInterval(timer);
+  }, [currentScreen, feedback, timeLeft]);
 
   const finishBatch = () => {
     if (!activeQuiz) return;
@@ -1006,6 +1045,52 @@ export default function App() {
               </Button>
               {error && <p className="text-error text-[10px] font-body font-bold">{error}</p>}
             </div>
+
+            {/* Progress Tracker Box & Feedback Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-4xl mt-8">
+              <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] border border-white/40 shadow-lg text-left space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-secondary-container/20 flex items-center justify-center">
+                    <Trophy className="w-6 h-6 text-secondary" />
+                  </div>
+                  <h3 className="text-sm font-headline font-extrabold text-on-surface uppercase tracking-widest">Progress Tracker</h3>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-body font-bold text-outline uppercase">Global Scholars</span>
+                    <span className="text-xs font-headline font-extrabold text-primary">12,450+</span>
+                  </div>
+                  <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+                    <div className="h-full bg-secondary w-3/4"></div>
+                  </div>
+                  <p className="text-[10px] text-on-surface-variant font-body font-bold leading-relaxed">
+                    Join thousands of students leveling up their academic performance with AI-driven personalized batches.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] border border-white/40 shadow-lg text-left space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-tertiary-container/20 flex items-center justify-center">
+                    <Mail className="w-6 h-6 text-tertiary" />
+                  </div>
+                  <h3 className="text-sm font-headline font-extrabold text-on-surface uppercase tracking-widest">Feedback & Support</h3>
+                </div>
+                <div className="space-y-3">
+                  <p className="text-[10px] text-on-surface-variant font-body font-bold leading-relaxed">
+                    Have suggestions or need help? Our team is here to support your learning journey.
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <a href="mailto:alsamy36@gmail.com" className="text-xs font-headline font-extrabold text-primary flex items-center gap-2 hover:underline">
+                      <Mail className="w-4 h-4" /> alsamy36@gmail.com
+                    </a>
+                    <div className="text-[9px] font-body font-bold text-outline uppercase tracking-widest">
+                      Response time: &lt; 24 hours
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1108,9 +1193,25 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Specific Topic</label>
-                    <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" placeholder="e.g. Photosynthesis" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Specific Topic</label>
+                      <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" placeholder="e.g. Photosynthesis" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Timer</label>
+                      <select 
+                        value={questionTimer} 
+                        onChange={(e) => setQuestionTimer(Number(e.target.value))}
+                        className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold appearance-none"
+                      >
+                        <option value={30}>30s</option>
+                        <option value={45}>45s (Default)</option>
+                        <option value={50}>50s</option>
+                        <option value={60}>1m</option>
+                        <option value={120}>2m</option>
+                      </select>
+                    </div>
                   </div>
                </div>
 
@@ -1233,6 +1334,12 @@ export default function App() {
                    )}
                    <p className="text-[10px] font-headline font-extrabold text-primary uppercase mb-1">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
                    <p className="text-3xl font-headline font-extrabold tabular-nums">{currentIndex + 1}<span className="text-outline-variant/50 text-xl font-medium">/5</span></p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                   <div className={`w-14 h-14 rounded-full border-4 flex items-center justify-center font-headline font-extrabold text-lg ${timeLeft <= 10 ? 'border-error text-error animate-pulse' : 'border-primary text-primary'}`}>
+                     {timeLeft}
+                   </div>
+                   <span className="text-[8px] font-headline font-extrabold uppercase tracking-widest text-outline">Seconds</span>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                    {renderQuestionLabel(currentQ.type)}

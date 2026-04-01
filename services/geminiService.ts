@@ -78,7 +78,7 @@ export const generateQuizQuestions = async (
     // Try Gemini first
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-flash-preview',
         contents: prompt,
         config: {
           systemInstruction: "You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades.",
@@ -103,7 +103,6 @@ export const generateQuizQuestions = async (
               required: ["id", "type", "text", "options", "correctIndex", "explanation"]
             }
           },
-          maxOutputTokens: 8192,
           temperature: 0.7
         }
       });
@@ -157,11 +156,12 @@ const validateAndFormatQuestions = (parsed: any[]): QuizQuestion[] => {
 };
 
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
+  if (!text.trim()) return new ArrayBuffer(0);
   const ai = getAI();
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Insight: ${text}` }] }],
+      contents: [{ parts: [{ text }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
