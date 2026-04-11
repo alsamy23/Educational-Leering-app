@@ -45,6 +45,7 @@ export interface QuizQuestion {
   options: string[];
   correctIndex: number;
   explanation: string;
+  inquiryPrompt?: string; // A challenge or question for the student to explore further
 }
 
 export interface QuizSession {

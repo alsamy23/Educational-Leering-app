@@ -5,7 +5,7 @@ import {
   Upload, ArrowLeft, LogIn, LogOut, Star, Key, Mail, Copy, 
   BookOpen, Eye, Calculator, CheckCircle2, AlertCircle, 
   ChevronRight, Download, Search, User as UserIcon, Settings, History,
-  LayoutDashboard, Home, SignalLow, SignalMedium, SignalHigh, Signal
+  LayoutDashboard, Home, SignalLow, SignalMedium, SignalHigh, Signal, Share2
 } from 'lucide-react';
 import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel, TestRecord } from './types';
 import { generateQuizQuestions, generateSpeech, playAudio } from './services/geminiService';
@@ -363,6 +363,7 @@ export default function App() {
   const [showMotivation, setShowMotivation] = useState(false);
   const [isMockMode, setIsMockMode] = useState(false);
   const [isClassroomMode, setIsClassroomMode] = useState(false);
+  const [isChallengeMode, setIsChallengeMode] = useState(false);
   const [questionTimer, setQuestionTimer] = useState<number>(45);
   const [timeLeft, setTimeLeft] = useState<number>(45);
   const [copied, setCopied] = useState(false);
@@ -381,6 +382,24 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [challengeData, setChallengeData] = useState<{ topic: string, grade: string, seed: string, challenger: string } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const topic = params.get('topic');
+    const grade = params.get('grade');
+    const seed = params.get('seed');
+    const challenger = params.get('challenger');
+    
+    if (topic && grade && seed) {
+      setChallengeData({ 
+        topic: decodeURIComponent(topic), 
+        grade: decodeURIComponent(grade), 
+        seed: decodeURIComponent(seed), 
+        challenger: decodeURIComponent(challenger || 'A Friend') 
+      });
+    }
+  }, []);
 
   const loadProfile = async (identifier: string, isEmail: boolean = false) => {
     console.log(`Loading profile for ${identifier} (isEmail: ${isEmail})`);
@@ -593,7 +612,7 @@ export default function App() {
     }
   }, [user.subject, user.gradeLevel]);
 
-  const startBatch = async (mockMode: boolean = false) => {
+  const startBatch = async (mockMode: boolean = false, seedOverride?: string) => {
     if (!user.name || !user.subject) {
       setError("Name and Subject are required.");
       return;
@@ -613,7 +632,7 @@ export default function App() {
     setLoadingMsg(`Creating ${levelText} Batch for ${user.subject}...`);
     
     try {
-      const questions = await generateQuizQuestions(user, mockMode);
+      const questions = await generateQuizQuestions(user, mockMode, undefined, undefined, undefined, 0, seedOverride);
       setActiveQuiz({ profile: user, questions, userAnswers: [], score: 0, questionTimer });
       setCurrentIndex(0);
       setTimeLeft(questionTimer);
@@ -630,6 +649,19 @@ export default function App() {
       }
       setCurrentScreen(AppScreen.ENTRY);
     }
+  };
+
+  const shareChallenge = () => {
+    const seed = Math.random().toString(36).substring(7);
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('topic', user.topic);
+    url.searchParams.set('grade', user.gradeLevel);
+    url.searchParams.set('seed', seed);
+    url.searchParams.set('challenger', user.name || 'A Friend');
+    
+    navigator.clipboard.writeText(url.toString());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const startClassroomSetup = () => {
@@ -1200,26 +1232,66 @@ export default function App() {
 
         {currentScreen === AppScreen.ENTRY && (
           <div className="p-6 space-y-6 animate-fade-in pb-10">
+            {/* Challenge Banner */}
+            {challengeData && (
+              <div className="bg-secondary-container/30 p-6 rounded-[2rem] border-2 border-secondary-container animate-fade-in space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                    <Trophy className="w-6 h-6 text-on-secondary" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-headline font-extrabold text-on-surface uppercase tracking-widest leading-none">Challenge Received!</h3>
+                    <p className="text-[10px] text-on-surface-variant font-body font-bold italic mt-1">From: {challengeData.challenger}</p>
+                  </div>
+                </div>
+                <div className="p-4 bg-surface-container-lowest rounded-xl border border-secondary/20 text-left">
+                  <p className="text-xs font-body font-bold text-on-surface">Topic: <span className="text-secondary">{challengeData.topic}</span></p>
+                  <p className="text-[10px] text-outline mt-1 uppercase font-headline font-extrabold tracking-widest">Grade {challengeData.grade}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => {
+                      setUser(prev => ({ ...prev, topic: challengeData.topic, gradeLevel: challengeData.grade }));
+                      startBatch(false, challengeData.seed);
+                    }}
+                    className="flex-1 h-12 rounded-xl font-headline font-extrabold uppercase text-[10px] shadow-lg shadow-secondary/20"
+                  >
+                    Accept Challenge
+                  </Button>
+                  <Button 
+                    onClick={() => setChallengeData(null)}
+                    variant="outline"
+                    className="h-12 w-12 rounded-xl flex items-center justify-center border-outline-variant/20"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="bg-primary p-8 rounded-[2rem] text-on-primary shadow-xl relative overflow-hidden">
                <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12">
                  <School className="w-32 h-32" />
                </div>
                <div className="relative z-10">
-                 <h2 className="text-3xl font-headline font-extrabold italic tracking-tighter">{isClassroomMode ? "Classroom Battle" : "Your Path"}</h2>
+                 <h2 className="text-3xl font-headline font-extrabold italic tracking-tighter">
+                   {isClassroomMode ? "Classroom Battle" : isChallengeMode ? "Challenge Arena" : "Your Path"}
+                 </h2>
                  <p className="text-on-primary-container text-xs opacity-90 font-body font-bold mt-1 max-w-[80%]">
-                   {isClassroomMode ? "Engage your students with AI-powered group challenges." : "Personalized for you. Resume your journey or take a mock exam."}
+                   {isClassroomMode ? "Engage your students with AI-powered group challenges." : isChallengeMode ? "Share topics with friends and compete for the top score." : "Personalized for you. Resume your journey or take a mock exam."}
                  </p>
                </div>
             </div>
 
             <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] border border-white/40 shadow-lg shadow-black/5 space-y-5">
                <div className="flex bg-surface-container p-1 rounded-[2rem]">
-                  <button onClick={() => setIsClassroomMode(false)} className={`flex-1 py-3 rounded-xl text-[10px] font-headline font-extrabold uppercase transition-all ${!isClassroomMode ? 'bg-surface-container-lowest shadow-lg shadow-black/5 text-primary' : 'text-outline'}`}>Individual</button>
-                  <button onClick={() => setIsClassroomMode(true)} className={`flex-1 py-3 rounded-xl text-[10px] font-headline font-extrabold uppercase transition-all ${isClassroomMode ? 'bg-surface-container-lowest shadow-lg shadow-black/5 text-primary' : 'text-outline'}`}>Classroom</button>
+                  <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(false); }} className={`flex-1 py-3 rounded-xl text-[10px] font-headline font-extrabold uppercase transition-all ${!isClassroomMode && !isChallengeMode ? 'bg-surface-container-lowest shadow-lg shadow-black/5 text-primary' : 'text-outline'}`}>Individual</button>
+                  <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(true); }} className={`flex-1 py-3 rounded-xl text-[10px] font-headline font-extrabold uppercase transition-all ${isChallengeMode ? 'bg-surface-container-lowest shadow-lg shadow-black/5 text-primary' : 'text-outline'}`}>Challenge</button>
+                  <button onClick={() => { setIsClassroomMode(true); setIsChallengeMode(false); }} className={`flex-1 py-3 rounded-xl text-[10px] font-headline font-extrabold uppercase transition-all ${isClassroomMode ? 'bg-surface-container-lowest shadow-lg shadow-black/5 text-primary' : 'text-outline'}`}>Classroom</button>
                </div>
 
                <div className="space-y-4">
-                  {!isClassroomMode && (
+                  {(!isClassroomMode || isChallengeMode) && (
                     <div className="space-y-1">
                       <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Identity</label>
                       <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" placeholder="Your Name" />
@@ -1302,7 +1374,21 @@ export default function App() {
             </div>
 
             <div className="grid gap-3">
-              {!isClassroomMode ? (
+              {isChallengeMode ? (
+                <>
+                  <Button onClick={shareChallenge} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-secondary/20 flex-1 bg-secondary text-on-secondary flex items-center justify-center gap-3">
+                    {copied ? <CheckCircle2 className="w-5 h-5" /> : <Share2 className="w-5 h-5" />}
+                    {copied ? "Link Copied!" : "Generate Challenge Link"}
+                  </Button>
+                  <p className="text-[9px] text-outline font-body font-bold text-center px-6">
+                    Share this link with friends. They will get the exact same questions as you for this topic!
+                  </p>
+                </>
+              ) : isClassroomMode ? (
+                <Button onClick={startClassroomSetup} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
+                  Setup Classroom Battle
+                </Button>
+              ) : (
                 <>
                   <Button onClick={() => startBatch(false)} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
                     {user.level > 1 ? `Resume Level ${user.level}` : 'Start Level 1 Batch'}
@@ -1311,10 +1397,6 @@ export default function App() {
                     Practice Mock Exam
                   </Button>
                 </>
-              ) : (
-                <Button onClick={startClassroomSetup} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
-                  Setup Classroom Battle
-                </Button>
               )}
             </div>
             
@@ -1450,6 +1532,19 @@ export default function App() {
                      <p className="text-[10px] font-headline font-extrabold uppercase text-primary tracking-widest">Feedback</p>
                   </div>
                   <p className="text-xs font-body font-bold text-on-surface-variant leading-relaxed italic">{currentQ.explanation}</p>
+                  
+                  {currentQ.inquiryPrompt && (
+                    <div className="mt-4 p-4 bg-primary/5 rounded-2xl border border-primary/10 space-y-2">
+                      <div className="flex items-center gap-2 text-primary">
+                        <Sparkles className="w-4 h-4" />
+                        <span className="text-[10px] font-headline font-extrabold uppercase tracking-widest">Further Inquiry</span>
+                      </div>
+                      <p className="text-[11px] font-body font-bold text-on-surface leading-relaxed">
+                        {currentQ.inquiryPrompt}
+                      </p>
+                    </div>
+                  )}
+
                   {!feedback.isCorrect && (
                     <Button onClick={nextQuestion} className="h-12 rounded-xl font-headline font-extrabold uppercase text-[10px]">Next</Button>
                   )}
@@ -1502,12 +1597,18 @@ export default function App() {
                 )}
                 <div className="grid grid-cols-2 gap-3">
                   <Button onClick={downloadBadge} variant="secondary" className="h-14 rounded-[2rem] font-headline font-extrabold uppercase text-[10px]">Save Badge</Button>
-                  <Button onClick={() => {
-                    setCurrentScreen(AppScreen.ENTRY);
-                    setIsClassroomMode(false);
-                    setClassroomSession(null);
-                  }} variant="outline" className="h-14 rounded-[2rem] font-headline font-extrabold uppercase text-[10px]">Exit</Button>
+                  <Button onClick={shareChallenge} variant="outline" className="h-14 rounded-[2rem] font-headline font-extrabold uppercase text-[10px] flex items-center justify-center gap-2">
+                    {copied ? <CheckCircle2 className="w-4 h-4 text-secondary" /> : <Share2 className="w-4 h-4" />}
+                    {copied ? "Link Copied" : "Challenge Friend"}
+                  </Button>
                 </div>
+                <Button onClick={() => {
+                  setCurrentScreen(AppScreen.ENTRY);
+                  setIsClassroomMode(false);
+                  setClassroomSession(null);
+                }} variant="outline" className="h-12 rounded-[2rem] font-headline font-extrabold uppercase text-[10px] text-outline hover:text-primary border-outline-variant/20">
+                  Back to Menu
+                </Button>
              </div>
              
              <canvas ref={badgeCanvasRef} width="400" height="400" className="hidden"></canvas>

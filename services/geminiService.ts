@@ -43,7 +43,8 @@ export const generateQuizQuestions = async (
   groupName?: string,
   topicOverride?: string,
   difficulty?: DifficultyLevel,
-  retryCount = 0
+  retryCount = 0,
+  seedOverride?: string
 ): Promise<QuizQuestion[]> => {
   const ai = getAI();
   const gradeInt = parseInt(profile.gradeLevel) || 10;
@@ -65,10 +66,10 @@ export const generateQuizQuestions = async (
     ? `The difficulty level for this group is: ${difficulty}. Adjust question complexity accordingly.` 
     : "";
 
-  // Randomizer
-  const seed = Math.random().toString(36).substring(7) + Date.now();
+  // Randomizer or Seeded
+  const seed = seedOverride || (Math.random().toString(36).substring(7) + Date.now());
 
-  const prompt = `Act as an Expert Academic Mentor for Grade ${profile.gradeLevel}.
+  const prompt = `Act as an Inquiry-Based Academic Mentor for Grade ${profile.gradeLevel}.
   Subject: ${profile.subject}.
   Topic: ${topic}.
   Context: ${focusContext}.
@@ -78,6 +79,13 @@ export const generateQuizQuestions = async (
   RandomSeed: ${seed}.
   
   TASK: Generate exactly 5 questions for this Batch. 
+  
+  PEDAGOGICAL GOAL:
+  - Promote critical thinking and deep understanding.
+  - Avoid simple recall or "fixed" answers that are too obvious.
+  - Promote questions that require students to solve complex problems, analyze scenarios, or ask further "What if" questions.
+  - For each question, provide an 'inquiryPrompt' which is a follow-up challenge or a question the student should explore further after solving this one.
+  
   CRITICAL: Ensure these questions are unique and different from any other groups in this classroom session. 
   Even if the topic is the same, vary the scenarios and numerical values.
   
@@ -88,7 +96,8 @@ export const generateQuizQuestions = async (
   GUIDELINES:
   - CASE_STUDY: Provide a short paragraph (50-80 words) in 'contextMaterial' that the student must analyze to answer the question.
   - VISUAL_ANALYSIS: Describe a diagram, graph, or physical setup in 'contextMaterial' (e.g., "A circuit diagram shows two resistors in parallel...") and ask a question based on it.
-  - The 'explanation' must be detailed.`;
+  - The 'explanation' must be detailed.
+  - The 'text' field MUST contain the actual question and MUST NOT be empty.`;
 
   try {
     // Try Gemini first with rotation
@@ -118,16 +127,17 @@ export const generateQuizQuestions = async (
                   id: { type: Type.NUMBER },
                   type: { type: Type.STRING, description: "MCQ, WORD_PROBLEM, CASE_STUDY, or VISUAL_ANALYSIS" },
                   contextMaterial: { type: Type.STRING, description: "Scenario text for CASE_STUDY or VISUAL_ANALYSIS" },
-                  text: { type: Type.STRING, description: "The question text" },
+                  text: { type: Type.STRING, description: "The question text. Must be a complete, challenging question." },
                   options: { 
                     type: Type.ARRAY, 
                     items: { type: Type.STRING },
                     description: "Exactly 4 options"
                   },
                   correctIndex: { type: Type.NUMBER, description: "0-3" },
-                  explanation: { type: Type.STRING, description: "Detailed explanation of the correct answer" }
+                  explanation: { type: Type.STRING, description: "Detailed explanation of the correct answer" },
+                  inquiryPrompt: { type: Type.STRING, description: "A follow-up challenge or inquiry for the student" }
                 },
-                required: ["id", "type", "text", "options", "correctIndex", "explanation"]
+                required: ["id", "type", "text", "options", "correctIndex", "explanation", "inquiryPrompt"]
               }
             },
             temperature: 0.8
@@ -136,7 +146,7 @@ export const generateQuizQuestions = async (
 
         const cleaned = repairJson(response.text || "[]");
         const parsed = JSON.parse(cleaned);
-        return validateAndFormatQuestions(parsed);
+        return validateAndFormatQuestions(parsed, topic);
       } catch (geminiErr: any) {
         lastError = geminiErr;
         // If it's a rate limit or overload, try the next key
@@ -177,7 +187,7 @@ export const generateQuizQuestions = async (
       if (!Array.isArray(parsed) && parsed.questions) parsed = parsed.questions;
       if (!Array.isArray(parsed) && parsed.data) parsed = parsed.data;
       
-      return validateAndFormatQuestions(parsed);
+      return validateAndFormatQuestions(parsed, topic);
     } catch (fallbackErr: any) {
       console.error("Groq fallback failed:", fallbackErr);
       throw lastError || fallbackErr;
@@ -191,16 +201,17 @@ export const generateQuizQuestions = async (
   }
 };
 
-const validateAndFormatQuestions = (parsed: any[]): QuizQuestion[] => {
+const validateAndFormatQuestions = (parsed: any[], topic: string = "this topic"): QuizQuestion[] => {
   if (!Array.isArray(parsed)) throw new Error("Response is not an array");
   return parsed.map((q: any, index: number) => ({
       id: q.id || index,
       type: q.type || QuestionType.MCQ,
-      text: q.text || "Question text missing",
+      text: q.text && q.text.trim() !== "" ? q.text : `Analyze the concepts of ${topic} to find the solution.`,
       contextMaterial: q.contextMaterial || undefined,
-      options: Array.isArray(q.options) ? q.options : ["A", "B", "C", "D"],
+      options: Array.isArray(q.options) && q.options.length === 4 ? q.options : ["Option A", "Option B", "Option C", "Option D"],
       correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
-      explanation: q.explanation || "No explanation provided."
+      explanation: q.explanation || "No explanation provided.",
+      inquiryPrompt: q.inquiryPrompt || `How would this change if we altered the initial conditions of the ${topic} problem?`
   }));
 };
 
