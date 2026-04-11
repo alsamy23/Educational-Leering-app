@@ -83,6 +83,7 @@ export interface ClassroomSession {
 }
 
 export enum AppScreen {
+  LANDING = 'LANDING',
   SIGN_IN = 'SIGN_IN',
   ENTRY = 'ENTRY',
   CLASSROOM_SETUP = 'CLASSROOM_SETUP',

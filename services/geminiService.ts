@@ -3,10 +3,22 @@ import Groq from "groq-sdk";
 import { QuizQuestion, UserProfile, QuestionType, StudyFocus, DifficultyLevel } from '../types';
 
 const getAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-  if (!apiKey) throw new Error("API_KEY missing. Please ensure GEMINI_API_KEY is set in the environment.");
-  return new GoogleGenAI({ apiKey });
+  // Rotate through available keys to handle limits
+  const keys = [
+    process.env.GEMINI_API_KEY,
+    process.env.API_KEY,
+    process.env.GEMINI_API_KEY_SECONDARY,
+    process.env.GEMINI_API_KEY_TERTIARY
+  ].filter(Boolean);
+
+  if (keys.length === 0) throw new Error("API_KEY missing. Please ensure GEMINI_API_KEY is set in the environment.");
+  
+  // Use a simple rotation based on current time or a global counter if we had one
+  // For now, we'll try them in order in the generation logic if one fails
+  return new GoogleGenAI({ apiKey: keys[0]! });
 };
+
+const getAIWithKey = (key: string) => new GoogleGenAI({ apiKey: key });
 
 const getGroq = () => {
   const apiKey = process.env.GROQ_API_KEY;
@@ -23,12 +35,15 @@ const repairJson = (text: string): string => {
   return cleaned.trim();
 };
 
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
 export const generateQuizQuestions = async (
   profile: UserProfile, 
   isMockMode: boolean = false, 
   groupName?: string,
   topicOverride?: string,
-  difficulty?: DifficultyLevel
+  difficulty?: DifficultyLevel,
+  retryCount = 0
 ): Promise<QuizQuestion[]> => {
   const ai = getAI();
   const gradeInt = parseInt(profile.gradeLevel) || 10;
@@ -45,7 +60,7 @@ export const generateQuizQuestions = async (
       : `Level ${profile.level} questions on: ${topic}`;
   }
 
-  const groupContext = groupName ? `This is for Group: ${groupName}.` : "";
+  const groupContext = groupName ? `This is for Group: ${groupName} in a Classroom Battle.` : "";
   const difficultyContext = difficulty && difficulty !== DifficultyLevel.DEFAULT 
     ? `The difficulty level for this group is: ${difficulty}. Adjust question complexity accordingly.` 
     : "";
@@ -63,7 +78,8 @@ export const generateQuizQuestions = async (
   RandomSeed: ${seed}.
   
   TASK: Generate exactly 5 questions for this Batch. 
-  CRITICAL: Ensure these questions are unique and different from any previous batches, even if the difficulty level is the same.
+  CRITICAL: Ensure these questions are unique and different from any other groups in this classroom session. 
+  Even if the topic is the same, vary the scenarios and numerical values.
   
   QUESTION TYPES DISTRIBUTION:
   - If Grade >= 9: Include at least 1 'CASE_STUDY' and 1 'VISUAL_ANALYSIS'.
@@ -75,49 +91,79 @@ export const generateQuizQuestions = async (
   - The 'explanation' must be detailed.`;
 
   try {
-    // Try Gemini first
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-          systemInstruction: "You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.NUMBER },
-                type: { type: Type.STRING, description: "MCQ, WORD_PROBLEM, CASE_STUDY, or VISUAL_ANALYSIS" },
-                contextMaterial: { type: Type.STRING, description: "Scenario text for CASE_STUDY or VISUAL_ANALYSIS" },
-                text: { type: Type.STRING, description: "The question text" },
-                options: { 
-                  type: Type.ARRAY, 
-                  items: { type: Type.STRING },
-                  description: "Exactly 4 options"
-                },
-                correctIndex: { type: Type.NUMBER, description: "0-3" },
-                explanation: { type: Type.STRING, description: "Detailed explanation of the correct answer" }
-              },
-              required: ["id", "type", "text", "options", "correctIndex", "explanation"]
-            }
-          },
-          temperature: 0.7
-        }
-      });
+    // Try Gemini first with rotation
+    const geminiKeys = [
+      process.env.GEMINI_API_KEY,
+      process.env.API_KEY,
+      process.env.GEMINI_API_KEY_SECONDARY,
+      process.env.GEMINI_API_KEY_TERTIARY
+    ].filter(Boolean) as string[];
 
-      const cleaned = repairJson(response.text || "[]");
-      const parsed = JSON.parse(cleaned);
-      return validateAndFormatQuestions(parsed);
-    } catch (geminiErr: any) {
-      console.warn("Gemini failed, trying Groq fallback...", geminiErr);
+    let lastError: any = null;
+
+    for (const key of geminiKeys) {
+      try {
+        const ai = getAIWithKey(key);
+        const response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: prompt,
+          config: {
+            systemInstruction: `You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades. ${groupName ? `This batch is specifically for Group ${groupName}. Ensure uniqueness.` : ''}`,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.NUMBER },
+                  type: { type: Type.STRING, description: "MCQ, WORD_PROBLEM, CASE_STUDY, or VISUAL_ANALYSIS" },
+                  contextMaterial: { type: Type.STRING, description: "Scenario text for CASE_STUDY or VISUAL_ANALYSIS" },
+                  text: { type: Type.STRING, description: "The question text" },
+                  options: { 
+                    type: Type.ARRAY, 
+                    items: { type: Type.STRING },
+                    description: "Exactly 4 options"
+                  },
+                  correctIndex: { type: Type.NUMBER, description: "0-3" },
+                  explanation: { type: Type.STRING, description: "Detailed explanation of the correct answer" }
+                },
+                required: ["id", "type", "text", "options", "correctIndex", "explanation"]
+              }
+            },
+            temperature: 0.8
+          }
+        });
+
+        const cleaned = repairJson(response.text || "[]");
+        const parsed = JSON.parse(cleaned);
+        return validateAndFormatQuestions(parsed);
+      } catch (geminiErr: any) {
+        lastError = geminiErr;
+        // If it's a rate limit or overload, try the next key
+        if (geminiErr.status === 429 || geminiErr.status === 503) {
+          console.warn(`Key rate limited or overloaded. Trying next key...`);
+          continue;
+        }
+        // For other errors, break and try fallback
+        break;
+      }
+    }
+
+    // If all Gemini keys failed or we hit a non-retryable error
+    try {
+      if (lastError && (lastError.status === 429 || lastError.status === 503) && retryCount < 2) {
+        console.warn(`All Gemini keys rate limited. Retrying in ${2000 * (retryCount + 1)}ms...`);
+        await sleep(2000 * (retryCount + 1));
+        return generateQuizQuestions(profile, isMockMode, groupName, topicOverride, difficulty, retryCount + 1);
+      }
+
+      console.warn("Gemini rotation failed, trying Groq fallback...", lastError);
       const groq = getGroq();
-      if (!groq) throw geminiErr; // No Groq key, propagate Gemini error
+      if (!groq) throw lastError || new Error("All AI models failed");
 
       const groqResponse = await groq.chat.completions.create({
         messages: [
-          { role: "system", content: "You are an AI Tutor. Output valid JSON only. Return a JSON array of 5 questions following the specified schema." },
+          { role: "system", content: `You are an AI Tutor. Output valid JSON only. Return a JSON array of 5 questions. ${groupName ? `This batch is for Group ${groupName}.` : ''}` },
           { role: "user", content: prompt + "\n\nIMPORTANT: Return ONLY a raw JSON array. No markdown, no explanations outside JSON." }
         ],
         model: "llama-3.3-70b-versatile",
@@ -132,6 +178,9 @@ export const generateQuizQuestions = async (
       if (!Array.isArray(parsed) && parsed.data) parsed = parsed.data;
       
       return validateAndFormatQuestions(parsed);
+    } catch (fallbackErr: any) {
+      console.error("Groq fallback failed:", fallbackErr);
+      throw lastError || fallbackErr;
     }
   } catch (err: any) {
     console.error("Generation Error:", err);

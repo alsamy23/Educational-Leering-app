@@ -340,7 +340,7 @@ export default function App() {
   const [sessionEmail, setSessionEmail] = useState<string | null>(() => localStorage.getItem('se_session_email'));
   const [emailInput, setEmailInput] = useState('');
   const [totalPoints, setTotalPoints] = useState<number>(() => Number(localStorage.getItem('se_pts') || 0));
-  const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.LOADING);
+  const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.LANDING);
   
   // Progress Map: key = "Subject-Grade", value = Level
   const [progressMap, setProgressMap] = useState<Record<string, number>>(() => {
@@ -619,11 +619,14 @@ export default function App() {
       setTimeLeft(questionTimer);
       setCurrentScreen(AppScreen.QUIZ);
     } catch (err: any) {
+      console.error("Batch Generation Error:", err);
       if (err.message?.includes("Requested entity was not found")) {
         setHasApiKey(false);
         setError("Your API key session has expired or is invalid. Please re-select your key.");
+      } else if (err.message?.includes("429") || err.message?.includes("quota")) {
+        setError("API Rate Limit reached. Please wait a minute and try again. We are providing this free for all students!");
       } else {
-        setError("Unable to generate batch. Please try again.");
+        setError(`Unable to generate batch: ${err.message || "Please try again."}`);
       }
       setCurrentScreen(AppScreen.ENTRY);
     }
@@ -676,6 +679,8 @@ export default function App() {
       if (err.message?.includes("Requested entity was not found")) {
         setHasApiKey(false);
         setError("Your API key session has expired or is invalid. Please re-select your key.");
+      } else if (err.message?.includes("429") || err.message?.includes("quota")) {
+        setError("API Rate Limit reached. Please wait a minute and try again.");
       } else {
         setError(`Failed to start classroom session: ${err.message || "Unknown Error"}`);
       }
@@ -711,6 +716,8 @@ export default function App() {
       if (err.message?.includes("Requested entity was not found")) {
         setHasApiKey(false);
         setError("Your API key session has expired or is invalid. Please re-select your key.");
+      } else if (err.message?.includes("429") || err.message?.includes("quota")) {
+        setError("API Rate Limit reached. Please wait a minute and try again.");
       } else {
         setError("Failed to load next group batch.");
       }
@@ -965,6 +972,80 @@ export default function App() {
         <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative bg-surface/50 scroll-smooth">
           <div className="max-w-6xl mx-auto w-full h-full lg:px-12 xl:px-20">
             <div className="max-w-2xl mx-auto lg:max-w-none h-full py-6 lg:py-10">
+              {currentScreen === AppScreen.LANDING && (
+                <div className="h-full flex flex-col items-center justify-center p-6 space-y-12 animate-fade-in text-center">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8 }}
+                    className="space-y-6 max-w-2xl"
+                  >
+                    <div className="flex justify-center mb-8">
+                      <div className="relative">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                          className="absolute -inset-4 bg-gradient-to-r from-primary via-secondary to-tertiary rounded-full blur-xl opacity-20"
+                        />
+                        <div className="relative w-24 h-24 bg-surface-container-lowest rounded-[2rem] shadow-2xl flex items-center justify-center border border-white/40">
+                          <GraduationCap className="w-12 h-12 text-primary" />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <h1 className="text-5xl md:text-7xl font-headline font-extrabold tracking-tighter text-on-surface leading-none">
+                      Master Your <span className="text-primary italic">Future</span> with AI
+                    </h1>
+                    <p className="text-lg md:text-xl font-body font-medium text-on-surface-variant max-w-lg mx-auto leading-relaxed">
+                      ScholarEarn turns your academic journey into a rewarding adventure. Level up, earn points, and dominate classroom battles.
+                    </p>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4, duration: 0.6 }}
+                    className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full"
+                  >
+                    {[
+                      { icon: <Rocket className="w-6 h-6 text-primary" />, title: "AI Powered", desc: "Custom exams tailored to your grade and topic." },
+                      { icon: <Trophy className="w-6 h-6 text-secondary" />, title: "Earn Rewards", desc: "Get virtual currency for every correct answer." },
+                      { icon: <School className="w-6 h-6 text-tertiary" />, title: "Classroom Battles", desc: "Compete with your peers in group challenges." }
+                    ].map((feature, i) => (
+                      <div key={i} className="bg-surface-container-lowest/50 glass-card p-6 rounded-[2rem] border border-white/20 text-left space-y-3 hover:scale-105 transition-transform">
+                        <div className="w-12 h-12 rounded-2xl bg-surface-container flex items-center justify-center">
+                          {feature.icon}
+                        </div>
+                        <h3 className="font-headline font-extrabold text-on-surface uppercase tracking-widest text-xs">{feature.title}</h3>
+                        <p className="text-xs font-body font-bold text-outline leading-relaxed">{feature.desc}</p>
+                      </div>
+                    ))}
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.8 }}
+                    className="w-full max-w-sm"
+                  >
+                    <Button 
+                      onClick={() => setCurrentScreen(AppScreen.SIGN_IN)}
+                      className="w-full h-20 rounded-[2.5rem] font-headline font-extrabold uppercase tracking-[0.2em] text-sm shadow-2xl shadow-primary/40 group relative overflow-hidden"
+                    >
+                      <span className="relative z-10 flex items-center justify-center gap-3">
+                        Enter the Academy <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      </span>
+                      <motion.div 
+                        className="absolute inset-0 bg-gradient-to-r from-primary-dim to-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                      />
+                    </Button>
+                    <p className="mt-6 text-[10px] font-headline font-extrabold text-outline uppercase tracking-widest">
+                      Free for all students worldwide
+                    </p>
+                  </motion.div>
+                </div>
+              )}
+
               {currentScreen === AppScreen.ADMIN_DASHBOARD && (
                 <AdminDashboard onBack={() => setCurrentScreen(AppScreen.ENTRY)} />
               )}
@@ -1046,29 +1127,8 @@ export default function App() {
               {error && <p className="text-error text-[10px] font-body font-bold">{error}</p>}
             </div>
 
-            {/* Progress Tracker Box & Feedback Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-4xl mt-8">
-              <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] border border-white/40 shadow-lg text-left space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-secondary-container/20 flex items-center justify-center">
-                    <Trophy className="w-6 h-6 text-secondary" />
-                  </div>
-                  <h3 className="text-sm font-headline font-extrabold text-on-surface uppercase tracking-widest">Progress Tracker</h3>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-body font-bold text-outline uppercase">Global Scholars</span>
-                    <span className="text-xs font-headline font-extrabold text-primary">12,450+</span>
-                  </div>
-                  <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                    <div className="h-full bg-secondary w-3/4"></div>
-                  </div>
-                  <p className="text-[10px] text-on-surface-variant font-body font-bold leading-relaxed">
-                    Join thousands of students leveling up their academic performance with AI-driven personalized batches.
-                  </p>
-                </div>
-              </div>
-
+            {/* Feedback Section */}
+            <div className="w-full max-w-sm mt-8">
               <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] border border-white/40 shadow-lg text-left space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-tertiary-container/20 flex items-center justify-center">
