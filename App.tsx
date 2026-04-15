@@ -95,11 +95,18 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[], 
   };
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in pb-10">
-      <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] shadow-lg shadow-black/5 border border-white/40 space-y-5">
+    <div className="p-6 space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
+      <div className="bg-surface-container-lowest/80 glass-card p-8 md:p-12 rounded-[3rem] shadow-2xl border border-white/10 space-y-8">
         <div className="flex justify-between items-center">
-          <h3 className="text-sm font-headline font-extrabold text-on-surface-variant uppercase tracking-widest">Group Configuration</h3>
-          <div className="flex gap-2">
+          <h2 className="text-3xl md:text-5xl font-headline font-extrabold text-on-surface tracking-tighter italic tv-text-shadow">Battle Setup</h2>
+          <Button onClick={onCancel} variant="outline" className="rounded-full w-12 h-12 flex items-center justify-center border-white/10">
+            <X className="w-6 h-6" />
+          </Button>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm md:text-lg font-headline font-extrabold text-on-surface-variant uppercase tracking-widest italic">Group Configuration</h3>
+          <div className="flex gap-3">
              <input 
                type="file" 
                ref={fileInputRef} 
@@ -109,23 +116,23 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[], 
              />
              <button 
                onClick={() => fileInputRef.current?.click()}
-               className="text-[9px] font-headline font-extrabold text-primary bg-primary-container/20 px-2 py-1 rounded-lg hover:bg-primary-container/40 transition-colors uppercase"
+               className="text-[10px] md:text-xs font-headline font-extrabold text-primary bg-primary/10 px-4 py-2 rounded-xl hover:bg-primary/20 transition-colors uppercase neon-glow-primary"
              >
                Upload Accessions
              </button>
-             <span className="text-[10px] font-body font-bold text-outline bg-surface px-2 py-1 rounded-lg">{groups.length}/5</span>
+             <span className="text-xs md:text-sm font-headline font-extrabold text-on-surface bg-surface-container px-4 py-2 rounded-xl">{groups.length}/5</span>
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {groups.map((group) => (
-            <div key={group.id} className="flex gap-2 items-center">
-              <div className="flex-1 space-y-2">
+            <div key={group.id} className="flex gap-3 items-center">
+              <div className="flex-1 space-y-3">
                 <input 
                   type="text" 
                   value={group.name} 
                   onChange={e => updateGroupName(group.id, e.target.value)} 
-                  className="input-field w-full px-4 py-3 rounded-xl bg-surface text-sm font-body font-bold" 
+                  className="input-field w-full px-6 py-4 rounded-2xl bg-surface text-base font-body font-bold" 
                   placeholder={`Group ${group.id} Name`}
                 />
                 <div className="flex gap-1">
@@ -158,13 +165,13 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[], 
           ))}
         </div>
 
-        <div className="pt-4 border-t border-outline-variant/10 space-y-3">
+        <div className="pt-6 border-t border-white/5 space-y-4">
           <div className="flex justify-between items-center">
-            <label className="text-[10px] font-headline font-extrabold text-outline uppercase tracking-widest">Question Timer</label>
+            <label className="text-xs md:text-sm font-headline font-extrabold text-on-surface-variant uppercase tracking-widest italic">Question Timer</label>
             <select 
               value={timer} 
               onChange={(e) => setTimer(Number(e.target.value))}
-              className="bg-surface border border-outline-variant/20 rounded-lg px-3 py-1.5 text-xs font-body font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="bg-surface-container border border-white/5 rounded-xl px-4 py-2 text-sm font-body font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
               <option value={30}>30 Seconds</option>
               <option value={45}>45 Seconds (Default)</option>
@@ -178,18 +185,18 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[], 
         {groups.length < 5 && (
           <button 
             onClick={addGroup}
-            className="w-full py-3 rounded-xl border-2 border-dashed border-outline-variant/20 text-outline text-[10px] font-headline font-extrabold uppercase hover:border-primary-container hover:text-primary/80 transition-all flex items-center justify-center gap-2"
+            className="w-full py-4 rounded-2xl border-2 border-dashed border-white/10 text-on-surface-variant text-xs font-headline font-extrabold uppercase hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-3 bg-white/5"
           >
-            <Plus className="w-4 h-4" /> Add Group
+            <Plus className="w-5 h-5" /> Add Group
           </button>
         )}
       </div>
 
-      <div className="grid gap-3">
-        <Button onClick={() => onStart(groups, timer)} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
+      <div className="grid gap-4">
+        <Button onClick={() => onStart(groups, timer)} className="h-20 rounded-[2.5rem] font-headline font-extrabold uppercase tracking-[0.2em] text-sm shadow-2xl shadow-primary/40 flex-1 neon-glow-primary">
           Start Classroom Battle
         </Button>
-        <Button onClick={onCancel} variant="outline" className="h-14 rounded-[1.5rem] font-headline font-extrabold uppercase tracking-widest text-[10px] border-outline-variant/20 bg-surface-container-lowest">
+        <Button onClick={onCancel} variant="outline" className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-[11px] border-white/10 bg-surface-container-lowest/10">
           Cancel
         </Button>
       </div>
@@ -973,15 +980,15 @@ export default function App() {
         </aside>
       )}
 
-      <div className="flex-1 flex flex-col min-w-0 relative h-full overflow-hidden">
-        <header className="p-5 bg-surface-container-lowest border-b flex justify-between items-center z-10 shadow-lg shadow-black/5 lg:hidden">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-primary-container/20 flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-primary" />
+      <div className="flex-1 flex flex-col min-w-0 relative h-full overflow-hidden bg-background">
+        <header className="p-6 bg-surface-container-lowest/30 backdrop-blur-md border-b border-white/5 flex justify-between items-center z-20 shadow-2xl lg:hidden">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-primary shadow-lg neon-glow-primary flex items-center justify-center">
+              <GraduationCap className="w-7 h-7 text-on-primary" />
             </div>
             <div>
-              <h1 className="text-lg font-headline font-extrabold tracking-tighter text-on-surface">ScholarEarn</h1>
-              <p className="text-[8px] font-headline font-extrabold text-primary uppercase tracking-[0.2em] -mt-1">AI Academic Hub</p>
+              <h1 className="text-xl font-headline font-extrabold tracking-tighter text-on-surface tv-text-shadow">ScholarEarn</h1>
+              <p className="text-[9px] font-headline font-extrabold text-primary uppercase tracking-[0.2em] -mt-1">AI Academic Hub</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -1001,34 +1008,34 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative bg-surface/50 scroll-smooth">
-          <div className="max-w-6xl mx-auto w-full h-full lg:px-12 xl:px-20">
-            <div className="max-w-2xl mx-auto lg:max-w-none h-full py-6 lg:py-10">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative scroll-smooth">
+          <div className="max-w-7xl mx-auto w-full min-h-full lg:px-12 xl:px-20 flex flex-col">
+            <div className="flex-1 w-full py-8 lg:py-16 px-4 md:px-8">
               {currentScreen === AppScreen.LANDING && (
-                <div className="h-full flex flex-col items-center justify-center p-6 space-y-12 animate-fade-in text-center">
+                <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 space-y-16 animate-fade-in text-center">
                   <motion.div
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8 }}
-                    className="space-y-6 max-w-2xl"
+                    transition={{ duration: 1 }}
+                    className="space-y-8 max-w-4xl"
                   >
-                    <div className="flex justify-center mb-8">
+                    <div className="flex justify-center mb-10">
                       <div className="relative">
                         <motion.div
                           animate={{ rotate: 360 }}
                           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                          className="absolute -inset-4 bg-gradient-to-r from-primary via-secondary to-tertiary rounded-full blur-xl opacity-20"
+                          className="absolute -inset-8 bg-gradient-to-r from-primary via-secondary to-tertiary rounded-full blur-2xl opacity-30"
                         />
-                        <div className="relative w-24 h-24 bg-surface-container-lowest rounded-[2rem] shadow-2xl flex items-center justify-center border border-white/40">
-                          <GraduationCap className="w-12 h-12 text-primary" />
+                        <div className="relative w-32 h-32 bg-surface-container-lowest rounded-[2.5rem] shadow-2xl flex items-center justify-center border border-white/10 neon-glow-primary">
+                          <GraduationCap className="w-16 h-16 text-primary" />
                         </div>
                       </div>
                     </div>
                     
-                    <h1 className="text-5xl md:text-7xl font-headline font-extrabold tracking-tighter text-on-surface leading-none">
-                      Master Your <span className="text-primary italic">Future</span> with AI
+                    <h1 className="text-6xl md:text-8xl lg:text-9xl font-headline font-extrabold tracking-tighter text-on-surface leading-[0.9] tv-text-shadow">
+                      Master Your <span className="text-primary italic drop-shadow-[0_0_15px_rgba(255,77,148,0.5)]">Future</span> with AI
                     </h1>
-                    <p className="text-lg md:text-xl font-body font-medium text-on-surface-variant max-w-lg mx-auto leading-relaxed">
+                    <p className="text-xl md:text-2xl lg:text-3xl font-body font-bold text-on-surface-variant max-w-2xl mx-auto leading-relaxed opacity-90">
                       ScholarEarn turns your academic journey into a rewarding adventure. Level up, earn points, and dominate classroom battles.
                     </p>
                   </motion.div>
@@ -1037,19 +1044,19 @@ export default function App() {
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.4, duration: 0.6 }}
-                    className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full"
+                    className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl"
                   >
                     {[
-                      { icon: <Rocket className="w-6 h-6 text-primary" />, title: "AI Powered", desc: "Custom exams tailored to your grade and topic." },
-                      { icon: <Trophy className="w-6 h-6 text-secondary" />, title: "Earn Rewards", desc: "Get virtual currency for every correct answer." },
-                      { icon: <School className="w-6 h-6 text-tertiary" />, title: "Classroom Battles", desc: "Compete with your peers in group challenges." }
+                      { icon: <Rocket className="w-8 h-8 text-primary" />, title: "AI Powered", desc: "Custom exams tailored to your grade and topic.", color: "primary" },
+                      { icon: <Trophy className="w-8 h-8 text-secondary" />, title: "Earn Rewards", desc: "Get virtual currency for every correct answer.", color: "secondary" },
+                      { icon: <School className="w-8 h-8 text-tertiary" />, title: "Classroom Battles", desc: "Compete with your peers in group challenges.", color: "tertiary" }
                     ].map((feature, i) => (
-                      <div key={i} className="bg-surface-container-lowest/50 glass-card p-6 rounded-[2rem] border border-white/20 text-left space-y-3 hover:scale-105 transition-transform">
-                        <div className="w-12 h-12 rounded-2xl bg-surface-container flex items-center justify-center">
+                      <div key={i} className={`bg-surface-container-lowest/50 glass-card p-8 rounded-[3rem] border border-white/10 text-left space-y-4 hover:scale-105 transition-transform group cursor-default neon-glow-${feature.color}`}>
+                        <div className={`w-16 h-16 rounded-[1.5rem] bg-${feature.color}/10 flex items-center justify-center group-hover:bg-${feature.color}/20 transition-colors`}>
                           {feature.icon}
                         </div>
-                        <h3 className="font-headline font-extrabold text-on-surface uppercase tracking-widest text-xs">{feature.title}</h3>
-                        <p className="text-xs font-body font-bold text-outline leading-relaxed">{feature.desc}</p>
+                        <h3 className="text-xl font-headline font-extrabold text-on-surface uppercase tracking-widest italic">{feature.title}</h3>
+                        <p className="text-sm font-body font-bold text-on-surface-variant leading-relaxed">{feature.desc}</p>
                       </div>
                     ))}
                   </motion.div>
@@ -1058,20 +1065,20 @@ export default function App() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.8 }}
-                    className="w-full max-w-sm"
+                    className="w-full max-w-md"
                   >
                     <Button 
                       onClick={() => setCurrentScreen(AppScreen.SIGN_IN)}
-                      className="w-full h-20 rounded-[2.5rem] font-headline font-extrabold uppercase tracking-[0.2em] text-sm shadow-2xl shadow-primary/40 group relative overflow-hidden"
+                      className="w-full h-24 rounded-[3rem] font-headline font-extrabold uppercase tracking-[0.3em] text-lg shadow-2xl shadow-primary/40 group relative overflow-hidden neon-glow-primary"
                     >
-                      <span className="relative z-10 flex items-center justify-center gap-3">
-                        Enter the Academy <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      <span className="relative z-10 flex items-center justify-center gap-4">
+                        Enter the Academy <ChevronRight className="w-7 h-7 group-hover:translate-x-2 transition-transform" />
                       </span>
                       <motion.div 
                         className="absolute inset-0 bg-gradient-to-r from-primary-dim to-primary opacity-0 group-hover:opacity-100 transition-opacity"
                       />
                     </Button>
-                    <p className="mt-6 text-[10px] font-headline font-extrabold text-outline uppercase tracking-widest">
+                    <p className="mt-8 text-xs font-headline font-extrabold text-outline uppercase tracking-[0.2em] opacity-60">
                       Free for all students worldwide
                     </p>
                   </motion.div>
@@ -1234,166 +1241,170 @@ export default function App() {
           <div className="p-6 space-y-6 animate-fade-in pb-10">
             {/* Challenge Banner */}
             {challengeData && (
-              <div className="bg-secondary-container/30 p-6 rounded-[2rem] border-2 border-secondary-container animate-fade-in space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                    <Trophy className="w-6 h-6 text-on-secondary" />
+              <div className="bg-secondary/10 border-2 border-secondary/30 p-6 md:p-8 rounded-[3rem] animate-fade-in space-y-5 neon-glow-secondary">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center shadow-lg">
+                    <Trophy className="w-8 h-8 text-on-secondary" />
                   </div>
                   <div className="text-left">
-                    <h3 className="text-sm font-headline font-extrabold text-on-surface uppercase tracking-widest leading-none">Challenge Received!</h3>
-                    <p className="text-[10px] text-on-surface-variant font-body font-bold italic mt-1">From: {challengeData.challenger}</p>
+                    <h3 className="text-lg md:text-2xl font-headline font-extrabold text-on-surface uppercase tracking-widest leading-none italic tv-text-shadow">Challenge Received!</h3>
+                    <p className="text-xs md:text-sm text-on-surface-variant font-body font-bold italic mt-1">From: {challengeData.challenger}</p>
                   </div>
                 </div>
-                <div className="p-4 bg-surface-container-lowest rounded-xl border border-secondary/20 text-left">
-                  <p className="text-xs font-body font-bold text-on-surface">Topic: <span className="text-secondary">{challengeData.topic}</span></p>
-                  <p className="text-[10px] text-outline mt-1 uppercase font-headline font-extrabold tracking-widest">Grade {challengeData.grade}</p>
+                <div className="p-6 bg-surface-container-lowest rounded-[2rem] border border-secondary/20 text-left">
+                  <p className="text-sm md:text-lg font-body font-bold text-on-surface">Topic: <span className="text-secondary italic">{challengeData.topic}</span></p>
+                  <p className="text-xs md:text-sm text-outline mt-1 uppercase font-headline font-extrabold tracking-widest">Grade {challengeData.grade}</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <Button 
                     onClick={() => {
                       setUser(prev => ({ ...prev, topic: challengeData.topic, gradeLevel: challengeData.grade }));
                       startBatch(false, challengeData.seed);
                     }}
-                    className="flex-1 h-12 rounded-xl font-headline font-extrabold uppercase text-[10px] shadow-lg shadow-secondary/20"
+                    className="flex-1 h-16 rounded-[2rem] font-headline font-extrabold uppercase text-xs md:text-sm shadow-xl shadow-secondary/40 bg-secondary text-on-secondary neon-glow-secondary"
                   >
                     Accept Challenge
                   </Button>
                   <Button 
                     onClick={() => setChallengeData(null)}
                     variant="outline"
-                    className="h-12 w-12 rounded-xl flex items-center justify-center border-outline-variant/20"
+                    className="h-16 w-16 rounded-[2rem] flex items-center justify-center border-white/10 bg-white/5"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-6 h-6" />
                   </Button>
                 </div>
               </div>
             )}
 
-            <div className="bg-primary p-8 rounded-[2rem] text-on-primary shadow-xl relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12">
-                 <School className="w-32 h-32" />
+            <div className="bg-primary p-10 md:p-16 rounded-[3rem] text-on-primary shadow-2xl relative overflow-hidden neon-glow-primary">
+               <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12">
+                 <School className="w-48 h-48" />
                </div>
                <div className="relative z-10">
-                 <h2 className="text-3xl font-headline font-extrabold italic tracking-tighter">
+                 <h2 className="text-4xl md:text-6xl font-headline font-extrabold italic tracking-tighter tv-text-shadow">
                    {isClassroomMode ? "Classroom Battle" : isChallengeMode ? "Challenge Arena" : "Your Path"}
                  </h2>
-                 <p className="text-on-primary-container text-xs opacity-90 font-body font-bold mt-1 max-w-[80%]">
+                 <p className="text-on-primary-container text-sm md:text-lg opacity-90 font-body font-bold mt-2 max-w-[85%]">
                    {isClassroomMode ? "Engage your students with AI-powered group challenges." : isChallengeMode ? "Share topics with friends and compete for the top score." : "Personalized for you. Resume your journey or take a mock exam."}
                  </p>
                </div>
             </div>
 
-            <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] border border-white/40 shadow-lg shadow-black/5 space-y-5">
-               <div className="flex bg-surface-container p-1 rounded-[2rem]">
-                  <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(false); }} className={`flex-1 py-3 rounded-xl text-[10px] font-headline font-extrabold uppercase transition-all ${!isClassroomMode && !isChallengeMode ? 'bg-surface-container-lowest shadow-lg shadow-black/5 text-primary' : 'text-outline'}`}>Individual</button>
-                  <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(true); }} className={`flex-1 py-3 rounded-xl text-[10px] font-headline font-extrabold uppercase transition-all ${isChallengeMode ? 'bg-surface-container-lowest shadow-lg shadow-black/5 text-primary' : 'text-outline'}`}>Challenge</button>
-                  <button onClick={() => { setIsClassroomMode(true); setIsChallengeMode(false); }} className={`flex-1 py-3 rounded-xl text-[10px] font-headline font-extrabold uppercase transition-all ${isClassroomMode ? 'bg-surface-container-lowest shadow-lg shadow-black/5 text-primary' : 'text-outline'}`}>Classroom</button>
-               </div>
-
-               <div className="space-y-4">
+            <div className="bg-surface-container-lowest/80 glass-card p-8 md:p-12 rounded-[3rem] border border-white/10 shadow-2xl space-y-8">
+               <div className="flex bg-surface-container p-2 rounded-[2.5rem]">
+                  <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(false); }} className={`flex-1 py-4 rounded-2xl text-xs md:text-sm font-headline font-extrabold uppercase transition-all ${!isClassroomMode && !isChallengeMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Individual</button>
+                  <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(true); }} className={`flex-1 py-4 rounded-2xl text-xs md:text-sm font-headline font-extrabold uppercase transition-all ${isChallengeMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Challenge</button>
+                  <button onClick={() => { setIsClassroomMode(true); setIsChallengeMode(false); }} className={`flex-1 py-4 rounded-2xl text-xs md:text-sm font-headline font-extrabold uppercase transition-all ${isClassroomMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Classroom</button>
+                               <div className="space-y-8">
                   {(!isClassroomMode || isChallengeMode) && (
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Identity</label>
-                      <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" placeholder="Your Name" />
+                    <div className="space-y-3">
+                      <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Identity</label>
+                      <input type="text" value={user.name} onChange={e => setUser({...user, name: e.target.value})} className="input-field w-full px-10 py-6 rounded-[3rem] bg-surface text-lg md:text-2xl font-body font-bold border-2 border-white/5 focus:border-primary neon-glow-primary transition-all" placeholder="Your Name" />
                     </div>
                   )}
                   
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Grade</label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-3">
+                      <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Grade</label>
                       <input 
                         type="text" 
                         value={user.gradeLevel} 
                         onChange={e => setUser({...user, gradeLevel: e.target.value})} 
-                        className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" 
+                        className="input-field w-full px-8 py-6 rounded-[3rem] bg-surface text-lg md:text-2xl font-body font-bold border-2 border-white/5 focus:border-primary neon-glow-primary transition-all" 
                         placeholder="e.g. 12" 
                       />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Section</label>
+                    <div className="space-y-3">
+                      <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Section</label>
                       <input 
                         type="text" 
                         value={user.section || ''} 
                         onChange={e => setUser({...user, section: e.target.value})} 
-                        className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" 
+                        className="input-field w-full px-8 py-6 rounded-[3rem] bg-surface text-lg md:text-2xl font-body font-bold border-2 border-white/5 focus:border-primary neon-glow-primary transition-all" 
                         placeholder="e.g. A" 
                       />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Subject</label>
-                      <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" placeholder="e.g. Science" />
+                    <div className="space-y-3">
+                      <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Subject</label>
+                      <input type="text" value={user.subject} onChange={e => setUser({...user, subject: e.target.value})} className="input-field w-full px-8 py-6 rounded-[3rem] bg-surface text-lg md:text-2xl font-body font-bold border-2 border-white/5 focus:border-primary neon-glow-primary transition-all" placeholder="e.g. Science" />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Specific Topic</label>
-                      <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold" placeholder="e.g. Photosynthesis" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Specific Topic</label>
+                      <input type="text" value={user.topic} onChange={e => setUser({...user, topic: e.target.value})} className="input-field w-full px-10 py-6 rounded-[3rem] bg-surface text-lg md:text-2xl font-body font-bold border-2 border-white/5 focus:border-primary neon-glow-primary transition-all" placeholder="e.g. Photosynthesis" />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Timer</label>
-                      <select 
-                        value={questionTimer} 
-                        onChange={(e) => setQuestionTimer(Number(e.target.value))}
-                        className="input-field w-full px-4 py-4 rounded-[2rem] bg-surface text-sm font-body font-bold appearance-none"
-                      >
-                        <option value={30}>30s</option>
-                        <option value={45}>45s (Default)</option>
-                        <option value={50}>50s</option>
-                        <option value={60}>1m</option>
-                        <option value={120}>2m</option>
-                      </select>
+                    <div className="space-y-3">
+                      <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Timer</label>
+                      <div className="relative">
+                        <select 
+                          value={questionTimer} 
+                          onChange={(e) => setQuestionTimer(Number(e.target.value))}
+                          className="input-field w-full px-10 py-6 rounded-[3rem] bg-surface text-lg md:text-2xl font-body font-bold border-2 border-white/5 focus:border-primary neon-glow-primary transition-all appearance-none"
+                        >
+                          <option value={30}>30s</option>
+                          <option value={45}>45s (Default)</option>
+                          <option value={50}>50s</option>
+                          <option value={60}>1m</option>
+                          <option value={120}>2m</option>
+                        </select>
+                        <div className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
+                          <ChevronRight className="w-6 h-6 rotate-90" />
+                        </div>
+                      </div>
                     </div>
                   </div>
                </div>
+ </div>
 
                {/* Level Indicator */}
                {!isClassroomMode && user.subject && (
-                 <div className="p-4 bg-primary-container/20 rounded-[2rem] border border-primary-container flex items-center justify-between animate-fade-in">
+                 <div className="p-6 md:p-8 bg-primary/10 rounded-[3rem] border-2 border-primary/20 flex items-center justify-between animate-fade-in neon-glow-primary">
                     <div>
-                      <p className="text-[10px] font-headline font-extrabold text-primary/80 uppercase">Current Progress</p>
-                      <p className="text-xl font-headline font-extrabold text-on-primary-container">Level {user.level}</p>
+                      <p className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic">Current Progress</p>
+                      <p className="text-2xl md:text-4xl font-headline font-extrabold text-on-surface italic tv-text-shadow">Level {user.level}</p>
                     </div>
                     <div className="text-right">
-                       <p className="text-[9px] font-body font-bold text-primary/80">Next Batch</p>
-                       <span className="text-xs font-body font-bold text-primary">5 Questions</span>
+                       <p className="text-[10px] md:text-xs font-body font-bold text-primary italic">Next Batch</p>
+                       <span className="text-sm md:text-lg font-headline font-extrabold text-primary">5 Questions</span>
                     </div>
                  </div>
                )}
 
                {isBoardGrade && (
-                 <div className="space-y-2 pt-2 border-t animate-fade-in">
-                    <label className="text-[10px] font-headline font-extrabold text-outline uppercase ml-1">Focus Area</label>
-                    <div className="grid grid-cols-3 gap-2">
+                 <div className="space-y-3 pt-4 border-t border-white/5 animate-fade-in">
+                    <label className="text-xs md:text-sm font-headline font-extrabold text-on-surface-variant uppercase tracking-widest italic ml-2">Focus Area</label>
+                    <div className="grid grid-cols-3 gap-3">
                        {Object.values(StudyFocus).map(f => (
-                         <button key={f} onClick={() => setUser({...user, focus: f})} className={`py-3 rounded-xl text-[9px] font-headline font-extrabold uppercase border transition-all ${user.focus === f ? 'bg-primary text-on-primary border-primary shadow-md' : 'bg-surface text-outline border-outline-variant/10'}`}>{f}</button>
+                         <button key={f} onClick={() => setUser({...user, focus: f})} className={`py-4 rounded-2xl text-[10px] md:text-xs font-headline font-extrabold uppercase border-2 transition-all ${user.focus === f ? 'bg-primary text-on-primary border-primary shadow-xl neon-glow-primary' : 'bg-surface text-outline border-white/5'}`}>{f}</button>
                        ))}
                     </div>
                  </div>
                )}
             </div>
 
-            <div className="grid gap-3">
+            <div className="grid gap-4">
               {isChallengeMode ? (
                 <>
-                  <Button onClick={shareChallenge} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-secondary/20 flex-1 bg-secondary text-on-secondary flex items-center justify-center gap-3">
-                    {copied ? <CheckCircle2 className="w-5 h-5" /> : <Share2 className="w-5 h-5" />}
+                  <Button onClick={shareChallenge} className="h-20 rounded-[2.5rem] font-headline font-extrabold uppercase tracking-[0.2em] text-sm shadow-2xl shadow-secondary/40 flex-1 bg-secondary text-on-secondary flex items-center justify-center gap-4 neon-glow-secondary">
+                    {copied ? <CheckCircle2 className="w-6 h-6" /> : <Share2 className="w-6 h-6" />}
                     {copied ? "Link Copied!" : "Generate Challenge Link"}
                   </Button>
-                  <p className="text-[9px] text-outline font-body font-bold text-center px-6">
+                  <p className="text-[10px] md:text-xs text-outline font-body font-bold text-center px-8 opacity-60">
                     Share this link with friends. They will get the exact same questions as you for this topic!
                   </p>
                 </>
               ) : isClassroomMode ? (
-                <Button onClick={startClassroomSetup} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
+                <Button onClick={startClassroomSetup} className="h-20 rounded-[2.5rem] font-headline font-extrabold uppercase tracking-[0.2em] text-sm shadow-2xl shadow-primary/40 flex-1 neon-glow-primary">
                   Setup Classroom Battle
                 </Button>
               ) : (
                 <>
-                  <Button onClick={() => startBatch(false)} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex-1">
+                  <Button onClick={() => startBatch(false)} className="h-20 rounded-[2.5rem] font-headline font-extrabold uppercase tracking-[0.2em] text-sm shadow-2xl shadow-primary/40 flex-1 neon-glow-primary">
                     {user.level > 1 ? `Resume Level ${user.level}` : 'Start Level 1 Batch'}
                   </Button>
-                  <Button onClick={() => startBatch(true)} variant="outline" className="h-14 rounded-[1.5rem] font-headline font-extrabold uppercase tracking-widest text-[10px] border-outline-variant/20 bg-surface-container-lowest">
+                  <Button onClick={() => startBatch(true)} variant="outline" className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-[11px] border-white/10 bg-surface-container-lowest/10">
                     Practice Mock Exam
                   </Button>
                 </>
@@ -1440,113 +1451,113 @@ export default function App() {
         )}
 
         {currentScreen === AppScreen.LOADING && (
-          <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-6">
-             <div className="relative">
-               <div className="w-20 h-20 border-8 border-outline-variant/10 rounded-full"></div>
-               <div className="w-20 h-20 border-8 border-primary rounded-full border-t-transparent animate-spin absolute top-0 left-0"></div>
-             </div>
-             <div className="space-y-1">
-                <h3 className="text-lg font-headline font-extrabold text-on-surface italic">"{loadingMsg}"</h3>
-                {!isAuthReady ? (
-                  <p className="text-[10px] text-outline font-body font-bold uppercase tracking-widest">
-                    Connecting to Cloud...
-                  </p>
-                ) : (
-                  <p className="text-[10px] text-outline font-body font-bold uppercase tracking-widest">
-                    {isMockMode ? "Randomizing Questions..." : `Preparing Level ${user.level} Challenge`}
-                  </p>
-                )}
-             </div>
+          <div className="min-h-[70vh] flex flex-col items-center justify-center p-12 text-center space-y-12 animate-fade-in">
+            <div className="relative">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                className="w-32 h-32 md:w-48 md:h-48 rounded-full border-8 border-primary/20 border-t-primary neon-glow-primary shadow-2xl"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <GraduationCap className="w-12 h-12 md:w-20 md:h-20 text-primary animate-pulse" />
+              </div>
+            </div>
+            <div className="space-y-4 max-w-md">
+              <h2 className="text-3xl md:text-5xl font-headline font-extrabold text-on-surface tracking-tighter italic tv-text-shadow">AI Generating...</h2>
+              <p className="text-base md:text-xl font-body font-bold text-on-surface-variant opacity-80 leading-relaxed">
+                {isMockMode ? "Randomizing Questions..." : `Preparing Level ${user.level} Challenge`}
+              </p>
+            </div>
           </div>
         )}
 
         {currentScreen === AppScreen.QUIZ && currentQ && (
-          <div className="p-6 space-y-6 animate-fade-in pb-20">
+          <div className="p-6 space-y-8 animate-fade-in pb-20 max-w-5xl mx-auto">
              {/* Progress Bar */}
-             <div className="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
-                <div className="h-full bg-primary transition-all duration-500" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div>
+             <div className="w-full bg-surface-container h-3 rounded-full overflow-hidden shadow-inner">
+                <div className="h-full bg-gradient-to-r from-primary via-secondary to-tertiary transition-all duration-700 ease-out" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div>
              </div>
 
-             <div className="flex justify-between items-end bg-surface-container-lowest/80 glass-card p-5 rounded-[2.5rem] border border-white/40 shadow-lg shadow-black/5">
-                <div>
+             <div className="flex justify-between items-center bg-surface-container-lowest/80 glass-card p-8 md:p-10 rounded-[3rem] border border-white/10 shadow-2xl neon-glow-primary">
+                <div className="space-y-1">
                    {isClassroomMode && classroomSession && (
-                     <p className="text-[10px] font-headline font-extrabold text-primary uppercase mb-1">
+                     <p className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic">
                        Group: {classroomSession.groups[classroomSession.currentGroupIndex].name}
                      </p>
                    )}
-                   <p className="text-[10px] font-headline font-extrabold text-primary uppercase mb-1">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
-                   <p className="text-3xl font-headline font-extrabold tabular-nums">{currentIndex + 1}<span className="text-outline-variant/50 text-xl font-medium">/5</span></p>
+                   <p className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
+                   <p className="text-4xl md:text-6xl font-headline font-extrabold tabular-nums italic tv-text-shadow">{currentIndex + 1}<span className="text-outline-variant/50 text-2xl md:text-3xl font-medium not-italic">/5</span></p>
                 </div>
-                <div className="flex flex-col items-center gap-1">
-                   <div className={`w-14 h-14 rounded-full border-4 flex items-center justify-center font-headline font-extrabold text-lg ${timeLeft <= 10 ? 'border-error text-error animate-pulse' : 'border-primary text-primary'}`}>
+                <div className="flex flex-col items-center gap-2">
+                   <div className={`w-20 h-20 md:w-28 md:h-28 rounded-full border-8 flex items-center justify-center font-headline font-extrabold text-2xl md:text-4xl shadow-2xl ${timeLeft <= 10 ? 'border-error text-error animate-pulse neon-glow-error' : 'border-primary text-primary neon-glow-primary'}`}>
                      {timeLeft}
                    </div>
-                   <span className="text-[8px] font-headline font-extrabold uppercase tracking-widest text-outline">Seconds</span>
+                   <span className="text-[10px] md:text-xs font-headline font-extrabold uppercase tracking-widest text-outline italic">Seconds Left</span>
                 </div>
-                <div className="flex flex-col items-end gap-1">
+                <div className="flex flex-col items-end gap-2">
                    {renderQuestionLabel(currentQ.type)}
-                   <span className="text-[8px] font-body font-bold text-outline uppercase italic">Subject: {user.subject}</span>
+                   <span className="text-[10px] md:text-xs font-body font-bold text-outline uppercase italic opacity-70">Subject: {user.subject}</span>
                 </div>
              </div>
 
              {/* Case Study / Context Box */}
              {currentQ.contextMaterial && (
-               <div className={`p-6 rounded-[2rem] border-2 relative overflow-hidden animate-fade-in ${currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'bg-secondary-container/20 border-secondary-container' : 'bg-primary-container/20 border-primary-container'}`}>
-                  <div className="flex items-center gap-2 mb-2 opacity-70">
-                    {currentQ.type === QuestionType.VISUAL_ANALYSIS ? <Eye className="w-5 h-5" /> : <BookOpen className="w-5 h-5" />}
-                    <span className="text-[10px] font-headline font-extrabold uppercase tracking-widest">
+               <div className={`p-8 md:p-12 rounded-[3rem] border-4 relative overflow-hidden animate-fade-in shadow-2xl ${currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'bg-secondary/5 border-secondary/30 neon-glow-secondary' : 'bg-primary/5 border-primary/30 neon-glow-primary'}`}>
+                  <div className="flex items-center gap-3 mb-4 opacity-80">
+                    {currentQ.type === QuestionType.VISUAL_ANALYSIS ? <Eye className="w-8 h-8 text-secondary" /> : <BookOpen className="w-8 h-8 text-primary" />}
+                    <span className="text-xs md:text-sm font-headline font-extrabold uppercase tracking-widest italic">
                       {currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'Visual Context' : 'Read Case Study'}
                     </span>
                   </div>
-                  <p className="text-sm text-on-surface font-medium leading-relaxed italic">
+                  <p className="text-base md:text-2xl text-on-surface font-body font-bold leading-relaxed italic opacity-90">
                     {currentQ.contextMaterial}
                   </p>
                </div>
              )}
 
-             <div className="bg-surface-container-lowest/80 glass-card p-8 rounded-[2.5rem] border border-white/40 shadow-lg shadow-black/5 relative overflow-hidden">
-                <div className={`absolute top-0 left-0 w-2 h-full ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`}></div>
-                <h2 className="text-lg font-body font-bold text-on-surface leading-snug">{currentQ.text}</h2>
+             <div className="bg-surface-container-lowest/80 glass-card p-10 md:p-16 rounded-[3rem] border border-white/10 shadow-2xl relative overflow-hidden">
+                <div className={`absolute top-0 left-0 w-3 h-full ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`}></div>
+                <h2 className="text-xl md:text-3xl lg:text-4xl font-body font-bold text-on-surface leading-tight tv-text-shadow">{currentQ.text}</h2>
              </div>
 
-             <div className="grid gap-3">
+             <div className="grid gap-4 md:gap-6">
                 {currentQ.options.map((opt, i) => {
-                  let style = "bg-surface-container-lowest border-outline-variant/10 text-on-surface-variant hover:border-primary-container";
+                  let style = "bg-surface-container-lowest/50 border-white/5 text-on-surface hover:border-primary/50 hover:bg-primary/5";
                   if (feedback) {
-                    if (i === currentQ.correctIndex) style = "bg-secondary-container/30 border-secondary text-on-secondary-container ring-4 ring-secondary-container";
-                    else if (i === feedback.selected && !feedback.isCorrect) style = "bg-error-container/30 border-error text-on-error-container ring-4 ring-error-container";
-                    else style = "opacity-40 grayscale pointer-events-none";
+                    if (i === currentQ.correctIndex) style = "bg-secondary/20 border-secondary text-on-surface ring-8 ring-secondary/10 neon-glow-secondary";
+                    else if (i === feedback.selected && !feedback.isCorrect) style = "bg-error/20 border-error text-on-surface ring-8 ring-error/10 neon-glow-error";
+                    else style = "opacity-30 grayscale pointer-events-none";
                   }
                   return (
-                    <button key={i} disabled={!!feedback} onClick={() => handleMCQ(i)} className={`w-full p-5 text-left rounded-[1.5rem] border-2 transition-all flex items-center gap-5 ${style} active:scale-95`}>
-                       <span className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-headline font-extrabold flex-none ${feedback && i === currentQ.correctIndex ? 'bg-secondary text-on-secondary' : 'bg-surface-container text-outline'}`}>{String.fromCharCode(65 + i)}</span>
-                       <span className="text-sm font-body font-bold leading-tight">{opt}</span>
+                    <button key={i} disabled={!!feedback} onClick={() => handleMCQ(i)} className={`w-full p-6 md:p-10 text-left rounded-[2.5rem] border-4 transition-all flex items-center gap-6 md:gap-10 ${style} active:scale-95 group`}>
+                       <span className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center text-lg md:text-2xl font-headline font-extrabold flex-none transition-colors ${feedback && i === currentQ.correctIndex ? 'bg-secondary text-on-secondary shadow-lg' : 'bg-surface-container text-outline group-hover:bg-primary/20 group-hover:text-primary'}`}>{String.fromCharCode(65 + i)}</span>
+                       <span className="text-base md:text-2xl font-body font-bold leading-tight">{opt}</span>
                     </button>
                   );
                 })}
              </div>
 
              {feedback && (
-               <div className="p-6 bg-surface rounded-[2rem] border-2 border-outline-variant/20 animate-fade-in space-y-3">
-                  <div className="flex justify-between items-center border-b border-outline-variant/20 pb-2">
-                     <p className="text-[10px] font-headline font-extrabold uppercase text-primary tracking-widest">Feedback</p>
+               <div className="p-8 md:p-12 bg-surface-container-lowest/90 backdrop-blur-xl rounded-[3rem] border-4 border-white/10 animate-fade-in space-y-6 shadow-2xl">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                     <p className="text-xs md:text-sm font-headline font-extrabold uppercase text-primary tracking-widest italic">Expert Explanation</p>
                   </div>
-                  <p className="text-xs font-body font-bold text-on-surface-variant leading-relaxed italic">{currentQ.explanation}</p>
+                  <p className="text-sm md:text-xl font-body font-bold text-on-surface-variant leading-relaxed italic opacity-90">{currentQ.explanation}</p>
                   
                   {currentQ.inquiryPrompt && (
-                    <div className="mt-4 p-4 bg-primary/5 rounded-2xl border border-primary/10 space-y-2">
-                      <div className="flex items-center gap-2 text-primary">
-                        <Sparkles className="w-4 h-4" />
-                        <span className="text-[10px] font-headline font-extrabold uppercase tracking-widest">Further Inquiry</span>
+                    <div className="mt-8 p-8 md:p-10 bg-primary/10 rounded-[2.5rem] border-2 border-primary/20 space-y-4 neon-glow-primary">
+                      <div className="flex items-center gap-3 text-primary">
+                        <Sparkles className="w-6 h-6" />
+                        <span className="text-xs md:text-sm font-headline font-extrabold uppercase tracking-widest italic">Further Inquiry</span>
                       </div>
-                      <p className="text-[11px] font-body font-bold text-on-surface leading-relaxed">
+                      <p className="text-sm md:text-xl font-body font-bold text-on-surface leading-relaxed italic">
                         {currentQ.inquiryPrompt}
                       </p>
                     </div>
                   )}
 
                   {!feedback.isCorrect && (
-                    <Button onClick={nextQuestion} className="h-12 rounded-xl font-headline font-extrabold uppercase text-[10px]">Next</Button>
+                    <Button onClick={nextQuestion} className="h-20 rounded-[2.5rem] font-headline font-extrabold uppercase text-sm shadow-2xl shadow-primary/40 neon-glow-primary">Next Question</Button>
                   )}
                </div>
              )}
@@ -1554,51 +1565,72 @@ export default function App() {
         )}
 
         {currentScreen === AppScreen.RESULTS && activeQuiz && (
-          <div className="p-8 text-center space-y-8 animate-fade-in pb-20">
-             <div className="space-y-2">
-                <div className="flex justify-center mb-4">
+          <div className="p-8 text-center space-y-10 animate-fade-in pb-20 max-w-4xl mx-auto">
+             <div className="space-y-4">
+                <div className="flex justify-center mb-6">
                   {activeQuiz.score >= 3 ? (
-                    <Rocket className="w-20 h-20 text-primary" />
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 260, damping: 20 }}
+                    >
+                      <Rocket className="w-32 h-32 md:w-48 md:h-48 text-primary neon-glow-primary" />
+                    </motion.div>
                   ) : (
-                    <Shield className="w-20 h-20 text-outline" />
+                    <Shield className="w-32 h-32 md:w-48 md:h-48 text-outline opacity-50" />
                   )}
                 </div>
-                <h2 className="text-3xl font-headline font-extrabold text-on-surface tracking-tighter">Batch Complete</h2>
-                <p className="text-[10px] font-headline font-extrabold text-outline uppercase tracking-widest">{isMockMode ? "Mock Exam" : `Level ${user.level} Progress`}</p>
+                <h2 className="text-4xl md:text-7xl font-headline font-extrabold text-on-surface tracking-tighter italic tv-text-shadow">Batch Complete!</h2>
+                <p className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-[0.3em] italic">{isMockMode ? "Mock Exam Result" : `Level ${user.level} Progress`}</p>
              </div>
 
-             <div className="bg-surface-container-lowest/80 glass-card p-8 rounded-[3rem] shadow-xl border border-white/40 relative overflow-hidden">
-                <div className="grid grid-cols-2 gap-4">
-                   <div className="p-4 bg-primary-container/20 rounded-[2.5rem]">
-                      <p className="text-[10px] font-headline font-extrabold text-primary/80 uppercase mb-1">Score</p>
-                      <p className="text-4xl font-headline font-extrabold text-primary">{activeQuiz.score}<span className="text-xl text-primary-container">/5</span></p>
+             <div className="bg-surface-container-lowest/80 glass-card p-10 md:p-16 rounded-[4rem] shadow-2xl border border-white/10 relative overflow-hidden neon-glow-primary">
+                <div className="grid grid-cols-2 gap-6 md:gap-10">
+                   <div className="p-8 md:p-12 bg-primary/10 rounded-[3rem] border-2 border-primary/20">
+                      <p className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase mb-2 tracking-widest italic">Final Score</p>
+                      <p className="text-5xl md:text-8xl font-headline font-extrabold text-on-surface italic tv-text-shadow">{activeQuiz.score}<span className="text-2xl md:text-4xl text-primary/50 not-italic">/5</span></p>
                    </div>
-                   <div className="p-4 bg-tertiary-container/30 rounded-[2.5rem]">
-                      <p className="text-[10px] font-headline font-extrabold text-tertiary uppercase mb-1">Earned</p>
-                      <p className="text-4xl font-headline font-extrabold text-tertiary">+{activeQuiz.score * 10}</p>
+                   <div className="p-8 md:p-12 bg-tertiary/10 rounded-[3rem] border-2 border-tertiary/20">
+                      <p className="text-xs md:text-sm font-headline font-extrabold text-tertiary uppercase mb-2 tracking-widest italic">Points Earned</p>
+                      <p className="text-5xl md:text-8xl font-headline font-extrabold text-on-surface italic tv-text-shadow">+{activeQuiz.score * 10}</p>
                    </div>
                 </div>
+                
+                <div className="mt-8 pt-8 border-t border-white/5 flex items-center justify-between px-4">
+                  <div className="text-left">
+                    <p className="text-[10px] md:text-xs font-headline font-extrabold text-outline uppercase tracking-widest">Global Average</p>
+                    <p className="text-xl md:text-3xl font-headline font-extrabold text-on-surface italic">3.2/5</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] md:text-xs font-headline font-extrabold text-secondary uppercase tracking-widest">Global Rank</p>
+                    <p className="text-xl md:text-3xl font-headline font-extrabold text-secondary italic">Top 15%</p>
+                  </div>
+                </div>
                 {!isMockMode && activeQuiz.score >= 3 && (
-                   <div className="mt-6 p-3 bg-secondary text-on-secondary rounded-xl text-xs font-body font-bold uppercase tracking-widest animate-pulse">
-                     Level Up Unlocked!
-                   </div>
+                   <motion.div 
+                     initial={{ y: 20, opacity: 0 }}
+                     animate={{ y: 0, opacity: 1 }}
+                     className="mt-10 p-6 bg-secondary text-on-secondary rounded-[2rem] text-sm md:text-lg font-headline font-extrabold uppercase tracking-[0.2em] animate-pulse neon-glow-secondary italic"
+                   >
+                     Level Up Unlocked! 🚀
+                   </motion.div>
                 )}
              </div>
 
-             <div className="grid grid-cols-1 gap-3">
+             <div className="grid grid-cols-1 gap-4 md:gap-6">
                 {isClassroomMode ? (
-                  <Button onClick={nextGroup} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-xs tracking-widest shadow-xl shadow-primary/30">
+                  <Button onClick={nextGroup} className="h-20 rounded-[2.5rem] font-headline font-extrabold uppercase text-sm md:text-base tracking-[0.2em] shadow-2xl shadow-primary/40 neon-glow-primary">
                     {classroomSession && classroomSession.currentGroupIndex < classroomSession.groups.length - 1 ? "Next Group Turn" : "View Final Leaderboard"}
                   </Button>
                 ) : (
-                  <Button onClick={() => startBatch(isMockMode)} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-xs tracking-widest shadow-xl shadow-primary/30">
+                  <Button onClick={() => startBatch(isMockMode)} className="h-20 rounded-[2.5rem] font-headline font-extrabold uppercase text-sm md:text-base tracking-[0.2em] shadow-2xl shadow-primary/40 neon-glow-primary">
                     {isMockMode ? "New Mock Exam" : activeQuiz.score >= 3 ? `Start Level ${user.level}` : "Retry Batch"}
                   </Button>
                 )}
-                <div className="grid grid-cols-2 gap-3">
-                  <Button onClick={downloadBadge} variant="secondary" className="h-14 rounded-[2rem] font-headline font-extrabold uppercase text-[10px]">Save Badge</Button>
-                  <Button onClick={shareChallenge} variant="outline" className="h-14 rounded-[2rem] font-headline font-extrabold uppercase text-[10px] flex items-center justify-center gap-2">
-                    {copied ? <CheckCircle2 className="w-4 h-4 text-secondary" /> : <Share2 className="w-4 h-4" />}
+                <div className="grid grid-cols-2 gap-4 md:gap-6">
+                  <Button onClick={downloadBadge} variant="secondary" className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-[11px] md:text-xs tracking-widest neon-glow-secondary">Save Badge</Button>
+                  <Button onClick={shareChallenge} variant="outline" className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-[11px] md:text-xs tracking-widest flex items-center justify-center gap-3 border-white/10 bg-white/5">
+                    {copied ? <CheckCircle2 className="w-5 h-5 text-secondary" /> : <Share2 className="w-5 h-5" />}
                     {copied ? "Link Copied" : "Challenge Friend"}
                   </Button>
                 </div>
@@ -1606,8 +1638,8 @@ export default function App() {
                   setCurrentScreen(AppScreen.ENTRY);
                   setIsClassroomMode(false);
                   setClassroomSession(null);
-                }} variant="outline" className="h-12 rounded-[2rem] font-headline font-extrabold uppercase text-[10px] text-outline hover:text-primary border-outline-variant/20">
-                  Back to Menu
+                }} variant="outline" className="h-14 rounded-[2rem] font-headline font-extrabold uppercase text-[10px] md:text-xs text-outline hover:text-primary border-white/5 opacity-60 hover:opacity-100 transition-all">
+                  Back to Main Menu
                 </Button>
              </div>
              
@@ -1616,31 +1648,42 @@ export default function App() {
         )}
 
         {currentScreen === AppScreen.LEADERBOARD && classroomSession && (
-          <div className="p-8 space-y-8 animate-fade-in pb-20">
-             <div className="text-center space-y-2">
-                <div className="flex justify-center mb-4">
-                  <Trophy className="w-24 h-24 text-tertiary" />
+          <div className="p-8 space-y-12 animate-fade-in pb-20 max-w-4xl mx-auto">
+             <div className="text-center space-y-4">
+                <div className="flex justify-center mb-6">
+                  <motion.div
+                    animate={{ y: [0, -20, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Trophy className="w-32 h-32 md:w-48 md:h-48 text-tertiary neon-glow-tertiary" />
+                  </motion.div>
                 </div>
-                <h2 className="text-3xl font-headline font-extrabold text-on-surface tracking-tighter">Classroom Excellence</h2>
-                <p className="text-[10px] font-headline font-extrabold text-outline uppercase tracking-widest">Final Group Rankings</p>
+                <h2 className="text-4xl md:text-7xl font-headline font-extrabold text-on-surface tracking-tighter italic tv-text-shadow">Classroom Excellence</h2>
+                <p className="text-xs md:text-sm font-headline font-extrabold text-tertiary uppercase tracking-[0.3em] italic">Final Group Rankings</p>
              </div>
 
-             <div className="space-y-3">
+             <div className="space-y-4 md:space-y-6">
                 {[...classroomSession.groups].sort((a, b) => b.score - a.score).map((group, idx) => (
-                  <div key={group.id} className={`p-6 rounded-[2rem] border-2 flex items-center justify-between ${idx === 0 ? 'bg-tertiary-container/30 border-tertiary-container' : 'bg-surface-container-lowest border-outline-variant/10'}`}>
-                     <div className="flex items-center gap-4">
-                        <span className={`w-10 h-10 rounded-full flex items-center justify-center font-headline font-extrabold text-lg ${idx === 0 ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container text-outline'}`}>
+                  <motion.div 
+                    key={group.id} 
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: idx * 0.1 }}
+                    className={`p-8 md:p-12 rounded-[3rem] border-4 flex items-center justify-between shadow-2xl ${idx === 0 ? 'bg-tertiary/20 border-tertiary neon-glow-tertiary' : 'bg-surface-container-lowest/50 border-white/5'}`}
+                  >
+                     <div className="flex items-center gap-6 md:gap-10">
+                        <span className={`w-14 h-14 md:w-20 md:h-20 rounded-2xl flex items-center justify-center font-headline font-extrabold text-2xl md:text-4xl shadow-xl ${idx === 0 ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container text-outline'}`}>
                           {idx + 1}
                         </span>
                         <div>
-                           <p className="text-sm font-headline font-extrabold text-on-surface">{group.name}</p>
-                           <p className="text-[9px] font-body font-bold text-outline uppercase">Group ID: {group.id}</p>
+                           <p className="text-xl md:text-3xl font-headline font-extrabold text-on-surface italic">{group.name}</p>
+                           <p className="text-[10px] md:text-xs font-body font-bold text-outline uppercase tracking-widest opacity-60">Group ID: {group.id}</p>
                         </div>
                      </div>
                      <div className="text-right">
-                        <p className="text-2xl font-headline font-extrabold text-primary">{group.score}<span className="text-xs text-primary-container ml-1">PTS</span></p>
+                        <p className="text-4xl md:text-6xl font-headline font-extrabold text-primary italic tv-text-shadow">{group.score}<span className="text-sm md:text-xl text-primary/50 ml-2 not-italic">PTS</span></p>
                      </div>
-                  </div>
+                  </motion.div>
                 ))}
              </div>
 
@@ -1648,7 +1691,7 @@ export default function App() {
                setCurrentScreen(AppScreen.ENTRY);
                setIsClassroomMode(false);
                setClassroomSession(null);
-             }} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-xs tracking-widest shadow-xl shadow-primary/30 w-full">
+             }} className="h-20 rounded-[2.5rem] font-headline font-extrabold uppercase text-sm md:text-base tracking-[0.2em] shadow-2xl shadow-primary/40 neon-glow-primary w-full">
                Back to Main Menu
              </Button>
           </div>

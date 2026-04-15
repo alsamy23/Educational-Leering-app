@@ -83,6 +83,7 @@ export const generateQuizQuestions = async (
   PEDAGOGICAL GOAL:
   - Promote critical thinking and deep understanding.
   - Avoid simple recall or "fixed" answers that are too obvious.
+  - For High School (Grade 9-12): Link questions to real-world career applications (e.g., how an engineer, doctor, or data scientist uses this concept).
   - Promote questions that require students to solve complex problems, analyze scenarios, or ask further "What if" questions.
   - For each question, provide an 'inquiryPrompt' which is a follow-up challenge or a question the student should explore further after solving this one.
   
