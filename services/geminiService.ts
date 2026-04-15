@@ -86,6 +86,7 @@ export const generateQuizQuestions = async (
   - For High School (Grade 9-12): Link questions to real-world career applications (e.g., how an engineer, doctor, or data scientist uses this concept).
   - Promote questions that require students to solve complex problems, analyze scenarios, or ask further "What if" questions.
   - For each question, provide an 'inquiryPrompt' which is a follow-up challenge or a question the student should explore further after solving this one.
+  - Provide an 'imageKeyword' for EVERY question. This should be a 2-3 word descriptive keyword that represents the visual context of the question (e.g., "solar system", "chemical reaction", "ancient rome", "geometry diagram").
   
   CRITICAL: Ensure these questions are unique and different from any other groups in this classroom session. 
   Even if the topic is the same, vary the scenarios and numerical values.
@@ -136,9 +137,10 @@ export const generateQuizQuestions = async (
                   },
                   correctIndex: { type: Type.NUMBER, description: "0-3" },
                   explanation: { type: Type.STRING, description: "Detailed explanation of the correct answer" },
-                  inquiryPrompt: { type: Type.STRING, description: "A follow-up challenge or inquiry for the student" }
+                  inquiryPrompt: { type: Type.STRING, description: "A follow-up challenge or inquiry for the student" },
+                  imageKeyword: { type: Type.STRING, description: "2-3 word keyword for a relevant image" }
                 },
-                required: ["id", "type", "text", "options", "correctIndex", "explanation", "inquiryPrompt"]
+                required: ["id", "type", "text", "options", "correctIndex", "explanation", "inquiryPrompt", "imageKeyword"]
               }
             },
             temperature: 0.8
@@ -212,7 +214,8 @@ const validateAndFormatQuestions = (parsed: any[], topic: string = "this topic")
       options: Array.isArray(q.options) && q.options.length === 4 ? q.options : ["Option A", "Option B", "Option C", "Option D"],
       correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
       explanation: q.explanation || "No explanation provided.",
-      inquiryPrompt: q.inquiryPrompt || `How would this change if we altered the initial conditions of the ${topic} problem?`
+      inquiryPrompt: q.inquiryPrompt || `How would this change if we altered the initial conditions of the ${topic} problem?`,
+      imageKeyword: q.imageKeyword || topic
   }));
 };
 

@@ -46,6 +46,7 @@ export interface QuizQuestion {
   correctIndex: number;
   explanation: string;
   inquiryPrompt?: string; // A challenge or question for the student to explore further
+  imageKeyword?: string; // Keyword for generating a relevant image
 }
 
 export interface QuizSession {

@@ -466,6 +466,18 @@ export default function App() {
   };
 
   useEffect(() => {
+    const testConnection = async () => {
+      try {
+        const { getDocFromServer } = await import('firebase/firestore');
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Firestore connection error: The client is offline. Please check your network and Firebase configuration.");
+        }
+      }
+    };
+    testConnection();
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       console.log(`Auth state changed: ${currentUser?.uid || 'null'}`);
       setAuthUser(currentUser);
@@ -1295,7 +1307,9 @@ export default function App() {
                   <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(false); }} className={`flex-1 py-4 rounded-2xl text-xs md:text-sm font-headline font-extrabold uppercase transition-all ${!isClassroomMode && !isChallengeMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Individual</button>
                   <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(true); }} className={`flex-1 py-4 rounded-2xl text-xs md:text-sm font-headline font-extrabold uppercase transition-all ${isChallengeMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Challenge</button>
                   <button onClick={() => { setIsClassroomMode(true); setIsChallengeMode(false); }} className={`flex-1 py-4 rounded-2xl text-xs md:text-sm font-headline font-extrabold uppercase transition-all ${isClassroomMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Classroom</button>
-                               <div className="space-y-8">
+               </div>
+
+               <div className="space-y-8">
                   {(!isClassroomMode || isChallengeMode) && (
                     <div className="space-y-3">
                       <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Identity</label>
@@ -1356,7 +1370,6 @@ export default function App() {
                     </div>
                   </div>
                </div>
- </div>
 
                {/* Level Indicator */}
                {!isClassroomMode && user.subject && (
@@ -1499,6 +1512,20 @@ export default function App() {
                    <span className="text-[10px] md:text-xs font-body font-bold text-outline uppercase italic opacity-70">Subject: {user.subject}</span>
                 </div>
              </div>
+
+             {/* Visualization Image */}
+             <motion.div 
+               initial={{ opacity: 0, y: 20 }}
+               animate={{ opacity: 1, y: 0 }}
+               className="bg-surface-container-lowest/80 glass-card rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden neon-glow-primary mb-6"
+             >
+               <img 
+                 src={`https://picsum.photos/seed/${currentQ.imageKeyword || user.topic}/800/400`} 
+                 alt="Visualization" 
+                 className="w-full h-48 md:h-80 object-cover opacity-90 hover:opacity-100 transition-opacity"
+                 referrerPolicy="no-referrer"
+               />
+             </motion.div>
 
              {/* Case Study / Context Box */}
              {currentQ.contextMaterial && (
