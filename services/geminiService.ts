@@ -65,14 +65,22 @@ export const generateQuizQuestions = async (
   const difficultyContext = difficulty && difficulty !== DifficultyLevel.DEFAULT 
     ? `The difficulty level for this group is: ${difficulty}. Adjust question complexity accordingly.` 
     : "";
+  const boardContext = profile.board ? `Educational Board: ${profile.board}. 
+  CRITICAL: Follow the STRIKE PATTERN and SYLLABUS of the LATEST VERSION (Academic Year 2025-2026). 
+  Refer to official 2026 sample question papers and question patterns for ${profile.board}. 
+  Ensure questions align with the most recent curriculum updates and exam structures.` : "";
 
   // Randomizer or Seeded
   const seed = seedOverride || (Math.random().toString(36).substring(7) + Date.now());
+  const currentYear = new Date().getFullYear();
 
   const prompt = `Act as an Inquiry-Based Academic Mentor for Grade ${profile.gradeLevel}.
+  Current Academic Year: ${currentYear} (Targeting 2026 Exams).
   Subject: ${profile.subject}.
+  Board: ${profile.board || "General"}.
   Topic: ${topic}.
   Context: ${focusContext}.
+  ${boardContext}
   ${groupContext}
   ${difficultyContext}
   Current Level: ${isMockMode ? "Exam Standard" : profile.level}.

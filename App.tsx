@@ -357,7 +357,7 @@ export default function App() {
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('se_user');
     return saved ? JSON.parse(saved) : {
-      name: '', gradeLevel: '10', section: '', subject: '', focus: StudyFocus.SYLLABUS, topic: '',
+      name: '', gradeLevel: '10', section: '', subject: '', board: 'CBSE', focus: StudyFocus.SYLLABUS, topic: '',
       level: 1, totalQuizzes: 0, totalPoints: 0, testHistory: []
     };
   });
@@ -541,7 +541,8 @@ export default function App() {
         subject: user.subject,
         gradeLevel: user.gradeLevel,
         section: user.section || '',
-        topic: user.topic
+        topic: user.topic,
+        board: user.board || 'CBSE'
       });
       setLastSyncTime(new Date());
     } catch (err) {
@@ -603,7 +604,8 @@ export default function App() {
             level: user.level,
             totalPoints: totalPoints,
             progressMap: progressMap,
-            testHistory: user.testHistory || []
+            testHistory: user.testHistory || [],
+            board: user.board || 'CBSE'
           });
           setLastSyncTime(new Date());
         } catch (err) {
@@ -1317,7 +1319,7 @@ export default function App() {
                     </div>
                   )}
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-3">
                       <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Grade</label>
                       <input 
@@ -1327,6 +1329,40 @@ export default function App() {
                         className="input-field w-full px-8 py-6 rounded-[3rem] bg-surface text-lg md:text-2xl font-body font-bold border-2 border-white/5 focus:border-primary neon-glow-primary transition-all" 
                         placeholder="e.g. 12" 
                       />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Board</label>
+                      <div className="relative">
+                        <select 
+                          value={user.board || 'CBSE'} 
+                          onChange={(e) => setUser({...user, board: e.target.value})}
+                          className="input-field w-full px-10 py-6 rounded-[3rem] bg-surface text-lg md:text-2xl font-body font-bold border-2 border-white/5 focus:border-primary neon-glow-primary transition-all appearance-none"
+                        >
+                          <optgroup label="National / International">
+                            <option value="CBSE">CBSE (National)</option>
+                            <option value="ICSE">ICSE / ISC</option>
+                            <option value="IB">IB (International Baccalaureate)</option>
+                            <option value="IGCSE">IGCSE (Cambridge)</option>
+                          </optgroup>
+                          <optgroup label="State Boards">
+                            <option value="Tamil Nadu State Board">Tamil Nadu Board</option>
+                            <option value="Maharashtra State Board">Maharashtra Board</option>
+                            <option value="Karnataka State Board">Karnataka Board</option>
+                            <option value="Uttar Pradesh State Board">UP Board</option>
+                            <option value="Kerala State Board">Kerala Board</option>
+                            <option value="West Bengal State Board">WB Board</option>
+                            <option value="Bihar State Board">Bihar Board</option>
+                            <option value="Gujarat State Board">Gujarat Board</option>
+                            <option value="Andhra Pradesh State Board">AP Board</option>
+                            <option value="Telangana State Board">Telangana Board</option>
+                            <option value="Other State Board">Generic State Board</option>
+                          </optgroup>
+                          <option value="Other">Other / Special Curriculum</option>
+                        </select>
+                        <div className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
+                          <ChevronRight className="w-6 h-6 rotate-90" />
+                        </div>
+                      </div>
                     </div>
                     <div className="space-y-3">
                       <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Section</label>
@@ -1485,103 +1521,127 @@ export default function App() {
         )}
 
         {currentScreen === AppScreen.QUIZ && currentQ && (
-          <div className="p-6 space-y-8 animate-fade-in pb-20 max-w-5xl mx-auto">
-             {/* Progress Bar */}
-             <div className="w-full bg-surface-container h-3 rounded-full overflow-hidden shadow-inner">
-                <div className="h-full bg-gradient-to-r from-primary via-secondary to-tertiary transition-all duration-700 ease-out" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div>
-             </div>
-
-             <div className="flex justify-between items-center bg-surface-container-lowest/80 glass-card p-8 md:p-10 rounded-[3rem] border border-white/10 shadow-2xl neon-glow-primary">
-                <div className="space-y-1">
-                   {isClassroomMode && classroomSession && (
-                     <p className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic">
-                       Group: {classroomSession.groups[classroomSession.currentGroupIndex].name}
-                     </p>
-                   )}
-                   <p className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
-                   <p className="text-4xl md:text-6xl font-headline font-extrabold tabular-nums italic tv-text-shadow">{currentIndex + 1}<span className="text-outline-variant/50 text-2xl md:text-3xl font-medium not-italic">/5</span></p>
+          <div className="animate-fade-in pb-20 max-w-7xl mx-auto w-full flex flex-col min-h-screen">
+             {/* Sticky Header Section */}
+             <div className="sticky top-0 z-50 bg-background/60 backdrop-blur-xl pt-4 pb-6 px-4 md:px-8 space-y-4 border-b border-white/5 shadow-2xl">
+                {/* Progress Bar */}
+                <div className="w-full bg-surface-container h-2 md:h-4 rounded-full overflow-hidden shadow-inner">
+                   <div className="h-full bg-gradient-to-r from-primary via-secondary to-tertiary transition-all duration-700 ease-out" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div>
                 </div>
-                <div className="flex flex-col items-center gap-2">
-                   <div className={`w-20 h-20 md:w-28 md:h-28 rounded-full border-8 flex items-center justify-center font-headline font-extrabold text-2xl md:text-4xl shadow-2xl ${timeLeft <= 10 ? 'border-error text-error animate-pulse neon-glow-error' : 'border-primary text-primary neon-glow-primary'}`}>
-                     {timeLeft}
+
+                <div className="flex justify-between items-center bg-surface-container-lowest/80 glass-card p-4 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-white/10 shadow-xl overflow-hidden relative">
+                   {/* Background Decorative Element */}
+                   <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/10 blur-[80px] rounded-full pointer-events-none"></div>
+                   
+                   <div className="space-y-1 relative z-10 font-headline">
+                      {isClassroomMode && classroomSession && (
+                        <p className="text-[var(--text-fluid-xs)] font-extrabold text-primary uppercase tracking-widest italic leading-none">
+                          Group: {classroomSession.groups[classroomSession.currentGroupIndex].name}
+                        </p>
+                      )}
+                      <p className="text-[var(--text-fluid-xs)] font-extrabold text-primary uppercase tracking-widest italic leading-none">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
+                      <p className="text-[var(--text-fluid-4xl)] font-extrabold tabular-nums italic tv-text-shadow leading-none">
+                        {currentIndex + 1}<span className="text-outline-variant/30 text-[0.4em] font-medium not-italic ml-1">/5</span>
+                      </p>
                    </div>
-                   <span className="text-[10px] md:text-xs font-headline font-extrabold uppercase tracking-widest text-outline italic">Seconds Left</span>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                   {renderQuestionLabel(currentQ.type)}
-                   <span className="text-[10px] md:text-xs font-body font-bold text-outline uppercase italic opacity-70">Subject: {user.subject}</span>
+
+                   <div className="flex flex-col items-center gap-1 md:gap-3 relative z-10">
+                      <motion.div 
+                        initial={false}
+                        animate={{ scale: timeLeft <= 10 ? [1, 1.1, 1] : 1 }}
+                        transition={{ repeat: timeLeft <= 10 ? Infinity : 0, duration: 0.5 }}
+                        className={`w-14 h-14 md:w-28 md:h-28 rounded-full border-4 md:border-8 flex items-center justify-center font-headline font-extrabold text-[var(--text-fluid-xl)] shadow-2xl transition-colors ${timeLeft <= 10 ? 'border-error text-error neon-glow-error' : 'border-primary text-primary neon-glow-primary'}`}
+                      >
+                        {timeLeft}
+                      </motion.div>
+                      <span className="text-[var(--text-fluid-xs)] font-headline font-extrabold uppercase tracking-widest text-outline italic">Seconds</span>
+                   </div>
+
+                   <div className="flex flex-col items-end gap-1 md:gap-4 relative z-10">
+                      {renderQuestionLabel(currentQ.type)}
+                      <span className="text-[var(--text-fluid-xs)] font-body font-bold text-outline uppercase italic opacity-70">Subject: {user.subject}</span>
+                   </div>
                 </div>
              </div>
 
-             {/* Visualization Image */}
-             <motion.div 
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               className="bg-surface-container-lowest/80 glass-card rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden neon-glow-primary mb-6"
-             >
-               <img 
-                 src={`https://picsum.photos/seed/${currentQ.imageKeyword || user.topic}/800/400`} 
-                 alt="Visualization" 
-                 className="w-full h-48 md:h-80 object-cover opacity-90 hover:opacity-100 transition-opacity"
-                 referrerPolicy="no-referrer"
-               />
-             </motion.div>
+             <div className="lg:flex lg:gap-8 p-4 md:p-8 lg:p-10 space-y-6 lg:space-y-0 flex-1 overflow-y-auto no-scrollbar">
+                
+                <div className="lg:w-1/3 flex flex-col gap-6">
+                   {/* Visualization Image */}
+                   <motion.div 
+                     initial={{ opacity: 0, y: 20 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     className="bg-surface-container-lowest/80 glass-card rounded-[2rem] md:rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden neon-glow-primary flex items-center justify-center p-2 min-h-[20vh] lg:h-fit"
+                   >
+                     <img 
+                       src={`https://picsum.photos/seed/${currentQ.imageKeyword || user.topic}/800/400`} 
+                       alt="Visualization" 
+                       className="w-full h-full lg:max-h-[50vh] object-contain md:object-cover opacity-90 hover:opacity-100 transition-opacity"
+                       referrerPolicy="no-referrer"
+                     />
+                   </motion.div>
 
-             {/* Case Study / Context Box */}
-             {currentQ.contextMaterial && (
-               <div className={`p-8 md:p-12 rounded-[3rem] border-4 relative overflow-hidden animate-fade-in shadow-2xl ${currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'bg-secondary/5 border-secondary/30 neon-glow-secondary' : 'bg-primary/5 border-primary/30 neon-glow-primary'}`}>
-                  <div className="flex items-center gap-3 mb-4 opacity-80">
-                    {currentQ.type === QuestionType.VISUAL_ANALYSIS ? <Eye className="w-8 h-8 text-secondary" /> : <BookOpen className="w-8 h-8 text-primary" />}
-                    <span className="text-xs md:text-sm font-headline font-extrabold uppercase tracking-widest italic">
-                      {currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'Visual Context' : 'Read Case Study'}
-                    </span>
-                  </div>
-                  <p className="text-base md:text-2xl text-on-surface font-body font-bold leading-relaxed italic opacity-90">
-                    {currentQ.contextMaterial}
-                  </p>
-               </div>
-             )}
+                   {/* Case Study / Context Box */}
+                   {currentQ.contextMaterial && (
+                     <div className={`p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border-4 relative overflow-hidden animate-fade-in shadow-2xl h-fit ${currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'bg-secondary/5 border-secondary/30 neon-glow-secondary' : 'bg-primary/5 border-primary/30 neon-glow-primary'}`}>
+                        <div className="flex items-center gap-3 mb-3 opacity-80">
+                          {currentQ.type === QuestionType.VISUAL_ANALYSIS ? <Eye className="w-5 h-5 md:w-8 md:h-8 text-secondary" /> : <BookOpen className="w-5 h-5 md:w-8 md:h-8 text-primary" />}
+                          <span className="text-[var(--text-fluid-xs)] md:text-[var(--text-fluid-sm)] font-headline font-extrabold uppercase tracking-widest italic leading-none">
+                            {currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'Visual Context' : 'Read Case Study'}
+                          </span>
+                        </div>
+                        <p className="text-[var(--text-fluid-xs)] md:text-[var(--text-fluid-base)] text-on-surface font-body font-bold leading-relaxed italic opacity-90 max-h-[30vh] overflow-y-auto custom-scrollbar pr-2">
+                          {currentQ.contextMaterial}
+                        </p>
+                     </div>
+                   )}
+                </div>
 
-             <div className="bg-surface-container-lowest/80 glass-card p-10 md:p-16 rounded-[3rem] border border-white/10 shadow-2xl relative overflow-hidden">
-                <div className={`absolute top-0 left-0 w-3 h-full ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`}></div>
-                <h2 className="text-xl md:text-3xl lg:text-4xl font-body font-bold text-on-surface leading-tight tv-text-shadow">{currentQ.text}</h2>
-             </div>
+                <div className="lg:flex-1 space-y-6 flex flex-col">
+                   <div className="bg-surface-container-lowest/80 glass-card p-6 md:p-10 lg:p-14 rounded-[2rem] md:rounded-[3rem] border border-white/10 shadow-2xl relative overflow-hidden h-fit">
+                      <div className={`absolute top-0 left-0 w-2 md:w-3 h-full ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`}></div>
+                      <h2 className="text-[var(--text-fluid-lg)] lg:text-[var(--text-fluid-xl)] font-body font-bold text-on-surface leading-tight tv-text-shadow">
+                        {currentQ.text}
+                      </h2>
+                   </div>
 
-             <div className="grid gap-4 md:gap-6">
-                {currentQ.options.map((opt, i) => {
-                  let style = "bg-surface-container-lowest/50 border-white/5 text-on-surface hover:border-primary/50 hover:bg-primary/5";
-                  if (feedback) {
-                    if (i === currentQ.correctIndex) style = "bg-secondary/20 border-secondary text-on-surface ring-8 ring-secondary/10 neon-glow-secondary";
-                    else if (i === feedback.selected && !feedback.isCorrect) style = "bg-error/20 border-error text-on-surface ring-8 ring-error/10 neon-glow-error";
-                    else style = "opacity-30 grayscale pointer-events-none";
-                  }
-                  return (
-                    <button key={i} disabled={!!feedback} onClick={() => handleMCQ(i)} className={`w-full p-6 md:p-10 text-left rounded-[2.5rem] border-4 transition-all flex items-center gap-6 md:gap-10 ${style} active:scale-95 group`}>
-                       <span className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center text-lg md:text-2xl font-headline font-extrabold flex-none transition-colors ${feedback && i === currentQ.correctIndex ? 'bg-secondary text-on-secondary shadow-lg' : 'bg-surface-container text-outline group-hover:bg-primary/20 group-hover:text-primary'}`}>{String.fromCharCode(65 + i)}</span>
-                       <span className="text-base md:text-2xl font-body font-bold leading-tight">{opt}</span>
-                    </button>
-                  );
-                })}
+                   <div className="grid grid-cols-1 gap-4 lg:gap-6 flex-1">
+                      {currentQ.options.map((opt, i) => {
+                        let style = "bg-surface-container-lowest/50 border-white/5 text-on-surface hover:border-primary/50 hover:bg-primary/5";
+                        if (feedback) {
+                          if (i === currentQ.correctIndex) style = "bg-secondary/20 border-secondary text-on-surface ring-8 ring-secondary/10 neon-glow-secondary";
+                          else if (i === feedback.selected && !feedback.isCorrect) style = "bg-error/20 border-error text-on-surface ring-8 ring-error/10 neon-glow-error";
+                          else style = "opacity-30 grayscale pointer-events-none";
+                        }
+                        return (
+                          <button key={i} disabled={!!feedback} onClick={() => handleMCQ(i)} className={`w-full p-4 md:p-6 lg:p-8 text-left rounded-[1.5rem] md:rounded-[2.5rem] lg:rounded-[3rem] border-4 transition-all flex items-center gap-6 md:gap-10 ${style} active:scale-95 group shadow-lg h-fit min-h-[80px]`}>
+                             <span className={`w-10 h-10 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-2xl flex items-center justify-center text-lg md:text-xl lg:text-2xl font-headline font-extrabold flex-none transition-colors ${feedback && i === currentQ.correctIndex ? 'bg-secondary text-on-secondary shadow-lg' : 'bg-surface-container text-outline group-hover:bg-primary/20 group-hover:text-primary'}`}>{String.fromCharCode(65 + i)}</span>
+                             <span className="text-[var(--text-fluid-base)] lg:text-[var(--text-fluid-lg)] font-body font-bold leading-tight">{opt}</span>
+                          </button>
+                        );
+                      })}
+                   </div>
+                </div>
              </div>
 
              {feedback && (
                <div className="p-8 md:p-12 bg-surface-container-lowest/90 backdrop-blur-xl rounded-[3rem] border-4 border-white/10 animate-fade-in space-y-6 shadow-2xl">
-                  <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                     <p className="text-xs md:text-sm font-headline font-extrabold uppercase text-primary tracking-widest italic">Expert Explanation</p>
-                  </div>
-                  <p className="text-sm md:text-xl font-body font-bold text-on-surface-variant leading-relaxed italic opacity-90">{currentQ.explanation}</p>
-                  
-                  {currentQ.inquiryPrompt && (
-                    <div className="mt-8 p-8 md:p-10 bg-primary/10 rounded-[2.5rem] border-2 border-primary/20 space-y-4 neon-glow-primary">
-                      <div className="flex items-center gap-3 text-primary">
-                        <Sparkles className="w-6 h-6" />
-                        <span className="text-xs md:text-sm font-headline font-extrabold uppercase tracking-widest italic">Further Inquiry</span>
-                      </div>
-                      <p className="text-sm md:text-xl font-body font-bold text-on-surface leading-relaxed italic">
-                        {currentQ.inquiryPrompt}
-                      </p>
-                    </div>
-                  )}
+                 <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                    <p className="text-[var(--text-fluid-xs)] font-headline font-extrabold uppercase text-primary tracking-widest italic">Expert Explanation</p>
+                 </div>
+                 <p className="text-[var(--text-fluid-base)] md:text-[var(--text-fluid-lg)] font-body font-bold text-on-surface-variant leading-relaxed italic opacity-90">{currentQ.explanation}</p>
+                 
+                 {currentQ.inquiryPrompt && (
+                   <div className="mt-6 md:mt-8 p-6 md:p-10 bg-primary/10 rounded-[2rem] md:rounded-[2.5rem] border-2 border-primary/20 space-y-3 md:space-y-4 neon-glow-primary">
+                     <div className="flex items-center gap-3 text-primary">
+                       <Sparkles className="w-5 h-5 md:w-6 md:h-6" />
+                       <span className="text-[var(--text-fluid-xs)] font-headline font-extrabold uppercase tracking-widest italic leading-none">Further Inquiry</span>
+                     </div>
+                     <p className="text-[var(--text-fluid-sm)] md:text-[var(--text-fluid-lg)] font-body font-bold text-on-surface leading-relaxed italic">
+                       {currentQ.inquiryPrompt}
+                     </p>
+                   </div>
+                 )}
 
                   {!feedback.isCorrect && (
                     <Button onClick={nextQuestion} className="h-20 rounded-[2.5rem] font-headline font-extrabold uppercase text-sm shadow-2xl shadow-primary/40 neon-glow-primary">Next Question</Button>

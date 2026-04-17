@@ -27,6 +27,7 @@ export interface UserProfile {
   gradeLevel: string;
   section?: string;
   subject: string;
+  board?: string; // e.g. CBSE, ICSE, IGCSE, State Board
   focus: StudyFocus;
   topic: string;
   level: number; // Progressive level (1, 2, 3...)
