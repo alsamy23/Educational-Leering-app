@@ -49,6 +49,18 @@ const repairJson = (text: string): string => {
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
+let currentAudioSource: AudioBufferSourceNode | null = null;
+let audioContext: AudioContext | null = null;
+
+export const stopAudio = () => {
+  if (currentAudioSource) {
+    try {
+      currentAudioSource.stop();
+    } catch (e) {}
+    currentAudioSource = null;
+  }
+};
+
 export const generateQuizQuestions = async (
   profile: UserProfile, 
   isMockMode: boolean = false, 
@@ -115,7 +127,7 @@ export const generateQuizQuestions = async (
       ? "For PRIMARY SCHOOL: Focus on core curriculum pillars. Make questions simplified and encouraging, ensuring they bridge the gap between classroom learning and assessment success." 
       : "For High School: Focus on analytical rigor. While real-world connections are good for motivation, the questions must PRIMARILY evaluate syllabus-specific mastery and exam-readiness."}
   - Provide an 'inquiryPrompt' as a "Diagnostic Challenge" to help students identify areas for further study within this topic.
-  - Provide an 'imageKeyword' for EVERY question.
+  - Provide an 'imageKeyword' ONLY if the question type is 'CASE_STUDY' or 'VISUAL_ANALYSIS'. Otherwise, set 'imageKeyword' to an empty string. The image is ONLY required for case-based visual context.
   
   MODE-SPECIFIC GUIDANCE:
   - INDIVIDUAL CHALLENGE: Focus on incremental mastery. Questions should help the student identify gaps in their understanding of the ${topic} syllabus.
@@ -274,15 +286,20 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
 export const playAudio = async (buffer: ArrayBuffer) => {
   if (buffer.byteLength === 0) return;
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    stopAudio();
+    if (!audioContext) audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    if (audioContext.state === 'suspended') await audioContext.resume();
+
     const data = new Int16Array(buffer);
-    const audioBuffer = ctx.createBuffer(1, data.length, 24000);
+    const audioBuffer = audioContext.createBuffer(1, data.length, 24000);
     const channel = audioBuffer.getChannelData(0);
     for (let i = 0; i < data.length; i++) channel[i] = data[i] / 32768.0;
-    const source = ctx.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(ctx.destination);
-    source.start();
+    
+    currentAudioSource = audioContext.createBufferSource();
+    currentAudioSource.buffer = audioBuffer;
+    currentAudioSource.connect(audioContext.destination);
+    currentAudioSource.onended = () => { currentAudioSource = null; };
+    currentAudioSource.start();
   } catch (e) {
     console.error("Audio Playback Error", e);
   }

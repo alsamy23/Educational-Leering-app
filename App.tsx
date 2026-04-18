@@ -9,7 +9,7 @@ import {
   Volume2, VolumeX
 } from 'lucide-react';
 import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel, TestRecord } from './types';
-import { generateQuizQuestions, generateSpeech, playAudio } from './services/geminiService';
+import { generateQuizQuestions, generateSpeech, playAudio, stopAudio } from './services/geminiService';
 import { Button } from './components/Button';
 import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -793,14 +793,23 @@ export default function App() {
         setTimeout(() => setShowMotivation(false), 2000);
         setTimeout(nextQuestion, 1500);
       } else {
-         // Play audio on wrong answer (volume feature)
-         generateSpeech(activeQuiz?.questions[currentIndex].explanation || "").then(playAudio);
+         // Auto-read on wrong answer - stop current first
+         stopAudio();
+         generateSpeech(`Incorrect. ${activeQuiz?.questions[currentIndex].explanation}`).then(playAudio);
       }
     }
   };
 
   const handleReadAloud = async () => {
     if (!activeQuiz) return;
+    
+    // Toggle: if already reading, stop it
+    if (isReadingAloud) {
+      stopAudio();
+      setIsReadingAloud(false);
+      return;
+    }
+
     const currentQ = activeQuiz.questions[currentIndex];
     const textToRead = `${currentQ.text}. Options are: A, ${currentQ.options[0]}. B, ${currentQ.options[1]}. C, ${currentQ.options[2]}. D, ${currentQ.options[3]}.`;
     
@@ -816,6 +825,7 @@ export default function App() {
   };
 
   const nextQuestion = () => {
+    stopAudio(); // Stop any reading when moving to next
     setFeedback(null);
     setShowMotivation(false);
     if (activeQuiz && currentIndex < activeQuiz.questions.length - 1) {
@@ -1588,13 +1598,13 @@ export default function App() {
 
              <div className="lg:flex lg:gap-8 p-4 md:p-8 lg:p-10 space-y-6 lg:space-y-0 flex-1 overflow-y-auto no-scrollbar">
                 
-                <div className="lg:w-1/3 flex flex-col gap-6">
-                   {/* Visualization Image - ONLY for VISUAL_ANALYSIS */}
-                   {currentQ.type === QuestionType.VISUAL_ANALYSIS && (
+                 <div className="lg:w-1/3 flex flex-col gap-6">
+                    {/* Visualization Image - ONLY for CASE_STUDY or VISUAL_ANALYSIS */}
+                   {(currentQ.type === QuestionType.VISUAL_ANALYSIS || currentQ.type === QuestionType.CASE_STUDY) && currentQ.imageKeyword && (
                      <motion.div 
                        initial={{ opacity: 0, y: 20 }}
                        animate={{ opacity: 1, y: 0 }}
-                       className="bg-surface-container-lowest/80 glass-card rounded-[2rem] md:rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden neon-glow-primary flex items-center justify-center p-2 min-h-[20vh] lg:h-fit"
+                       className="bg-surface-container-lowest/80 glass-card rounded-[1.5rem] md:rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden neon-glow-primary flex items-center justify-center p-1 md:p-2 min-h-[15vh] md:min-h-[20vh] lg:h-fit"
                      >
                        <img 
                          src={`https://picsum.photos/seed/${currentQ.imageKeyword || user.topic}/800/400`} 
@@ -1622,22 +1632,21 @@ export default function App() {
                 </div>
 
                 <div className="lg:flex-1 space-y-6 flex flex-col">
-                   <div className="bg-surface-container-lowest/80 glass-card p-6 md:p-10 lg:p-14 rounded-[2rem] md:rounded-[3rem] border border-white/10 shadow-2xl relative overflow-hidden h-fit">
-                      <div className={`absolute top-0 left-0 w-2 md:w-3 h-full ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`}></div>
-                      <div className="flex justify-between items-start gap-4">
-                        <h2 className="text-[var(--text-fluid-lg)] lg:text-[var(--text-fluid-xl)] font-body font-bold text-on-surface leading-tight tv-text-shadow flex-1">
-                          {currentQ.text}
-                        </h2>
-                        <button 
-                          onClick={handleReadAloud} 
-                          disabled={isReadingAloud}
-                          className={`p-4 rounded-2xl border-2 transition-all flex-none ${isReadingAloud ? 'bg-primary text-on-primary border-primary animate-pulse' : 'bg-surface text-primary border-primary/20 hover:bg-primary/10'}`}
-                          title="Read Aloud"
-                        >
-                          {isReadingAloud ? <VolumeX className="w-5 h-5 md:w-8 md:h-8" /> : <Volume2 className="w-5 h-5 md:w-8 md:h-8" />}
-                        </button>
-                      </div>
-                   </div>
+                    <div className="bg-surface-container-lowest/80 glass-card p-4 md:p-10 lg:p-14 rounded-[1.5rem] md:rounded-[3rem] border border-white/10 shadow-2xl relative overflow-hidden h-fit">
+                       <div className={`absolute top-0 left-0 w-2 md:w-3 h-full ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`}></div>
+                       <div className="flex justify-between items-start gap-3 md:gap-4">
+                         <h2 className="text-[var(--text-fluid-lg)] lg:text-[var(--text-fluid-xl)] font-body font-bold text-on-surface leading-tight tv-text-shadow flex-1">
+                           {currentQ.text}
+                         </h2>
+                         <button 
+                           onClick={handleReadAloud} 
+                           className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex-none ${isReadingAloud ? 'bg-primary text-on-primary border-primary animate-pulse' : 'bg-surface text-primary border-primary/20 hover:bg-primary/10'}`}
+                           title={isReadingAloud ? "Stop Reading" : "Read Aloud"}
+                         >
+                           {isReadingAloud ? <VolumeX className="w-5 h-5 md:w-8 md:h-8" /> : <Volume2 className="w-5 h-5 md:w-8 md:h-8" />}
+                         </button>
+                       </div>
+                    </div>
 
                    <div className="grid grid-cols-1 gap-4 lg:gap-6 flex-1">
                       {currentQ.options.map((opt, i) => {
