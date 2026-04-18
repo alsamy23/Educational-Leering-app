@@ -2,20 +2,32 @@ import { GoogleGenAI, Modality, Type } from "@google/genai";
 import Groq from "groq-sdk";
 import { QuizQuestion, UserProfile, QuestionType, StudyFocus, DifficultyLevel } from '../types';
 
-const getAI = () => {
-  // Rotate through available keys to handle limits
+let currentKeyIndex = Math.floor(Math.random() * 10); // Start at random to spread initial load
+
+const getAIKeys = () => {
   const keys = [
     process.env.GEMINI_API_KEY,
     process.env.API_KEY,
     process.env.GEMINI_API_KEY_SECONDARY,
-    process.env.GEMINI_API_KEY_TERTIARY
-  ].filter(Boolean);
+    process.env.GEMINI_API_KEY_TERTIARY,
+    process.env.GEMINI_API_KEY_4,
+    process.env.GEMINI_API_KEY_5,
+    process.env.GEMINI_API_KEY_6,
+    process.env.GEMINI_API_KEY_7,
+    process.env.GEMINI_API_KEY_8,
+    process.env.GEMINI_API_KEY_9,
+    process.env.GEMINI_API_KEY_10
+  ].filter(Boolean) as string[];
+  return keys;
+};
 
+const getAI = () => {
+  const keys = getAIKeys();
   if (keys.length === 0) throw new Error("API_KEY missing. Please ensure GEMINI_API_KEY is set in the environment.");
   
-  // Use a simple rotation based on current time or a global counter if we had one
-  // For now, we'll try them in order in the generation logic if one fails
-  return new GoogleGenAI({ apiKey: keys[0]! });
+  // Round-robin rotation
+  currentKeyIndex = (currentKeyIndex + 1) % keys.length;
+  return new GoogleGenAI({ apiKey: keys[currentKeyIndex] });
 };
 
 const getAIWithKey = (key: string) => new GoogleGenAI({ apiKey: key });
@@ -70,17 +82,24 @@ export const generateQuizQuestions = async (
   Refer to official 2026 sample question papers and question patterns for ${profile.board}. 
   Ensure questions align with the most recent curriculum updates and exam structures.` : "";
 
+  // Check for non-English subject/topic (e.g. Tamil)
+  const isTargetLanguageOtherThanEnglish = /tamil|hindi|telugu|kannada|malayalam|french|spanish|german/i.test(profile.subject) || /tamil|hindi|telugu|kannada|malayalam|french|spanish|german/i.test(topic);
+  const languageInstruction = isTargetLanguageOtherThanEnglish 
+    ? `CRITICAL LANGUAGE RULE: The entire question text, options, explanations, and prompts MUST be written in the language of the subject (${profile.subject}). If the subject is Tamil, use Tamil script. NEVER switch to English for the question content.` 
+    : "Language: English.";
+
   // Randomizer or Seeded
   const seed = seedOverride || (Math.random().toString(36).substring(7) + Date.now());
   const currentYear = new Date().getFullYear();
 
-  const prompt = `Act as an Inquiry-Based Academic Mentor for Grade ${profile.gradeLevel}.
+  const prompt = `Act as an Expert Curriculum Designer and Academic Strategist for Grade ${profile.gradeLevel}.
   Current Academic Year: ${currentYear} (Targeting 2026 Exams).
   Subject: ${profile.subject}.
   Board: ${profile.board || "General"}.
   Topic: ${topic}.
   Context: ${focusContext}.
   ${boardContext}
+  ${languageInstruction}
   ${groupContext}
   ${difficultyContext}
   Current Level: ${isMockMode ? "Exam Standard" : profile.level}.
@@ -88,13 +107,19 @@ export const generateQuizQuestions = async (
   
   TASK: Generate exactly 5 questions for this Batch. 
   
-  PEDAGOGICAL GOAL:
-  - Promote critical thinking and deep understanding.
-  - Avoid simple recall or "fixed" answers that are too obvious.
-  - For High School (Grade 9-12): Link questions to real-world career applications (e.g., how an engineer, doctor, or data scientist uses this concept).
-  - Promote questions that require students to solve complex problems, analyze scenarios, or ask further "What if" questions.
-  - For each question, provide an 'inquiryPrompt' which is a follow-up challenge or a question the student should explore further after solving this one.
-  - Provide an 'imageKeyword' for EVERY question. This should be a 2-3 word descriptive keyword that represents the visual context of the question (e.g., "solar system", "chemical reaction", "ancient rome", "geometry diagram").
+  PEDAGOGICAL GOAL (CURRICULUM MASTERY):
+  - PRIMARY OBJECTIVE: Ensure 100% alignment with the ${profile.board || "prescribed"} syllabus and official academic standards.
+  - Test foundational understanding, conceptual clarity, and the ability to apply the specific topic within the curriculum's scope.
+  - Questions must mirror the complexity and structure of actual board exam patterns.
+  - ${gradeInt < 6 
+      ? "For PRIMARY SCHOOL: Focus on core curriculum pillars. Make questions simplified and encouraging, ensuring they bridge the gap between classroom learning and assessment success." 
+      : "For High School: Focus on analytical rigor. While real-world connections are good for motivation, the questions must PRIMARILY evaluate syllabus-specific mastery and exam-readiness."}
+  - Provide an 'inquiryPrompt' as a "Diagnostic Challenge" to help students identify areas for further study within this topic.
+  - Provide an 'imageKeyword' for EVERY question.
+  
+  MODE-SPECIFIC GUIDANCE:
+  - INDIVIDUAL CHALLENGE: Focus on incremental mastery. Questions should help the student identify gaps in their understanding of the ${topic} syllabus.
+  - CLASSROOM BATTLE: Questions should be competitive and balanced, designed to test the group's collective knowledge of core curriculum points under pressure.
   
   CRITICAL: Ensure these questions are unique and different from any other groups in this classroom session. 
   Even if the topic is the same, vary the scenarios and numerical values.
@@ -111,12 +136,7 @@ export const generateQuizQuestions = async (
 
   try {
     // Try Gemini first with rotation
-    const geminiKeys = [
-      process.env.GEMINI_API_KEY,
-      process.env.API_KEY,
-      process.env.GEMINI_API_KEY_SECONDARY,
-      process.env.GEMINI_API_KEY_TERTIARY
-    ].filter(Boolean) as string[];
+    const geminiKeys = getAIKeys();
 
     let lastError: any = null;
 
@@ -232,8 +252,8 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   const ai = getAI();
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text }] }],
+      model: "gemini-3.1-flash-tts-preview",
+      contents: [{ parts: [{ text: `Read this academic content clearly and encouragingly: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
