@@ -1,6 +1,6 @@
 {
   "name": "ScholarEarn",
-  "description": "An educational platform where students earn virtual currency by acing AI-generated exams. Supports individual progress and competitive classroom group battles for Grades 1-12.",
+  "description": "An AI-powered diagnostic platform for curriculum mastery and board exam readiness. Supports personalized adaptive learning and competitive classroom assessments for Grades 1-12.",
   "requestFramePermissions": [
     "microphone"
   ]
