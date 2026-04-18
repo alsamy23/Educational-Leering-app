@@ -518,6 +518,25 @@ export default function App() {
     }
   };
 
+  const handleGuestLogin = () => {
+    const guestUser: UserProfile = {
+      name: 'Scholar Guest',
+      gradeLevel: '10',
+      subject: '',
+      focus: StudyFocus.SYLLABUS,
+      topic: '',
+      level: 1,
+      totalQuizzes: 0,
+      totalPoints: 0,
+      progressMap: {},
+      testHistory: [],
+      role: 'user',
+      isGuest: true
+    };
+    setUser(guestUser);
+    setCurrentScreen(AppScreen.ENTRY);
+  };
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -905,15 +924,41 @@ export default function App() {
   const downloadBadge = () => {
     if (!badgeCanvasRef.current || !activeQuiz) return;
     const canvas = badgeCanvasRef.current;
+    
+    // Ensure we draw the badge first if it hasn't been drawn.
+    drawBadgeToCanvas(canvas);
+
+    const link = document.createElement('a');
+    link.download = `ScholarEarn_${user.subject}_Level${user.level}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+
+  const drawBadgeToCanvas = (canvas: HTMLCanvasElement) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     // Badge Drawing
-    ctx.fillStyle = '#4F46E5';
+    ctx.fillStyle = '#4F46E5'; // Primary gradient start simulation
     ctx.fillRect(0, 0, 400, 400);
-    ctx.strokeStyle = '#F59E0B';
+    
+    // Add some "Gaming" / "Cyber" style to the badge
+    const grad = ctx.createLinearGradient(0, 0, 400, 400);
+    grad.addColorStop(0, '#1a1b26'); // dark
+    grad.addColorStop(1, '#24283b');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 400, 400);
+    
+    ctx.strokeStyle = '#ff007f'; // Primary Neon Pink
     ctx.lineWidth = 15;
     ctx.strokeRect(10, 10, 380, 380);
+    
+    // Corner accents
+    ctx.fillStyle = '#00f0ff'; // Cyan
+    ctx.fillRect(0, 0, 40, 40);
+    ctx.fillRect(360, 0, 40, 40);
+    ctx.fillRect(0, 360, 40, 40);
+    ctx.fillRect(360, 360, 40, 40);
 
     ctx.fillStyle = '#FFFFFF';
     ctx.textAlign = 'center';
@@ -924,19 +969,44 @@ export default function App() {
     ctx.fillText('ScholarEarn Academic Excellence', 200, 130);
     
     ctx.font = 'bold 32px Inter';
-    ctx.fillText(activeQuiz.profile.name, 200, 180);
+    ctx.fillStyle = '#00f0ff';
+    ctx.fillText(activeQuiz?.profile.name || user.name || 'Scholar', 200, 190);
     
     ctx.font = '18px Inter';
-    ctx.fillText(`${activeQuiz.profile.subject}`, 200, 230);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(`${activeQuiz?.profile.subject || user.subject}`, 200, 240);
     
-    ctx.font = 'bold 48px Inter';
-    ctx.fillStyle = '#F59E0B';
-    ctx.fillText(`${activeQuiz.score}/5`, 200, 310);
+    ctx.font = 'bold 56px Inter';
+    ctx.fillStyle = '#ff007f';
+    ctx.fillText(`${activeQuiz?.score || 0}/5`, 200, 310);
+  };
 
-    const link = document.createElement('a');
-    link.download = `ScholarEarn_${user.subject}_Level${user.level}.png`;
-    link.href = canvas.toDataURL();
-    link.click();
+  const shareScreenshot = async () => {
+    if (!badgeCanvasRef.current || !activeQuiz) return;
+    const canvas = badgeCanvasRef.current;
+    
+    drawBadgeToCanvas(canvas);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], `ScholarEarn_Badge_Level${user.level}.png`, { type: 'image/png' });
+
+      // Check if Web Share API is available and can share files
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: 'My ScholarEarn Progress',
+            text: `I just hit Level ${user.level} in ${user.subject} on ScholarEarn! Can you beat my score?`,
+            files: [file]
+          });
+        } catch (error) {
+          console.error("Error sharing:", error);
+        }
+      } else {
+        // Fallback to downloading if sharing isn't supported (e.g., Desktop browsers)
+        downloadBadge();
+      }
+    }, 'image/png');
   };
 
   const currentQ = activeQuiz?.questions[currentIndex];
@@ -969,7 +1039,7 @@ export default function App() {
             </div>
           </div>
 
-          <nav className="flex-1 space-y-2">
+            <nav className="flex-1 space-y-2">
             <button 
               onClick={() => setCurrentScreen(AppScreen.ENTRY)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-[2rem] text-sm font-headline font-extrabold transition-all ${currentScreen === AppScreen.ENTRY ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface'}`}
@@ -984,6 +1054,13 @@ export default function App() {
               <History className="w-5 h-5" />
               My Progress
             </button>
+            <a 
+              href="mailto:alsamy36@gmail.com"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-[2rem] text-sm font-headline font-extrabold text-on-surface-variant hover:bg-surface transition-all"
+            >
+              <Mail className="w-5 h-5" />
+              Support
+            </a>
             {user.role === 'admin' && (
               <button 
                 onClick={() => setCurrentScreen(AppScreen.ADMIN_DASHBOARD)}
@@ -1023,107 +1100,145 @@ export default function App() {
       )}
 
       <div className="flex-1 flex flex-col min-w-0 relative h-full overflow-hidden bg-background">
-        <header className="p-6 bg-surface-container-lowest/30 backdrop-blur-md border-b border-white/5 flex justify-between items-center z-20 shadow-2xl lg:hidden">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-primary shadow-lg neon-glow-primary flex items-center justify-center">
-              <GraduationCap className="w-7 h-7 text-on-primary" />
+        <header className="p-4 md:p-6 bg-surface-container-lowest/30 backdrop-blur-md border-b border-white/5 flex justify-between items-center z-20 shadow-2xl lg:hidden">
+          <div 
+            onClick={() => setCurrentScreen(AppScreen.ENTRY)}
+            className="flex items-center gap-2 cursor-pointer active:scale-95 transition-transform"
+          >
+            <div className="w-10 h-10 rounded-xl bg-primary shadow-lg neon-glow-primary flex items-center justify-center">
+              <GraduationCap className="w-6 h-6 text-on-primary" />
             </div>
             <div>
-              <h1 className="text-xl font-headline font-extrabold tracking-tighter text-on-surface tv-text-shadow">ScholarEarn</h1>
-              <p className="text-[9px] font-headline font-extrabold text-primary uppercase tracking-[0.2em] -mt-1">AI Academic Hub</p>
+              <h1 className="text-lg font-headline font-extrabold tracking-tighter text-on-surface tv-text-shadow leading-none">ScholarEarn</h1>
+              <p className="text-[8px] font-headline font-extrabold text-primary uppercase tracking-[0.2em]">AI Hub</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className={`px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${(authUser || sessionEmail) ? 'bg-secondary-container/20 border-secondary-container' : 'bg-tertiary-container/30 border-tertiary-container'}`}>
+          <div className="flex items-center gap-2">
+            <div className={`px-2 py-1 rounded-lg border transition-all flex items-center gap-1.5 ${(authUser || sessionEmail) ? 'bg-secondary-container/20 border-secondary-container' : 'bg-tertiary-container/30 border-tertiary-container'}`}>
               <Star className={`w-3 h-3 transition-colors ${(authUser || sessionEmail) ? 'text-secondary fill-secondary' : 'text-tertiary fill-amber-500'}`} />
-              <span className={`font-headline font-extrabold text-xs transition-colors ${(authUser || sessionEmail) ? 'text-secondary' : 'text-on-surface'}`}>{totalPoints.toLocaleString()}</span>
-              {(authUser || sessionEmail) && <div className="w-1 h-1 rounded-full bg-secondary animate-pulse" />}
+              <span className={`font-headline font-extrabold text-[10px] transition-colors ${(authUser || sessionEmail) ? 'text-secondary' : 'text-on-surface'}`}>{totalPoints.toLocaleString()}</span>
             </div>
-            {isAuthReady && (authUser || sessionEmail) && (
-              <button 
-                onClick={() => setCurrentScreen(AppScreen.PROGRESS)} 
-                className="w-8 h-8 rounded-lg bg-secondary-container/30 text-secondary flex items-center justify-center hover:bg-secondary-container transition-colors"
-              >
-                <History className="w-4 h-4" />
-              </button>
-            )}
           </div>
         </header>
+
+        {/* Mobile Bottom Navigation */}
+        <nav className="fixed bottom-0 left-0 right-0 bg-surface-container-lowest/80 backdrop-blur-xl border-t border-white/5 px-6 py-4 flex items-center justify-between z-50 lg:hidden shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+          <button 
+            onClick={() => setCurrentScreen(AppScreen.ENTRY)}
+            className={`flex flex-col items-center gap-1 transition-all ${currentScreen === AppScreen.ENTRY ? 'text-primary' : 'text-outline opacity-50'}`}
+          >
+            <div className={`p-2 rounded-xl ${currentScreen === AppScreen.ENTRY ? 'bg-primary/10 neon-glow-primary' : ''}`}>
+              <Home className="w-6 h-6" />
+            </div>
+            <span className="text-[8px] font-headline font-extrabold uppercase tracking-widest">Home</span>
+          </button>
+          <button 
+            onClick={() => setCurrentScreen(AppScreen.PROGRESS)}
+            className={`flex flex-col items-center gap-1 transition-all ${currentScreen === AppScreen.PROGRESS ? 'text-primary' : 'text-outline opacity-50'}`}
+          >
+            <div className={`p-2 rounded-xl ${currentScreen === AppScreen.PROGRESS ? 'bg-primary/10 neon-glow-primary' : ''}`}>
+              <History className="w-6 h-6" />
+            </div>
+            <span className="text-[8px] font-headline font-extrabold uppercase tracking-widest">Progress</span>
+          </button>
+          <a 
+            href="mailto:alsamy36@gmail.com"
+            className="flex flex-col items-center gap-1 text-outline opacity-50 hover:text-primary transition-all"
+          >
+            <div className="p-2 rounded-xl">
+              <Mail className="w-6 h-6" />
+            </div>
+            <span className="text-[8px] font-headline font-extrabold uppercase tracking-widest">Support</span>
+          </a>
+          <button 
+            onClick={handleLogout}
+            className="flex flex-col items-center gap-1 text-outline opacity-50 hover:text-error transition-all"
+          >
+            <div className="p-2 rounded-xl">
+              <LogOut className="w-6 h-6" />
+            </div>
+            <span className="text-[8px] font-headline font-extrabold uppercase tracking-widest">Exit</span>
+          </button>
+        </nav>
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative scroll-smooth">
           <div className="max-w-7xl mx-auto w-full min-h-full lg:px-12 xl:px-20 flex flex-col">
             <div className="flex-1 w-full py-8 lg:py-16 px-4 md:px-8">
               {currentScreen === AppScreen.LANDING && (
-                <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 space-y-16 animate-fade-in text-center">
+                <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center overflow-hidden">
                   <motion.div
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1 }}
-                    className="space-y-8 max-w-4xl"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="relative z-10 space-y-12 max-w-4xl"
                   >
-                    <div className="flex justify-center mb-10">
-                      <div className="relative">
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                          className="absolute -inset-8 bg-gradient-to-r from-primary via-secondary to-tertiary rounded-full blur-2xl opacity-30"
-                        />
-                        <div className="relative w-32 h-32 bg-surface-container-lowest rounded-[2.5rem] shadow-2xl flex items-center justify-center border border-white/10 neon-glow-primary">
-                          <GraduationCap className="w-16 h-16 text-primary" />
+                    <div className="space-y-4">
+                      <motion.div
+                        animate={{ y: [0, -20, 0] }}
+                        transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                        className="mx-auto w-32 h-32 md:w-48 md:h-48 bg-primary/10 rounded-[3rem] flex items-center justify-center neon-glow-primary border border-primary/20"
+                      >
+                        <Trophy className="w-20 h-20 md:w-32 md:h-32 text-primary" />
+                      </motion.div>
+                      <h2 className="text-xl md:text-2xl font-headline font-extrabold text-primary uppercase tracking-[0.4em] italic drop-shadow-sm">Academic Rewards Program</h2>
+                    </div>
+
+                    <h1 className="text-6xl md:text-8xl lg:text-9xl font-headline font-extrabold tracking-tighter text-on-surface leading-[0.9] tv-text-shadow">
+                      Master Your <span className="text-primary italic drop-shadow-[0_0_15px_rgba(255,77,148,0.5)]">Future</span><br/> with AI
+                    </h1>
+                    
+                    <p className="text-lg md:text-2xl font-body font-bold text-on-surface-variant max-w-2xl mx-auto leading-relaxed opacity-80 mt-6">
+                      ScholarEarn turns your academic journey into a rewarding adventure. Join the most advanced learning system to level up and dominate.
+                    </p>
+
+                    <div className="pt-10">
+                      <Button 
+                        onClick={() => setCurrentScreen(AppScreen.SIGN_IN)}
+                        className="h-24 px-16 rounded-[3rem] font-headline font-extrabold uppercase tracking-[0.4em] text-xl shadow-2xl shadow-primary/40 group relative overflow-hidden neon-glow-primary border-4 border-primary/20"
+                      >
+                        <span className="relative z-10 flex items-center justify-center gap-6">
+                          Enter Academy <ChevronRight className="w-8 h-8 group-hover:translate-x-3 transition-transform" />
+                        </span>
+                        <div className="absolute inset-0 bg-gradient-to-r from-primary to-secondary opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                      </Button>
+                      
+                      {/* Social Proof for Instagram / Marketing */}
+                      <div className="mt-8 flex flex-col items-center gap-2">
+                        <div className="flex items-center gap-1 text-amber-400">
+                           <Star className="w-4 h-4 fill-current" />
+                           <Star className="w-4 h-4 fill-current" />
+                           <Star className="w-4 h-4 fill-current" />
+                           <Star className="w-4 h-4 fill-current" />
+                           <Star className="w-4 h-4 fill-current" />
                         </div>
+                        <p className="text-[10px] md:text-xs font-headline font-extrabold text-on-surface uppercase tracking-[0.2em] opacity-80">
+                           "The syllabus prep tool I wish I had earlier."
+                        </p>
+                        <p className="text-[9px] font-body font-bold text-outline uppercase tracking-widest opacity-50">
+                           — Verified Student Board Progress
+                        </p>
                       </div>
                     </div>
-                    
-                    <h1 className="text-6xl md:text-8xl lg:text-9xl font-headline font-extrabold tracking-tighter text-on-surface leading-[0.9] tv-text-shadow">
-                      Master Your <span className="text-primary italic drop-shadow-[0_0_15px_rgba(255,77,148,0.5)]">Future</span> with AI
-                    </h1>
-                    <p className="text-xl md:text-2xl lg:text-3xl font-body font-bold text-on-surface-variant max-w-2xl mx-auto leading-relaxed opacity-90">
-                      ScholarEarn turns your academic journey into a rewarding adventure. Level up, earn points, and dominate classroom battles.
-                    </p>
-                  </motion.div>
 
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.4, duration: 0.6 }}
-                    className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl"
-                  >
-                    {[
-                      { icon: <Rocket className="w-8 h-8 text-primary" />, title: "AI Powered", desc: "Custom exams tailored to your grade and topic.", color: "primary" },
-                      { icon: <Trophy className="w-8 h-8 text-secondary" />, title: "Earn Rewards", desc: "Get virtual currency for every correct answer.", color: "secondary" },
-                      { icon: <School className="w-8 h-8 text-tertiary" />, title: "Classroom Battles", desc: "Compete with your peers in group challenges.", color: "tertiary" }
-                    ].map((feature, i) => (
-                      <div key={i} className={`bg-surface-container-lowest/50 glass-card p-8 rounded-[3rem] border border-white/10 text-left space-y-4 hover:scale-105 transition-transform group cursor-default neon-glow-${feature.color}`}>
-                        <div className={`w-16 h-16 rounded-[1.5rem] bg-${feature.color}/10 flex items-center justify-center group-hover:bg-${feature.color}/20 transition-colors`}>
-                          {feature.icon}
-                        </div>
-                        <h3 className="text-xl font-headline font-extrabold text-on-surface uppercase tracking-widest italic">{feature.title}</h3>
-                        <p className="text-sm font-body font-bold text-on-surface-variant leading-relaxed">{feature.desc}</p>
-                      </div>
-                    ))}
+                    <div className="pt-20 pb-4 w-full flex flex-col md:flex-row items-start md:items-center justify-between text-[10px] font-body font-bold text-outline opacity-60 gap-6 mt-auto">
+                       <div className="text-left max-w-sm">
+                          <p className="font-headline font-extrabold text-on-surface uppercase tracking-widest mb-1">🛡️ 100% Data Privacy</p>
+                          <p className="leading-relaxed">We do NOT track, sell, or exploit student data. Your progress tracking is exclusively for your academic growth.</p>
+                       </div>
+                       <div className="text-left md:text-right">
+                          <p className="font-headline font-extrabold text-primary uppercase tracking-widest mb-1">Founder & Director</p>
+                          <p className="text-on-surface font-bold text-xs">L Samy, M.Phil.</p>
+                          <p className="mb-1">15+ Years Global Teaching Experience</p>
+                          <a href="mailto:alsamy36@gmail.com" className="hover:text-primary transition-colors underline decoration-white/20 underline-offset-2">alsamy36@gmail.com</a>
+                          <p className="mt-3 text-[8px] tracking-widest uppercase">© 2026 ScholarEarn. All rights reserved.</p>
+                       </div>
+                    </div>
                   </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.8 }}
-                    className="w-full max-w-md"
-                  >
-                    <Button 
-                      onClick={() => setCurrentScreen(AppScreen.SIGN_IN)}
-                      className="w-full h-24 rounded-[3rem] font-headline font-extrabold uppercase tracking-[0.3em] text-lg shadow-2xl shadow-primary/40 group relative overflow-hidden neon-glow-primary"
-                    >
-                      <span className="relative z-10 flex items-center justify-center gap-4">
-                        Enter the Academy <ChevronRight className="w-7 h-7 group-hover:translate-x-2 transition-transform" />
-                      </span>
-                      <motion.div 
-                        className="absolute inset-0 bg-gradient-to-r from-primary-dim to-primary opacity-0 group-hover:opacity-100 transition-opacity"
-                      />
-                    </Button>
-                    <p className="mt-8 text-xs font-headline font-extrabold text-outline uppercase tracking-[0.2em] opacity-60">
-                      Free for all students worldwide
-                    </p>
-                  </motion.div>
+                  
+                  {/* Background Accents */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full pointer-events-none overflow-hidden opacity-20">
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 60, repeat: Infinity, ease: "linear" }} className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] border-[40px] border-dashed border-primary/10 rounded-full" />
+                    <div className="absolute inset-0 bg-radial-gradient from-primary/5 to-transparent" />
+                  </div>
                 </div>
               )}
 
@@ -1137,100 +1252,87 @@ export default function App() {
 
         {currentScreen === AppScreen.SIGN_IN && (
           <div className="p-6 h-full flex flex-col items-center justify-center text-center space-y-6 animate-fade-in">
-            <div className="bg-surface-container-lowest/80 glass-card p-8 rounded-[2.5rem] border border-white/40 shadow-xl space-y-6 w-full max-w-sm">
+            <div className="bg-surface-container-lowest/80 glass-card p-10 rounded-[3rem] border border-white/40 shadow-2xl space-y-8 w-full max-w-md">
               <motion.div 
-                animate={{ y: [0, -10, 0] }}
-                transition={{ repeat: Infinity, duration: 2 }}
+                animate={{ y: [0, -15, 0], rotate: [0, 5, -5, 0] }}
+                transition={{ repeat: Infinity, duration: 3 }}
                 className="flex justify-center"
               >
-                <GraduationCap className="w-20 h-20 text-primary" />
+                <div className="w-24 h-24 rounded-3xl bg-primary/10 flex items-center justify-center neon-glow-primary">
+                  <GraduationCap className="w-14 h-14 text-primary" />
+                </div>
               </motion.div>
-              <div className="space-y-2">
-                <h2 className="text-2xl font-headline font-extrabold text-on-surface tracking-tighter">Welcome to ScholarEarn</h2>
-                <p className="text-xs text-on-surface-variant font-body font-bold leading-relaxed">
-                  Enter your email to save your progress and earn badges!
+              
+              <div className="space-y-3">
+                <h2 className="text-3xl md:text-4xl font-headline font-extrabold text-on-surface tracking-tighter italic tv-text-shadow">Join the Elite</h2>
+                <p className="text-sm text-on-surface-variant font-body font-bold leading-relaxed opacity-80">
+                  Save your progress and earn global recognition.
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-headline font-extrabold text-outline uppercase tracking-widest text-left block">Your Email</label>
                   <input 
                     type="email" 
                     value={emailInput} 
                     onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="scholar@example.com"
-                    className="input-field w-full px-4 py-3 rounded-xl bg-surface text-sm font-body font-bold"
+                    placeholder="Enter your email"
+                    className="input-field w-full px-6 py-4 rounded-2xl bg-surface text-base font-body font-bold border-2 border-transparent focus:border-primary transition-all"
                   />
                 </div>
                 <Button 
                   onClick={handleEmailLogin}
-                  className="w-full h-14 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-lg shadow-primary/20"
+                  className="w-full h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-sm shadow-xl shadow-primary/20 neon-glow-primary"
                 >
-                  Sign In with Email
+                  Sync with Email
                 </Button>
-              </div>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-outline-variant/10"></span>
+                
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-outline-variant/20"></span>
+                  </div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-headline font-extrabold text-outline-variant tracking-[0.3em]">
+                    <span className="bg-surface-container-lowest px-4">Elite Access</span>
+                  </div>
                 </div>
-                <div className="relative flex justify-center text-[10px] uppercase font-headline font-extrabold text-outline-variant">
-                  <span className="bg-surface-container-lowest px-2">Or</span>
-                </div>
-              </div>
 
-              <Button 
-                onClick={async () => {
-                  setError(null); // Clear previous errors
-                  try {
-                    await loginWithGoogle();
-                  } catch (e: any) {
-                    console.error("Sign in error:", e);
-                    if (e.code === 'auth/unauthorized-domain') {
-                      setError(`Domain Unauthorized: Please add ${window.location.hostname} to your Firebase Authorized Domains.`);
-                    } else {
-                      setError(`Failed to sign in: ${e.code || e.message || "Please try again."}`);
+                <Button 
+                  onClick={async () => {
+                    setError(null);
+                    try {
+                      await loginWithGoogle();
+                    } catch (e: any) {
+                      setError(`Failed to sign in: ${e.code || e.message}`);
                     }
-                  }
-                }} 
-                variant="outline"
-                className="w-full h-14 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs flex items-center justify-center gap-3"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg>
-                Sign in with Google
-              </Button>
-              {error && <p className="text-error text-[10px] font-body font-bold">{error}</p>}
-            </div>
+                  }} 
+                  variant="outline"
+                  className="w-full h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs flex items-center justify-center gap-3 border-white/10 hover:bg-white/5 transition-all"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                  Sync with Google
+                </Button>
 
-            {/* Feedback Section */}
-            <div className="w-full max-w-sm mt-8">
-              <div className="bg-surface-container-lowest/80 glass-card p-6 rounded-[2.5rem] border border-white/40 shadow-lg text-left space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-tertiary-container/20 flex items-center justify-center">
-                    <Mail className="w-6 h-6 text-tertiary" />
-                  </div>
-                  <h3 className="text-sm font-headline font-extrabold text-on-surface uppercase tracking-widest">Feedback & Support</h3>
+                <div className="pt-4">
+                  <button 
+                    onClick={handleGuestLogin}
+                    className="text-xs font-headline font-extrabold text-outline uppercase tracking-[0.3em] hover:text-primary transition-colors italic"
+                  >
+                    Continue as Guest (No Email Required)
+                  </button>
                 </div>
-                <div className="space-y-3">
-                  <p className="text-[10px] text-on-surface-variant font-body font-bold leading-relaxed">
-                    Have suggestions or need help? Our team is here to support your learning journey.
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    <a href="mailto:alsamy36@gmail.com" className="text-xs font-headline font-extrabold text-primary flex items-center gap-2 hover:underline">
-                      <Mail className="w-4 h-4" /> alsamy36@gmail.com
-                    </a>
-                    <div className="text-[9px] font-body font-bold text-outline uppercase tracking-widest">
-                      Response time: &lt; 24 hours
-                    </div>
-                  </div>
+                <div className="pt-4 flex items-center justify-center border-t border-white/5 mx-4">
+                   <p className="text-[9px] font-body font-bold text-outline text-center opacity-60">
+                     <span className="font-headline font-extrabold text-on-surface uppercase tracking-widest block mb-1">🛡️ Strict Data Privacy Policy</span>
+                     We do not collect personal data beyond what is required to save your progress. ScholarEarn prioritizes your academic privacy over all else.
+                   </p>
                 </div>
               </div>
+              {error && <p className="text-error text-[10px] font-body font-bold p-3 bg-error-container/20 rounded-xl border border-error/10">{error}</p>}
             </div>
           </div>
         )}
@@ -1324,15 +1426,19 @@ export default function App() {
                </div>
                <div className="relative z-10">
                  <h2 className="text-4xl md:text-6xl font-headline font-extrabold italic tracking-tighter tv-text-shadow">
-                   {isClassroomMode ? "Classroom Battle" : isChallengeMode ? "Challenge Arena" : "Your Path"}
+                   {isClassroomMode ? "Classroom Battle" : isChallengeMode ? "Challenge Arena" : "Academic Path"}
                  </h2>
                  <p className="text-on-primary-container text-sm md:text-lg opacity-90 font-body font-bold mt-2 max-w-[85%]">
                    {isClassroomMode 
                       ? "Sync your classroom with board-aligned group assessments and competitive syllabus tracking." 
                       : isChallengeMode 
                         ? "Verify understanding of specific topics through curriculum-based peer challenges." 
-                        : "Master your specific board syllabus with adaptive, topic-wise diagnostic paths."}
+                        : "Level up your academic rewards. Master your board syllabus with AI diagnostic paths."}
                  </p>
+                 <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-headline font-extrabold uppercase tracking-widest backdrop-blur-md">Syllabus Mastery</span>
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-headline font-extrabold uppercase tracking-widest backdrop-blur-md">Global Rewards</span>
+                 </div>
                </div>
             </div>
 
@@ -1439,14 +1545,26 @@ export default function App() {
                   </div>
                </div>
 
-               {/* Level Indicator */}
+               {/* Level & Reward Tier Indicator */}
                {!isClassroomMode && user.subject && (
-                 <div className="p-6 md:p-8 bg-primary/10 rounded-[3rem] border-2 border-primary/20 flex items-center justify-between animate-fade-in neon-glow-primary">
+                 <div className="p-6 md:p-8 bg-primary/10 rounded-[3rem] border-2 border-primary/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fade-in neon-glow-primary">
                     <div>
                       <p className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic">Current Progress</p>
                       <p className="text-2xl md:text-4xl font-headline font-extrabold text-on-surface italic tv-text-shadow">Level {user.level}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="flex-1 md:px-8 w-full">
+                       <div className="flex justify-between text-[10px] font-headline font-extrabold uppercase tracking-widest text-primary mb-2">
+                          <span>{totalPoints < 500 ? 'Bronze' : totalPoints < 2000 ? 'Silver' : totalPoints < 5000 ? 'Gold' : 'Diamond'} Tier</span>
+                          <span>{totalPoints} / {totalPoints < 500 ? 500 : totalPoints < 2000 ? 2000 : totalPoints < 5000 ? 5000 : 'MAX'} PTS</span>
+                       </div>
+                       <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+                          <div 
+                             className="h-full bg-gradient-to-r from-primary to-secondary transition-all"
+                             style={{ width: `${Math.min(100, (totalPoints / (totalPoints < 500 ? 500 : totalPoints < 2000 ? 2000 : 5000)) * 100)}%` }}
+                          />
+                       </div>
+                    </div>
+                    <div className="text-right hidden md:block">
                        <p className="text-[10px] md:text-xs font-body font-bold text-primary italic">Next Batch</p>
                        <span className="text-sm md:text-lg font-headline font-extrabold text-primary">5 Questions</span>
                     </div>
@@ -1493,34 +1611,6 @@ export default function App() {
             </div>
             
             {error && <p className="text-center text-error text-[10px] font-headline font-extrabold uppercase bg-error-container/30 p-3 rounded-xl border border-red-100">{error}</p>}
-
-          <div className="bg-surface-container/50 p-4 rounded-[2rem] flex flex-col items-center text-center space-y-2">
-                <div className="space-y-0.5">
-                  <p className="text-[9px] font-headline font-extrabold text-outline uppercase tracking-widest">Feedback & Support</p>
-                  <p className="text-[10px] font-body font-bold text-on-surface-variant">Have suggestions? We'd love to hear from you!</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <a 
-                    href="mailto:alsamy36@gmail.com" 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-[11px] font-headline font-extrabold text-primary hover:text-on-primary-container transition-colors flex items-center gap-1"
-                  >
-                    <Mail className="w-3 h-3" /> alsamy36@gmail.com
-                  </a>
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText('alsamy36@gmail.com');
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    }}
-                    className="text-[9px] font-headline font-extrabold text-outline bg-surface-container-lowest px-2 py-1 rounded-lg border border-outline-variant/20 hover:bg-surface transition-colors uppercase flex items-center gap-1"
-                  >
-                    {copied ? <CheckCircle2 className="w-3 h-3 text-secondary" /> : <Copy className="w-3 h-3" />}
-                    {copied ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-              </div>
           </div>
         )}
 
@@ -1757,9 +1847,12 @@ export default function App() {
                     {isMockMode ? "New Mock Exam" : activeQuiz.score >= 3 ? `Start Level ${user.level}` : "Retry Batch"}
                   </Button>
                 )}
-                <div className="grid grid-cols-2 gap-4 md:gap-6">
-                  <Button onClick={downloadBadge} variant="secondary" className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-[11px] md:text-xs tracking-widest neon-glow-secondary">Save Badge</Button>
-                  <Button onClick={shareChallenge} variant="outline" className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-[11px] md:text-xs tracking-widest flex items-center justify-center gap-3 border-white/10 bg-white/5">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+                  <Button onClick={downloadBadge} variant="secondary" className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-[10px] md:text-xs tracking-widest neon-glow-secondary">Download Badge</Button>
+                  <Button onClick={shareScreenshot} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-[10px] md:text-xs tracking-widest bg-primary text-on-primary shadow-lg shadow-primary/30 neon-glow-primary">
+                    📸 Share Score
+                  </Button>
+                  <Button onClick={shareChallenge} variant="outline" className="h-16 rounded-[2rem] font-headline font-extrabold uppercase text-[10px] md:text-xs tracking-widest flex items-center justify-center gap-3 border-white/10 bg-white/5 col-span-2 md:col-span-1">
                     {copied ? <CheckCircle2 className="w-5 h-5 text-secondary" /> : <Share2 className="w-5 h-5" />}
                     {copied ? "Link Copied" : "Challenge Friend"}
                   </Button>

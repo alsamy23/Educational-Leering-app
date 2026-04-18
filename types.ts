@@ -36,6 +36,7 @@ export interface UserProfile {
   testHistory?: TestRecord[];
   progressMap?: Record<string, number>;
   role?: 'admin' | 'user';
+  isGuest?: boolean;
 }
 
 export interface QuizQuestion {
