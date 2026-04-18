@@ -1179,10 +1179,14 @@ export default function App() {
                       >
                         <Trophy className="w-20 h-20 md:w-32 md:h-32 text-primary" />
                       </motion.div>
-                      <h2 className="text-xl md:text-2xl font-headline font-extrabold text-primary uppercase tracking-[0.4em] italic drop-shadow-sm">Academic Rewards Program</h2>
+                      <div className="flex flex-wrap justify-center gap-2 md:gap-4 mb-2">
+                         <span className="px-3 py-1 bg-surface-container border border-primary/20 rounded-full text-[8px] md:text-[10px] font-headline font-extrabold text-primary uppercase tracking-widest">Global Rewards System</span>
+                         <span className="px-3 py-1 bg-surface-container border border-secondary/20 rounded-full text-[8px] md:text-[10px] font-headline font-extrabold text-secondary uppercase tracking-widest">Powered by AI Technology</span>
+                      </div>
+                      <h2 className="text-xl md:text-2xl font-headline font-extrabold text-on-surface uppercase tracking-[0.4em] italic drop-shadow-sm">Built for Ambitious Students</h2>
                     </div>
 
-                    <h1 className="text-6xl md:text-8xl lg:text-9xl font-headline font-extrabold tracking-tighter text-on-surface leading-[0.9] tv-text-shadow">
+                    <h1 className="text-6xl md:text-8xl lg:text-9xl font-headline font-extrabold tracking-tighter text-on-surface leading-[0.9] tv-text-shadow mt-4">
                       Master Your <span className="text-primary italic drop-shadow-[0_0_15px_rgba(255,77,148,0.5)]">Future</span><br/> with AI
                     </h1>
                     
@@ -1216,6 +1220,31 @@ export default function App() {
                         <p className="text-[9px] font-body font-bold text-outline uppercase tracking-widest opacity-50">
                            — Verified Student Board Progress
                         </p>
+                      </div>
+                    </div>
+
+                    {/* How It Works Layer */}
+                    <div className="pt-16 md:pt-24 grid grid-cols-1 md:grid-cols-3 gap-6 text-left max-w-5xl mx-auto w-full">
+                      <div className="p-6 md:p-8 bg-surface-container-lowest/50 border border-white/5 rounded-3xl backdrop-blur-sm shadow-xl">
+                         <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center mb-4 neon-glow-primary">
+                            <span className="font-headline font-extrabold text-primary text-xl">1</span>
+                         </div>
+                         <h3 className="text-on-surface font-headline font-extrabold uppercase tracking-widest text-lg mb-2">Set Target</h3>
+                         <p className="text-on-surface-variant font-body font-bold text-sm leading-relaxed opacity-80">Enter any topic or subject you want to master. The AI instantly generates tailored content for your specific grade and board.</p>
+                      </div>
+                      <div className="p-6 md:p-8 bg-surface-container-lowest/50 border border-white/5 rounded-3xl backdrop-blur-sm shadow-xl">
+                         <div className="w-12 h-12 bg-secondary/20 rounded-2xl flex items-center justify-center mb-4 neon-glow-secondary">
+                            <span className="font-headline font-extrabold text-secondary text-xl">2</span>
+                         </div>
+                         <h3 className="text-on-surface font-headline font-extrabold uppercase tracking-widest text-lg mb-2">Play & Learn</h3>
+                         <p className="text-on-surface-variant font-body font-bold text-sm leading-relaxed opacity-80">Answer fast-paced micro-quizzes against the clock. Get immediate AI expert feedback on every single question to actually learn.</p>
+                      </div>
+                      <div className="p-6 md:p-8 bg-surface-container-lowest/50 border border-white/5 rounded-3xl backdrop-blur-sm shadow-xl">
+                         <div className="w-12 h-12 bg-tertiary/20 rounded-2xl flex items-center justify-center mb-4 neon-glow-tertiary">
+                            <span className="font-headline font-extrabold text-tertiary text-xl">3</span>
+                         </div>
+                         <h3 className="text-on-surface font-headline font-extrabold uppercase tracking-widest text-lg mb-2">Dominate</h3>
+                         <p className="text-on-surface-variant font-body font-bold text-sm leading-relaxed opacity-80">Level up your tiers from Bronze to Diamond, collect gaming badges, and send Challenge Links to friends globally.</p>
                       </div>
                     </div>
 
@@ -1443,10 +1472,10 @@ export default function App() {
             </div>
 
             <div className="bg-surface-container-lowest/80 glass-card p-8 md:p-12 rounded-[3rem] border border-white/10 shadow-2xl space-y-8">
-               <div className="flex bg-surface-container p-2 rounded-[2.5rem]">
-                  <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(false); }} className={`flex-1 py-4 rounded-2xl text-xs md:text-sm font-headline font-extrabold uppercase transition-all ${!isClassroomMode && !isChallengeMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Individual</button>
-                  <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(true); }} className={`flex-1 py-4 rounded-2xl text-xs md:text-sm font-headline font-extrabold uppercase transition-all ${isChallengeMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Challenge</button>
-                  <button onClick={() => { setIsClassroomMode(true); setIsChallengeMode(false); }} className={`flex-1 py-4 rounded-2xl text-xs md:text-sm font-headline font-extrabold uppercase transition-all ${isClassroomMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Classroom</button>
+               <div className="grid grid-cols-3 gap-1 md:gap-2 bg-surface-container p-1.5 md:p-2 rounded-[2rem] md:rounded-[2.5rem]">
+                  <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(false); }} className={`py-3 md:py-4 rounded-2xl text-[9px] sm:text-xs md:text-sm font-headline font-extrabold uppercase transition-all whitespace-nowrap overflow-hidden text-ellipsis px-1 ${!isClassroomMode && !isChallengeMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Individual</button>
+                  <button onClick={() => { setIsClassroomMode(false); setIsChallengeMode(true); }} className={`py-3 md:py-4 rounded-2xl text-[9px] sm:text-xs md:text-sm font-headline font-extrabold uppercase transition-all whitespace-nowrap overflow-hidden text-ellipsis px-1 ${isChallengeMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Challenge</button>
+                  <button onClick={() => { setIsClassroomMode(true); setIsChallengeMode(false); }} className={`py-3 md:py-4 rounded-2xl text-[9px] sm:text-xs md:text-sm font-headline font-extrabold uppercase transition-all whitespace-nowrap overflow-hidden text-ellipsis px-1 ${isClassroomMode ? 'bg-surface-container-lowest shadow-2xl text-primary neon-glow-primary' : 'text-outline'}`}>Classroom</button>
                </div>
 
                <div className="space-y-8">
