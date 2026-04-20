@@ -127,14 +127,15 @@ export const generateQuizQuestions = async (
       ? "For PRIMARY SCHOOL: Focus on core curriculum pillars. Make questions simplified and encouraging, ensuring they bridge the gap between classroom learning and assessment success." 
       : "For High School: Focus on analytical rigor. While real-world connections are good for motivation, the questions must PRIMARILY evaluate syllabus-specific mastery and exam-readiness."}
   - Provide an 'inquiryPrompt' as a "Diagnostic Challenge" to help students identify areas for further study within this topic.
-  - Provide an 'imageKeyword' ONLY if the question type is 'CASE_STUDY' or 'VISUAL_ANALYSIS'. Otherwise, set 'imageKeyword' to an empty string. The image is ONLY required for case-based visual context.
   
   MODE-SPECIFIC GUIDANCE:
   - INDIVIDUAL CHALLENGE: Focus on incremental mastery. Questions should help the student identify gaps in their understanding of the ${topic} syllabus.
   - CLASSROOM BATTLE: Questions should be competitive and balanced, designed to test the group's collective knowledge of core curriculum points under pressure.
   
-  CRITICAL: Ensure these questions are unique and different from any other groups in this classroom session. 
-  Even if the topic is the same, vary the scenarios and numerical values.
+  CRITICAL ACCORDING TO CURRICULUM & UNIQUENESS (CLASSROOM ANTI-REPEAT PROTOCOL):
+  - Ensure 100% adherence strictly to the official board curriculum for this grade. No generic questions. Use exact curriculum terminology.
+  - To absolutely prevent repeating questions between different groups, you MUST use the RandomSeed (${seed}) to deeply alter the sub-topic focus, problem formats, and numerical values. 
+  - Group ${groupName || "N/A"} must receive an entirely distinct set of 5 questions than any other group. DO NOT recycle common starter questions.
   
   QUESTION TYPES DISTRIBUTION:
   - If Grade >= 9: Include at least 1 'CASE_STUDY' and 1 'VISUAL_ANALYSIS'.
@@ -142,7 +143,7 @@ export const generateQuizQuestions = async (
   
   GUIDELINES:
   - CASE_STUDY: Provide a short paragraph (50-80 words) in 'contextMaterial' that the student must analyze to answer the question.
-  - VISUAL_ANALYSIS: Describe a diagram, graph, or physical setup in 'contextMaterial' (e.g., "A circuit diagram shows two resistors in parallel...") and ask a question based on it.
+  - VISUAL_ANALYSIS: Describe a diagram, graph, or physical setup in 'contextMaterial' (e.g., "A circuit diagram shows two resistors in parallel...") and ask a question based on it. (Do NOT provide images, purely textual visual descriptions).
   - The 'explanation' must be detailed.
   - The 'text' field MUST contain the actual question and MUST NOT be empty.`;
 
@@ -177,13 +178,12 @@ export const generateQuizQuestions = async (
                   },
                   correctIndex: { type: Type.NUMBER, description: "0-3" },
                   explanation: { type: Type.STRING, description: "Detailed explanation of the correct answer" },
-                  inquiryPrompt: { type: Type.STRING, description: "A follow-up challenge or inquiry for the student" },
-                  imageKeyword: { type: Type.STRING, description: "2-3 word keyword for a relevant image" }
+                  inquiryPrompt: { type: Type.STRING, description: "A follow-up challenge or inquiry for the student" }
                 },
-                required: ["id", "type", "text", "options", "correctIndex", "explanation", "inquiryPrompt", "imageKeyword"]
+                required: ["id", "type", "text", "options", "correctIndex", "explanation", "inquiryPrompt"]
               }
             },
-            temperature: 0.8
+            temperature: 0.95
           }
         });
 
@@ -254,8 +254,7 @@ const validateAndFormatQuestions = (parsed: any[], topic: string = "this topic")
       options: Array.isArray(q.options) && q.options.length === 4 ? q.options : ["Option A", "Option B", "Option C", "Option D"],
       correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
       explanation: q.explanation || "No explanation provided.",
-      inquiryPrompt: q.inquiryPrompt || `How would this change if we altered the initial conditions of the ${topic} problem?`,
-      imageKeyword: q.imageKeyword || topic
+      inquiryPrompt: q.inquiryPrompt || `How would this change if we altered the initial conditions of the ${topic} problem?`
   }));
 };
 

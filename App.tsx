@@ -1680,37 +1680,37 @@ export default function App() {
                    <div className="h-full bg-gradient-to-r from-primary via-secondary to-tertiary transition-all duration-700 ease-out" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div>
                 </div>
 
-                <div className="flex justify-between items-center bg-surface-container-lowest/80 glass-card p-4 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-white/10 shadow-xl overflow-hidden relative">
+                <div className="flex justify-between items-center bg-surface-container-lowest/80 glass-card px-4 py-3 md:px-8 md:py-6 lg:py-4 rounded-[1.5rem] md:rounded-[2.5rem] border border-white/10 shadow-xl overflow-hidden relative">
                    {/* Background Decorative Element */}
                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/10 blur-[80px] rounded-full pointer-events-none"></div>
                    
                    <div className="space-y-1 relative z-10 font-headline">
                       {isClassroomMode && classroomSession && (
-                        <p className="text-[var(--text-fluid-xs)] font-extrabold text-primary uppercase tracking-widest italic leading-none">
+                        <p className="text-[10px] md:text-xs lg:text-sm font-extrabold text-primary uppercase tracking-widest italic leading-none">
                           Group: {classroomSession.groups[classroomSession.currentGroupIndex].name}
                         </p>
                       )}
-                      <p className="text-[var(--text-fluid-xs)] font-extrabold text-primary uppercase tracking-widest italic leading-none">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
-                      <p className="text-[var(--text-fluid-4xl)] font-extrabold tabular-nums italic tv-text-shadow leading-none">
+                      <p className="text-[10px] md:text-xs lg:text-sm font-extrabold text-primary uppercase tracking-widest italic leading-none md:mt-1">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
+                      <p className="text-3xl md:text-5xl lg:text-4xl font-extrabold tabular-nums italic tv-text-shadow leading-none mt-1 md:mt-2">
                         {currentIndex + 1}<span className="text-outline-variant/30 text-[0.4em] font-medium not-italic ml-1">/5</span>
                       </p>
                    </div>
 
-                   <div className="flex flex-col items-center gap-1 md:gap-3 relative z-10">
+                   <div className="flex flex-col items-center gap-1 relative z-10">
                       <motion.div 
                         initial={false}
                         animate={{ scale: timeLeft <= 10 ? [1, 1.1, 1] : 1 }}
                         transition={{ repeat: timeLeft <= 10 ? Infinity : 0, duration: 0.5 }}
-                        className={`w-14 h-14 md:w-28 md:h-28 rounded-full border-4 md:border-8 flex items-center justify-center font-headline font-extrabold text-[var(--text-fluid-xl)] shadow-2xl transition-colors ${timeLeft <= 10 ? 'border-error text-error neon-glow-error' : 'border-primary text-primary neon-glow-primary'}`}
+                        className={`w-14 h-14 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-full border-4 md:border-6 flex items-center justify-center font-headline font-extrabold text-2xl md:text-3xl lg:text-4xl shadow-2xl transition-colors ${timeLeft <= 10 ? 'border-error text-error neon-glow-error' : 'border-primary text-primary neon-glow-primary'}`}
                       >
                         {timeLeft}
                       </motion.div>
-                      <span className="text-[var(--text-fluid-xs)] font-headline font-extrabold uppercase tracking-widest text-outline italic">Seconds</span>
+                      <span className="text-[10px] md:text-xs font-headline font-extrabold uppercase tracking-widest text-outline italic">Seconds</span>
                    </div>
 
                    <div className="flex flex-col items-end gap-1 md:gap-4 relative z-10">
                       {renderQuestionLabel(currentQ.type)}
-                      <span className="text-[var(--text-fluid-xs)] font-body font-bold text-outline uppercase italic opacity-70">Subject: {user.subject}</span>
+                      <span className="text-[10px] md:text-xs lg:text-sm font-body font-bold text-outline uppercase italic opacity-70">Subject: {user.subject}</span>
                    </div>
                 </div>
              </div>
@@ -1718,56 +1718,40 @@ export default function App() {
              <div className="lg:flex lg:gap-8 p-4 md:p-8 lg:p-10 space-y-6 lg:space-y-0 flex-1 overflow-y-auto no-scrollbar">
                 
                  <div className="lg:w-1/3 flex flex-col gap-6">
-                    {/* Visualization Image - ONLY for CASE_STUDY or VISUAL_ANALYSIS */}
-                   {(currentQ.type === QuestionType.VISUAL_ANALYSIS || currentQ.type === QuestionType.CASE_STUDY) && currentQ.imageKeyword && (
-                     <motion.div 
-                       initial={{ opacity: 0, y: 20 }}
-                       animate={{ opacity: 1, y: 0 }}
-                       className="bg-surface-container-lowest/80 glass-card rounded-[1.5rem] md:rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden neon-glow-primary flex items-center justify-center p-1 md:p-2 min-h-[15vh] md:min-h-[20vh] lg:h-fit"
-                     >
-                       <img 
-                         src={`https://picsum.photos/seed/${currentQ.imageKeyword || user.topic}/800/400`} 
-                         alt="Visualization" 
-                         className="w-full h-full lg:max-h-[50vh] object-contain md:object-cover opacity-90 hover:opacity-100 transition-opacity"
-                         referrerPolicy="no-referrer"
-                       />
-                     </motion.div>
-                   )}
-
-                   {/* Case Study / Context Box */}
+                    {/* Case Study / Context Box */}
                    {currentQ.contextMaterial && (
                      <div className={`p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border-4 relative overflow-hidden animate-fade-in shadow-2xl h-fit ${currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'bg-secondary/5 border-secondary/30 neon-glow-secondary' : 'bg-primary/5 border-primary/30 neon-glow-primary'}`}>
                         <div className="flex items-center gap-3 mb-3 opacity-80">
                           {currentQ.type === QuestionType.VISUAL_ANALYSIS ? <Eye className="w-5 h-5 md:w-8 md:h-8 text-secondary" /> : <BookOpen className="w-5 h-5 md:w-8 md:h-8 text-primary" />}
-                          <span className="text-[var(--text-fluid-xs)] md:text-[var(--text-fluid-sm)] font-headline font-extrabold uppercase tracking-widest italic leading-none">
+                          <span className="text-xs md:text-sm lg:text-base font-headline font-extrabold uppercase tracking-widest italic leading-none">
                             {currentQ.type === QuestionType.VISUAL_ANALYSIS ? 'Visual Context' : 'Read Case Study'}
                           </span>
                         </div>
-                        <p className="text-[var(--text-fluid-xs)] md:text-[var(--text-fluid-base)] text-on-surface font-body font-bold leading-relaxed italic opacity-90 max-h-[30vh] overflow-y-auto custom-scrollbar pr-2">
+                        <p className="text-sm md:text-base lg:text-lg text-on-surface font-body font-bold leading-relaxed italic opacity-90 max-h-[30vh] overflow-y-auto custom-scrollbar pr-2">
                           {currentQ.contextMaterial}
                         </p>
                      </div>
                    )}
                 </div>
 
-                <div className="lg:flex-1 space-y-6 flex flex-col">
-                    <div className="bg-surface-container-lowest/80 glass-card p-4 md:p-10 lg:p-14 rounded-[1.5rem] md:rounded-[3rem] border border-white/10 shadow-2xl relative overflow-hidden h-fit">
+                <div className="lg:flex-1 space-y-4 md:space-y-6 flex flex-col">
+                    <div className="bg-surface-container-lowest/80 glass-card p-4 md:p-8 lg:p-10 rounded-[1.5rem] md:rounded-[2.5rem] border border-white/10 shadow-2xl relative overflow-hidden h-fit">
                        <div className={`absolute top-0 left-0 w-2 md:w-3 h-full ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`}></div>
                        <div className="flex justify-between items-start gap-3 md:gap-4">
-                         <h2 className="text-[var(--text-fluid-lg)] lg:text-[var(--text-fluid-xl)] font-body font-bold text-on-surface leading-tight tv-text-shadow flex-1">
+                         <h2 className="text-base md:text-xl lg:text-2xl font-body font-bold text-on-surface leading-snug tv-text-shadow flex-1">
                            {currentQ.text}
                          </h2>
                          <button 
                            onClick={handleReadAloud} 
-                           className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex-none ${isReadingAloud ? 'bg-primary text-on-primary border-primary animate-pulse' : 'bg-surface text-primary border-primary/20 hover:bg-primary/10'}`}
+                           className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex-none mt-1 ${isReadingAloud ? 'bg-primary text-on-primary border-primary animate-pulse' : 'bg-surface text-primary border-primary/20 hover:bg-primary/10'}`}
                            title={isReadingAloud ? "Stop Reading" : "Read Aloud"}
                          >
-                           {isReadingAloud ? <VolumeX className="w-5 h-5 md:w-8 md:h-8" /> : <Volume2 className="w-5 h-5 md:w-8 md:h-8" />}
+                           {isReadingAloud ? <VolumeX className="w-5 h-5 md:w-6 md:h-6" /> : <Volume2 className="w-5 h-5 md:w-6 md:h-6" />}
                          </button>
                        </div>
                     </div>
 
-                   <div className="grid grid-cols-1 gap-4 lg:gap-6 flex-1">
+                   <div className="grid grid-cols-1 gap-3 lg:gap-4 flex-1">
                       {currentQ.options.map((opt, i) => {
                         let style = "bg-surface-container-lowest/50 border-white/5 text-on-surface hover:border-primary/50 hover:bg-primary/5";
                         if (feedback) {
@@ -1776,9 +1760,9 @@ export default function App() {
                           else style = "opacity-30 grayscale pointer-events-none";
                         }
                         return (
-                          <button key={i} disabled={!!feedback} onClick={() => handleMCQ(i)} className={`w-full p-4 md:p-6 lg:p-8 text-left rounded-[1.5rem] md:rounded-[2.5rem] lg:rounded-[3rem] border-4 transition-all flex items-center gap-6 md:gap-10 ${style} active:scale-95 group shadow-lg h-fit min-h-[80px]`}>
-                             <span className={`w-10 h-10 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-2xl flex items-center justify-center text-lg md:text-xl lg:text-2xl font-headline font-extrabold flex-none transition-colors ${feedback && i === currentQ.correctIndex ? 'bg-secondary text-on-secondary shadow-lg' : 'bg-surface-container text-outline group-hover:bg-primary/20 group-hover:text-primary'}`}>{String.fromCharCode(65 + i)}</span>
-                             <span className="text-[var(--text-fluid-base)] lg:text-[var(--text-fluid-lg)] font-body font-bold leading-tight">{opt}</span>
+                          <button key={i} disabled={!!feedback} onClick={() => handleMCQ(i)} className={`w-full p-3 md:p-5 lg:p-6 text-left rounded-[1.5rem] md:rounded-[2rem] border-4 transition-all flex items-center gap-4 md:gap-6 ${style} active:scale-95 group shadow-lg h-fit min-h-[64px]`}>
+                             <span className={`w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-2xl flex items-center justify-center text-lg md:text-xl font-headline font-extrabold flex-none transition-colors ${feedback && i === currentQ.correctIndex ? 'bg-secondary text-on-secondary shadow-lg' : 'bg-surface-container text-outline group-hover:bg-primary/20 group-hover:text-primary'}`}>{String.fromCharCode(65 + i)}</span>
+                             <span className="text-sm md:text-base lg:text-xl font-body font-bold leading-tight md:leading-snug">{opt}</span>
                           </button>
                         );
                       })}
@@ -1787,19 +1771,19 @@ export default function App() {
              </div>
 
              {feedback && (
-               <div className="p-8 md:p-12 bg-surface-container-lowest/90 backdrop-blur-xl rounded-[3rem] border-4 border-white/10 animate-fade-in space-y-6 shadow-2xl">
+               <div className="p-6 md:p-10 lg:p-12 bg-surface-container-lowest/90 backdrop-blur-xl rounded-[2.5rem] md:rounded-[3rem] border-4 border-white/10 animate-fade-in space-y-4 md:space-y-6 shadow-2xl">
                  <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                    <p className="text-[var(--text-fluid-xs)] font-headline font-extrabold uppercase text-primary tracking-widest italic">Expert Explanation</p>
+                    <p className="text-xs md:text-sm font-headline font-extrabold uppercase text-primary tracking-widest italic">Expert Explanation</p>
                  </div>
-                 <p className="text-[var(--text-fluid-base)] md:text-[var(--text-fluid-lg)] font-body font-bold text-on-surface-variant leading-relaxed italic opacity-90">{currentQ.explanation}</p>
+                 <p className="text-sm md:text-base lg:text-lg font-body font-bold text-on-surface-variant leading-relaxed italic opacity-90">{currentQ.explanation}</p>
                  
                  {currentQ.inquiryPrompt && (
-                   <div className="mt-6 md:mt-8 p-6 md:p-10 bg-primary/10 rounded-[2rem] md:rounded-[2.5rem] border-2 border-primary/20 space-y-3 md:space-y-4 neon-glow-primary">
+                   <div className="mt-6 md:mt-8 p-6 md:p-8 bg-primary/10 rounded-[2rem] border-2 border-primary/20 space-y-3 md:space-y-4 neon-glow-primary">
                      <div className="flex items-center gap-3 text-primary">
                        <Sparkles className="w-5 h-5 md:w-6 md:h-6" />
-                       <span className="text-[var(--text-fluid-xs)] font-headline font-extrabold uppercase tracking-widest italic leading-none">Further Inquiry</span>
+                       <span className="text-xs md:text-sm font-headline font-extrabold uppercase tracking-widest italic leading-none">Further Inquiry</span>
                      </div>
-                     <p className="text-[var(--text-fluid-sm)] md:text-[var(--text-fluid-lg)] font-body font-bold text-on-surface leading-relaxed italic">
+                     <p className="text-sm md:text-base lg:text-lg font-body font-bold text-on-surface leading-relaxed italic">
                        {currentQ.inquiryPrompt}
                      </p>
                    </div>
