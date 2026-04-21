@@ -22,6 +22,13 @@ export interface TestRecord {
   section?: string;
 }
 
+export interface StudyMaterial {
+  id: string;
+  title: string;
+  content: string;
+  timestamp: number;
+}
+
 export interface UserProfile {
   name: string;
   gradeLevel: string;

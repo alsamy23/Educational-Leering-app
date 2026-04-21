@@ -6,9 +6,15 @@ import {
   BookOpen, Eye, Calculator, CheckCircle2, AlertCircle, 
   ChevronRight, Download, Search, User as UserIcon, Settings, History,
   LayoutDashboard, Home, SignalLow, SignalMedium, SignalHigh, Signal, Share2,
-  Volume2, VolumeX
+  Volume2, VolumeX, FileText, FolderSync, PlusCircle
 } from 'lucide-react';
-import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel, TestRecord } from './types';
+import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel, TestRecord, StudyMaterial } from './types';
+import * as idb from 'idb-keyval';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
 import { generateQuizQuestions, generateSpeech, playAudio, stopAudio } from './services/geminiService';
 import { Button } from './components/Button';
 import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './firebase';
@@ -344,8 +350,250 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
+const MaterialManager = ({ 
+  isOpen, 
+  onClose, 
+  materials, 
+  onAdd, 
+  onDelete, 
+  onSelect, 
+  selectedId 
+}: { 
+  isOpen: boolean,
+  onClose: () => void,
+  materials: StudyMaterial[], 
+  onAdd: (title: string, content: string) => void, 
+  onDelete: (id: string) => void,
+  onSelect: (id: string | null) => void,
+  selectedId: string | null
+}) => {
+  const [newTitle, setNewTitle] = useState('');
+  const [newContent, setNewContent] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [isProcessingPdf, setIsProcessingPdf] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || file.type !== 'application/pdf') return;
+
+    setIsProcessingPdf(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
+      
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        fullText += pageText + '\n';
+      }
+
+      setNewTitle(file.name.replace('.pdf', ''));
+      setNewContent(fullText);
+      setIsAdding(true);
+    } catch (err) {
+      console.error("PDF Processing Error:", err);
+      alert("Failed to process PDF. Please try pasting the text manually.");
+    } finally {
+      setIsProcessingPdf(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+       <motion.div 
+         initial={{ scale: 0.9, opacity: 0 }}
+         animate={{ scale: 1, opacity: 1 }}
+         className="bg-surface-container-lowest/90 glass-card w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-[3rem] border border-white/20 shadow-2xl flex flex-col"
+       >
+          <div className="p-8 border-b border-white/5 flex justify-between items-center bg-primary/5">
+             <div>
+                <h2 className="text-2xl font-headline font-extrabold text-on-surface tracking-tighter italic">Material Bank</h2>
+                <p className="text-[10px] font-headline font-extrabold text-primary uppercase tracking-widest">Teacher's Private Library (Local Storage)</p>
+             </div>
+             <button onClick={onClose} className="p-3 bg-surface rounded-full text-outline hover:text-error transition-all hover:scale-110">
+                <X className="w-6 h-6" />
+             </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-8 space-y-8 no-scrollbar">
+             {isAdding ? (
+               <div className="space-y-6 animate-fade-in">
+                  <div className="space-y-3">
+                     <label className="text-xs font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Source Title</label>
+                     <input 
+                       type="text" 
+                       value={newTitle} 
+                       onChange={e => setNewTitle(e.target.value)}
+                       className="input-field w-full px-8 py-4 rounded-[2rem] bg-surface text-lg font-body font-bold border-2 border-white/5 focus:border-primary transition-all shadow-inner" 
+                       placeholder="e.g. Chapter 4: Photosynthesis" 
+                     />
+                  </div>
+                  <div className="space-y-3">
+                     <label className="text-xs font-headline font-extrabold text-primary uppercase tracking-widest italic ml-4">Content / Extracted Text</label>
+                     <textarea 
+                       value={newContent} 
+                       onChange={e => setNewContent(e.target.value)}
+                       className="input-field w-full px-8 py-6 rounded-[2rem] bg-surface text-sm font-body font-bold border-2 border-white/5 focus:border-primary transition-all h-60 resize-none shadow-inner" 
+                       placeholder="Paste the chapter text or curriculum details here..."
+                     />
+                  </div>
+                  <div className="flex gap-4">
+                     <Button 
+                       onClick={() => {
+                         if (newTitle && newContent) {
+                           onAdd(newTitle, newContent);
+                           setNewTitle('');
+                           setNewContent('');
+                           setIsAdding(false);
+                         }
+                       }}
+                       className="flex-1 h-16 rounded-[2.5rem] font-headline font-extrabold uppercase tracking-widest neon-glow-primary"
+                     >
+                        Confirm Add
+                     </Button>
+                     <Button 
+                       variant="outline" 
+                       onClick={() => {
+                         setIsAdding(false);
+                         setNewTitle('');
+                         setNewContent('');
+                       }}
+                       className="flex-1 h-16 rounded-[2.5rem] font-headline font-extrabold uppercase tracking-widest border-outline/20"
+                     >
+                        Cancel
+                     </Button>
+                  </div>
+               </div>
+             ) : (
+               <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Button 
+                      onClick={() => setIsAdding(true)}
+                      className="h-32 rounded-[2.5rem] border-2 border-dashed border-primary/40 bg-primary/5 text-primary font-headline font-extrabold uppercase tracking-widest hover:bg-primary/10 transition-all flex flex-col items-center justify-center gap-2"
+                    >
+                       <PlusCircle className="w-8 h-8" />
+                       <span className="text-[10px]">Add Text Notes</span>
+                    </Button>
+
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept=".pdf" 
+                        onChange={handlePdfUpload} 
+                        className="hidden" 
+                        ref={fileInputRef} 
+                      />
+                      <Button 
+                        disabled={isProcessingPdf}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full h-32 rounded-[2.5rem] border-2 border-dashed border-secondary/40 bg-secondary/5 text-secondary font-headline font-extrabold uppercase tracking-widest hover:bg-secondary/10 transition-all flex flex-col items-center justify-center gap-2"
+                      >
+                         {isProcessingPdf ? (
+                           <div className="w-8 h-8 border-4 border-secondary/20 border-t-secondary rounded-full animate-spin"></div>
+                         ) : (
+                           <Upload className="w-8 h-8" />
+                         )}
+                         <span className="text-[10px]">{isProcessingPdf ? "Reading PDF..." : "Upload PDF Source"}</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4">
+                     {materials.length === 0 ? (
+                       <div className="text-center py-20 opacity-50 space-y-4">
+                          <FileText className="w-16 h-16 mx-auto text-outline-variant" />
+                          <p className="text-xs font-body font-bold text-outline">No materials saved yet. Your library is empty.</p>
+                       </div>
+                     ) : (
+                       materials.map(m => (
+                         <div 
+                           key={m.id} 
+                           onClick={() => onSelect(selectedId === m.id ? null : m.id)}
+                           className={`p-6 rounded-[2.5rem] border-2 transition-all cursor-pointer flex justify-between items-center group hover:shadow-xl ${selectedId === m.id ? 'bg-primary border-primary text-on-primary shadow-xl neon-glow-primary scale-[1.02]' : 'bg-surface border-white/5 text-on-surface hover:border-primary/40'}`}
+                         >
+                            <div className="flex items-center gap-5">
+                               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${selectedId === m.id ? 'bg-white/20' : 'bg-primary/10'}`}>
+                                  <FileText className={`w-7 h-7 ${selectedId === m.id ? 'text-white' : 'text-primary'}`} />
+                               </div>
+                               <div className="text-left">
+                                  <p className="font-headline font-extrabold text-lg tracking-tight italic">{m.title}</p>
+                                  <p className={`text-[10px] font-body font-bold uppercase tracking-widest ${selectedId === m.id ? 'text-white/60' : 'text-outline opacity-60'}`}>
+                                    Added {new Date(m.timestamp).toLocaleDateString()} • ~{Math.round(m.content.length / 1000)}k chars
+                                  </p>
+                               </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                               <button 
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   onDelete(m.id);
+                                 }}
+                                 className={`p-3 rounded-[1rem] transition-all ${selectedId === m.id ? 'bg-white/10 hover:bg-white/20 text-white' : 'hover:bg-error/10 hover:text-error text-outline opacity-0 group-hover:opacity-100'}`}
+                               >
+                                  <X className="w-5 h-5" />
+                               </button>
+                               <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center ${selectedId === m.id ? 'border-white bg-white text-primary' : 'border-outline-variant shadow-inner'}`}>
+                                  {selectedId === m.id && <CheckCircle2 className="w-5 h-5" />}
+                               </div>
+                            </div>
+                         </div>
+                       ))
+                     )}
+                  </div>
+               </div>
+             )}
+          </div>
+          
+          <div className="p-8 bg-surface-container/50 border-t border-white/5">
+             <div className="flex items-start gap-4">
+                <FolderSync className="w-5 h-5 text-tertiary mt-1" />
+                <p className="text-[10px] font-body font-bold text-outline-variant leading-relaxed uppercase tracking-wider">
+                   Privacy Notice: These texts are stored ONLY in your browser's IndexedDB. They are never uploaded to any cloud server or tracking database. They are only sent to the AI during the generation process to create grounded questions.
+                </p>
+             </div>
+          </div>
+       </motion.div>
+    </div>
+  );
+};
+
 export default function App() {
   const [sessionEmail, setSessionEmail] = useState<string | null>(() => localStorage.getItem('se_session_email'));
+  const [materials, setMaterials] = useState<StudyMaterial[]>([]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+  const [isMaterialManagerOpen, setIsMaterialManagerOpen] = useState(false);
+
+  useEffect(() => {
+    const loadMaterials = async () => {
+      const allMaterials = await idb.values();
+      setMaterials((allMaterials as StudyMaterial[]).sort((a, b) => b.timestamp - a.timestamp));
+    };
+    loadMaterials();
+  }, []);
+
+  const handleAddMaterial = async (title: string, content: string) => {
+    const newMaterial: StudyMaterial = {
+      id: crypto.randomUUID(),
+      title,
+      content,
+      timestamp: Date.now()
+    };
+    await idb.set(newMaterial.id, newMaterial);
+    setMaterials(prev => [newMaterial, ...prev]);
+  };
+
+  const handleDeleteMaterial = async (id: string) => {
+    await idb.del(id);
+    setMaterials(prev => prev.filter(m => m.id !== id));
+    if (selectedMaterialId === id) setSelectedMaterialId(null);
+  };
+
   const [emailInput, setEmailInput] = useState('');
   const [totalPoints, setTotalPoints] = useState<number>(() => Number(localStorage.getItem('se_pts') || 0));
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.LANDING);
@@ -674,7 +922,8 @@ export default function App() {
     setLoadingMsg(`Creating ${levelText} Batch for ${user.subject}...`);
     
     try {
-      const questions = await generateQuizQuestions(user, mockMode, undefined, undefined, undefined, 0, seedOverride);
+      const sourceMaterial = materials.find(m => m.id === selectedMaterialId)?.content;
+      const questions = await generateQuizQuestions(user, mockMode, undefined, undefined, undefined, 0, seedOverride, sourceMaterial);
       setActiveQuiz({ profile: user, questions, userAnswers: [], score: 0, questionTimer });
       setCurrentIndex(0);
       setTimeLeft(questionTimer);
@@ -858,16 +1107,16 @@ export default function App() {
   // Timer Effect
   useEffect(() => {
     let timer: any;
-    if (currentScreen === AppScreen.QUIZ && !feedback && timeLeft > 0) {
+    if (currentScreen === AppScreen.QUIZ && !feedback && timeLeft > 0 && activeQuiz?.questionTimer !== 0) {
       timer = setInterval(() => {
         setTimeLeft(prev => prev - 1);
       }, 1000);
-    } else if (timeLeft === 0 && currentScreen === AppScreen.QUIZ && !feedback) {
+    } else if (timeLeft === 0 && currentScreen === AppScreen.QUIZ && !feedback && activeQuiz?.questionTimer !== 0) {
       // Time's up!
       handleMCQ(-1); // Mark as incorrect
     }
     return () => clearInterval(timer);
-  }, [currentScreen, feedback, timeLeft]);
+  }, [currentScreen, feedback, timeLeft, activeQuiz?.questionTimer]);
 
   const finishBatch = () => {
     if (!activeQuiz) return;
@@ -1027,8 +1276,8 @@ export default function App() {
       <MotivationalPopup show={showMotivation} label={activeQuiz?.score === 5 ? "Perfect Batch!" : "Brilliant!"} />
       
       {/* Sidebar for Desktop */}
-      {(authUser || sessionEmail) && currentScreen !== AppScreen.SIGN_IN && currentScreen !== AppScreen.QUIZ && currentScreen !== AppScreen.LOADING && (
-        <aside className="hidden lg:flex flex-col w-64 bg-surface-container-lowest border-r border-outline-variant/20 p-6 z-20">
+      {(authUser || sessionEmail || user.isGuest) && currentScreen !== AppScreen.LANDING && currentScreen !== AppScreen.SIGN_IN && currentScreen !== AppScreen.API_KEY_REQUIRED && currentScreen !== AppScreen.QUIZ && currentScreen !== AppScreen.LOADING && (
+        <aside className="hidden lg:flex flex-col w-64 bg-surface-container-lowest border-r border-outline-variant/20 p-6 z-20 transition-all duration-500">
           <div className="flex items-center gap-3 mb-10">
             <div className="w-10 h-10 rounded-xl bg-primary-container/20 flex items-center justify-center">
               <GraduationCap className="w-6 h-6 text-primary" />
@@ -1122,44 +1371,46 @@ export default function App() {
         </header>
 
         {/* Mobile Bottom Navigation */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-surface-container-lowest/80 backdrop-blur-xl border-t border-white/5 px-6 py-4 flex items-center justify-between z-50 lg:hidden shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-          <button 
-            onClick={() => setCurrentScreen(AppScreen.ENTRY)}
-            className={`flex flex-col items-center gap-1 transition-all ${currentScreen === AppScreen.ENTRY ? 'text-primary' : 'text-outline opacity-50'}`}
-          >
-            <div className={`p-2 rounded-xl ${currentScreen === AppScreen.ENTRY ? 'bg-primary/10 neon-glow-primary' : ''}`}>
-              <Home className="w-6 h-6" />
-            </div>
-            <span className="text-[8px] font-headline font-extrabold uppercase tracking-widest">Home</span>
-          </button>
-          <button 
-            onClick={() => setCurrentScreen(AppScreen.PROGRESS)}
-            className={`flex flex-col items-center gap-1 transition-all ${currentScreen === AppScreen.PROGRESS ? 'text-primary' : 'text-outline opacity-50'}`}
-          >
-            <div className={`p-2 rounded-xl ${currentScreen === AppScreen.PROGRESS ? 'bg-primary/10 neon-glow-primary' : ''}`}>
-              <History className="w-6 h-6" />
-            </div>
-            <span className="text-[8px] font-headline font-extrabold uppercase tracking-widest">Progress</span>
-          </button>
-          <a 
-            href="mailto:alsamy36@gmail.com"
-            className="flex flex-col items-center gap-1 text-outline opacity-50 hover:text-primary transition-all"
-          >
-            <div className="p-2 rounded-xl">
-              <Mail className="w-6 h-6" />
-            </div>
-            <span className="text-[8px] font-headline font-extrabold uppercase tracking-widest">Support</span>
-          </a>
-          <button 
-            onClick={handleLogout}
-            className="flex flex-col items-center gap-1 text-outline opacity-50 hover:text-error transition-all"
-          >
-            <div className="p-2 rounded-xl">
-              <LogOut className="w-6 h-6" />
-            </div>
-            <span className="text-[8px] font-headline font-extrabold uppercase tracking-widest">Exit</span>
-          </button>
-        </nav>
+        {(authUser || sessionEmail || user.isGuest) && currentScreen !== AppScreen.LANDING && currentScreen !== AppScreen.SIGN_IN && currentScreen !== AppScreen.API_KEY_REQUIRED && currentScreen !== AppScreen.QUIZ && currentScreen !== AppScreen.LOADING && (
+          <nav className="fixed bottom-0 left-0 right-0 bg-surface-container-lowest/90 backdrop-blur-2xl border-t border-white/10 px-6 py-4 flex items-center justify-between z-50 lg:hidden shadow-[0_-15px_40px_rgba(0,0,0,0.6)]">
+            <button 
+              onClick={() => setCurrentScreen(AppScreen.ENTRY)}
+              className={`flex flex-col items-center gap-1 transition-all ${currentScreen === AppScreen.ENTRY ? 'text-primary' : 'text-on-surface opacity-60 hover:opacity-100'}`}
+            >
+              <div className={`p-2 rounded-xl ${currentScreen === AppScreen.ENTRY ? 'bg-primary/15 neon-glow-primary' : ''}`}>
+                <Home className="w-6 h-6" />
+              </div>
+              <span className="text-[9px] font-headline font-extrabold uppercase tracking-widest">Home</span>
+            </button>
+            <button 
+              onClick={() => setCurrentScreen(AppScreen.PROGRESS)}
+              className={`flex flex-col items-center gap-1 transition-all ${currentScreen === AppScreen.PROGRESS ? 'text-primary' : 'text-on-surface opacity-60 hover:opacity-100'}`}
+            >
+              <div className={`p-2 rounded-xl ${currentScreen === AppScreen.PROGRESS ? 'bg-primary/15 neon-glow-primary' : ''}`}>
+                <History className="w-6 h-6" />
+              </div>
+              <span className="text-[9px] font-headline font-extrabold uppercase tracking-widest">Progress</span>
+            </button>
+            <a 
+              href="mailto:alsamy36@gmail.com"
+              className="flex flex-col items-center gap-1 text-on-surface opacity-60 hover:opacity-100 hover:text-primary transition-all"
+            >
+              <div className="p-2 rounded-xl">
+                <Mail className="w-6 h-6" />
+              </div>
+              <span className="text-[9px] font-headline font-extrabold uppercase tracking-widest">Support</span>
+            </a>
+            <button 
+              onClick={handleLogout}
+              className="flex flex-col items-center gap-1 text-on-surface opacity-60 hover:opacity-100 hover:text-error transition-all"
+            >
+              <div className="p-2 rounded-xl">
+                <LogOut className="w-6 h-6" />
+              </div>
+              <span className="text-[9px] font-headline font-extrabold uppercase tracking-widest">Exit</span>
+            </button>
+          </nav>
+        )}
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative scroll-smooth">
           <div className="max-w-7xl mx-auto w-full min-h-full lg:px-12 xl:px-20 flex flex-col">
@@ -1560,6 +1811,7 @@ export default function App() {
                           onChange={(e) => setQuestionTimer(Number(e.target.value))}
                           className="input-field w-full px-10 py-6 rounded-[3rem] bg-surface text-lg md:text-2xl font-body font-bold border-2 border-white/5 focus:border-primary neon-glow-primary transition-all appearance-none"
                         >
+                          <option value={0}>No Timer (Practice Mode)</option>
                           <option value={30}>30s</option>
                           <option value={45}>45s (Default)</option>
                           <option value={50}>50s</option>
@@ -1570,6 +1822,46 @@ export default function App() {
                           <ChevronRight className="w-6 h-6 rotate-90" />
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Teacher's Material (Local RAG) */}
+                  <div className="space-y-4 pt-6 border-t border-white/5">
+                    <div className="flex justify-between items-center px-4">
+                       <label className="text-xs md:text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic flex items-center gap-2">
+                          <BookOpen className="w-4 h-4" /> Curriculum Source Grounding
+                       </label>
+                       <span className={`text-[9.5px] px-3 py-1 rounded-full font-headline font-extrabold uppercase transition-all duration-500 ${selectedMaterialId ? 'bg-secondary text-on-secondary shadow-lg neon-glow-secondary scale-105' : 'bg-surface-container text-outline opacity-40'}`}>
+                          {selectedMaterialId ? 'Curriculum Point Active' : 'General AI Knowledge'}
+                       </span>
+                    </div>
+                    
+                    <div 
+                       onClick={() => setIsMaterialManagerOpen(true)}
+                       className={`group p-6 rounded-[2.5rem] border-2 cursor-pointer transition-all hover:scale-[1.01] shadow-xl ${selectedMaterialId ? 'bg-secondary/10 border-secondary' : 'bg-surface border-white/5 hover:border-primary/40'}`}
+                    >
+                       <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-5">
+                             <div className={`p-4 rounded-2xl transition-transform group-hover:scale-110 ${selectedMaterialId ? 'bg-secondary text-on-secondary shadow-xl neon-glow-secondary' : 'bg-primary/10 text-primary'}`}>
+                                <Upload className="w-6 h-6" />
+                             </div>
+                             <div className="text-left">
+                                <p className="font-headline font-extrabold text-on-surface text-lg">
+                                   {selectedMaterialId 
+                                     ? materials.find(m => m.id === selectedMaterialId)?.title 
+                                     : "Inject Private Source Material"}
+                                </p>
+                                <p className="text-[10px] font-body font-bold text-outline-variant uppercase tracking-widest opacity-80 mt-1">
+                                   {selectedMaterialId 
+                                     ? "questions will be generated strictly from this content" 
+                                     : "Click to Select or Save Teacher's Notes locally"}
+                                </p>
+                             </div>
+                          </div>
+                          <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all ${selectedMaterialId ? 'border-secondary bg-secondary text-white shadow-xl' : 'border-outline-variant group-hover:border-primary opacity-40 group-hover:opacity-100'}`}>
+                             {selectedMaterialId ? <CheckCircle2 className="w-6 h-6 shadow-md" /> : <ChevronRight className="w-6 h-6" />}
+                          </div>
+                       </div>
                     </div>
                   </div>
                </div>
@@ -1680,37 +1972,39 @@ export default function App() {
                    <div className="h-full bg-gradient-to-r from-primary via-secondary to-tertiary transition-all duration-700 ease-out" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div>
                 </div>
 
-                <div className="flex justify-between items-center bg-surface-container-lowest/80 glass-card px-4 py-3 md:px-8 md:py-6 lg:py-4 rounded-[1.5rem] md:rounded-[2.5rem] border border-white/10 shadow-xl overflow-hidden relative">
+                <div className="flex justify-between items-center bg-surface-container-lowest/80 glass-card px-4 py-2 md:px-8 md:py-4 lg:py-2 rounded-[1.5rem] md:rounded-[2.5rem] border border-white/10 shadow-xl overflow-hidden relative min-h-[70px] md:min-h-[100px] lg:min-h-[80px]">
                    {/* Background Decorative Element */}
                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/10 blur-[80px] rounded-full pointer-events-none"></div>
                    
-                   <div className="space-y-1 relative z-10 font-headline">
+                   <div className="space-y-0.5 relative z-10 font-headline">
                       {isClassroomMode && classroomSession && (
-                        <p className="text-[10px] md:text-xs lg:text-sm font-extrabold text-primary uppercase tracking-widest italic leading-none">
+                        <p className="text-[10px] md:text-xs lg:text-[10px] font-extrabold text-primary uppercase tracking-widest italic leading-none">
                           Group: {classroomSession.groups[classroomSession.currentGroupIndex].name}
                         </p>
                       )}
-                      <p className="text-[10px] md:text-xs lg:text-sm font-extrabold text-primary uppercase tracking-widest italic leading-none md:mt-1">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
-                      <p className="text-3xl md:text-5xl lg:text-4xl font-extrabold tabular-nums italic tv-text-shadow leading-none mt-1 md:mt-2">
+                      <p className="text-[10px] md:text-xs lg:text-[10px] font-extrabold text-primary uppercase tracking-widest italic leading-none">{isMockMode ? "Mock Mode" : `Level ${user.level}`}</p>
+                      <p className="text-3xl md:text-5xl lg:text-3xl font-extrabold tabular-nums italic tv-text-shadow leading-none">
                         {currentIndex + 1}<span className="text-outline-variant/30 text-[0.4em] font-medium not-italic ml-1">/5</span>
                       </p>
                    </div>
 
-                   <div className="flex flex-col items-center gap-1 relative z-10">
-                      <motion.div 
-                        initial={false}
-                        animate={{ scale: timeLeft <= 10 ? [1, 1.1, 1] : 1 }}
-                        transition={{ repeat: timeLeft <= 10 ? Infinity : 0, duration: 0.5 }}
-                        className={`w-14 h-14 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-full border-4 md:border-6 flex items-center justify-center font-headline font-extrabold text-2xl md:text-3xl lg:text-4xl shadow-2xl transition-colors ${timeLeft <= 10 ? 'border-error text-error neon-glow-error' : 'border-primary text-primary neon-glow-primary'}`}
-                      >
-                        {timeLeft}
-                      </motion.div>
-                      <span className="text-[10px] md:text-xs font-headline font-extrabold uppercase tracking-widest text-outline italic">Seconds</span>
-                   </div>
+                   {activeQuiz.questionTimer !== 0 && (
+                     <div className="flex flex-col items-center gap-0.5 relative z-10">
+                        <motion.div 
+                          initial={false}
+                          animate={{ scale: timeLeft <= 10 ? [1, 1.1, 1] : 1 }}
+                          transition={{ repeat: timeLeft <= 10 ? Infinity : 0, duration: 0.5 }}
+                          className={`w-12 h-12 md:w-20 md:h-20 lg:w-14 lg:h-14 rounded-full border-4 md:border-6 flex items-center justify-center font-headline font-extrabold text-xl md:text-3xl lg:text-2xl shadow-2xl transition-colors ${timeLeft <= 10 ? 'border-error text-error neon-glow-error' : 'border-primary text-primary neon-glow-primary'}`}
+                        >
+                          {timeLeft}
+                        </motion.div>
+                        <span className="text-[8px] md:text-xs font-headline font-extrabold uppercase tracking-widest text-outline italic">Sec</span>
+                     </div>
+                   )}
 
-                   <div className="flex flex-col items-end gap-1 md:gap-4 relative z-10">
+                   <div className="flex flex-col items-end gap-1 relative z-10">
                       {renderQuestionLabel(currentQ.type)}
-                      <span className="text-[10px] md:text-xs lg:text-sm font-body font-bold text-outline uppercase italic opacity-70">Subject: {user.subject}</span>
+                      <span className="text-[9px] md:text-xs lg:text-[10px] font-body font-bold text-outline uppercase italic opacity-70">Subject: {user.subject}</span>
                    </div>
                 </div>
              </div>
@@ -1932,6 +2226,16 @@ export default function App() {
              </Button>
           </div>
         )}
+
+        <MaterialManager 
+          isOpen={isMaterialManagerOpen}
+          onClose={() => setIsMaterialManagerOpen(false)}
+          materials={materials}
+          onAdd={handleAddMaterial}
+          onDelete={handleDeleteMaterial}
+          onSelect={setSelectedMaterialId}
+          selectedId={selectedMaterialId}
+        />
             </div>
           </div>
         </main>

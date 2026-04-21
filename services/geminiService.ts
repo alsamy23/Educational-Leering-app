@@ -68,7 +68,8 @@ export const generateQuizQuestions = async (
   topicOverride?: string,
   difficulty?: DifficultyLevel,
   retryCount = 0,
-  seedOverride?: string
+  seedOverride?: string,
+  sourceMaterial?: string
 ): Promise<QuizQuestion[]> => {
   const ai = getAI();
   const gradeInt = parseInt(profile.gradeLevel) || 10;
@@ -104,6 +105,24 @@ export const generateQuizQuestions = async (
   const seed = seedOverride || (Math.random().toString(36).substring(7) + Date.now());
   const currentYear = new Date().getFullYear();
 
+  const groundedInstruction = sourceMaterial 
+    ? `SOURCE-GROUNDED MODE (STRICT):
+    A specific curriculum segment or textbook material has been provided below. 
+    1. Your primary task is to generate questions derived EXCLUSIVELY from this source material.
+    2. However, you MUST still respect the Grade Level (${profile.gradeLevel}) and Board Standards (${profile.board || "General"}).
+    3. Ensure the vocabulary and complexity are appropriate for Grade ${profile.gradeLevel}.
+    
+    SOURCE MATERIAL:
+    """
+    ${sourceMaterial}
+    """
+    ` 
+    : `CURRICULUM-BASELINE MODE (STRICT):
+    No private source material was provided. 
+    1. You MUST generate questions based on the official ${profile.board || "Global"} curriculum standards for Grade ${profile.gradeLevel}.
+    2. Focus on the core pillars of the ${profile.board} syllabus for the subject "${profile.subject}".
+    3. Refer to the standard academic patterns for the current year.`;
+
   const prompt = `Act as an Expert Curriculum Designer and Academic Strategist for Grade ${profile.gradeLevel}.
   Current Academic Year: ${currentYear} (Targeting 2026 Exams).
   Subject: ${profile.subject}.
@@ -117,16 +136,18 @@ export const generateQuizQuestions = async (
   Current Level: ${isMockMode ? "Exam Standard" : profile.level}.
   RandomSeed: ${seed}.
   
+  ${groundedInstruction}
+  
   TASK: Generate exactly 5 questions for this Batch. 
   
-  PEDAGOGICAL GOAL (CURRICULUM MASTERY):
-  - PRIMARY OBJECTIVE: Ensure 100% alignment with the ${profile.board || "prescribed"} syllabus and official academic standards.
-  - Test foundational understanding, conceptual clarity, and the ability to apply the specific topic within the curriculum's scope.
-  - Questions must mirror the complexity and structure of actual board exam patterns.
+  PEDAGOGICAL GOAL (EXAM EXCELLENCE):
+  - PRIMARY OBJECTIVE: ${sourceMaterial ? "Synthesize the source material into high-quality assessments aligned with exam patterns." : "Strictly follow Board curriculum standards to ensure exam readiness."}
+  - Test foundational understanding, conceptual clarity, and the ability to apply the specific topic.
+  - Questions must mirror the complexity (MCQs, Case Studies, etc.) of actual board exam patterns.
   - ${gradeInt < 6 
-      ? "For PRIMARY SCHOOL: Focus on core curriculum pillars. Make questions simplified and encouraging, ensuring they bridge the gap between classroom learning and assessment success." 
-      : "For High School: Focus on analytical rigor. While real-world connections are good for motivation, the questions must PRIMARILY evaluate syllabus-specific mastery and exam-readiness."}
-  - Provide an 'inquiryPrompt' as a "Diagnostic Challenge" to help students identify areas for further study within this topic.
+      ? "For PRIMARY SCHOOL: Focus on simplified core curriculum pillars. Ensure questions reflect standard educational early-years patterns." 
+      : "For High School: Focus on analytical rigor. Every question must evaluate syllabus-specific mastery."}
+  - Provide an 'inquiryPrompt' as a "Diagnostic Challenge" to help students identify areas for further study.
   
   MODE-SPECIFIC GUIDANCE:
   - INDIVIDUAL CHALLENGE: Focus on incremental mastery. Questions should help the student identify gaps in their understanding of the ${topic} syllabus.
@@ -207,7 +228,7 @@ export const generateQuizQuestions = async (
       if (lastError && (lastError.status === 429 || lastError.status === 503) && retryCount < 2) {
         console.warn(`All Gemini keys rate limited. Retrying in ${2000 * (retryCount + 1)}ms...`);
         await sleep(2000 * (retryCount + 1));
-        return generateQuizQuestions(profile, isMockMode, groupName, topicOverride, difficulty, retryCount + 1);
+        return generateQuizQuestions(profile, isMockMode, groupName, topicOverride, difficulty, retryCount + 1, seed, sourceMaterial);
       }
 
       console.warn("Gemini rotation failed, trying Groq fallback...", lastError);
@@ -296,6 +317,7 @@ export const playAudio = async (buffer: ArrayBuffer) => {
     
     currentAudioSource = audioContext.createBufferSource();
     currentAudioSource.buffer = audioBuffer;
+    currentAudioSource.playbackRate.value = 1.35; // Slightly faster for academic efficiency
     currentAudioSource.connect(audioContext.destination);
     currentAudioSource.onended = () => { currentAudioSource = null; };
     currentAudioSource.start();
