@@ -597,6 +597,8 @@ export default function App() {
   const [emailInput, setEmailInput] = useState('');
   const [totalPoints, setTotalPoints] = useState<number>(() => Number(localStorage.getItem('se_pts') || 0));
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.LANDING);
+  const [targetScreen, setTargetScreen] = useState<AppScreen | null>(null);
+  const [hasExitedLanding, setHasExitedLanding] = useState(false);
   
   // Progress Map: key = "Subject-Grade", value = Level
   const [progressMap, setProgressMap] = useState<Record<string, number>>(() => {
@@ -703,13 +705,19 @@ export default function App() {
         await setDoc(docRef, { ...newUser, uid: identifier });
         setUser(newUser);
       }
-      console.log(`Profile loaded successfully, switching to ENTRY screen`);
-      setCurrentScreen(AppScreen.ENTRY);
+      console.log(`Profile loaded successfully, switching to target screen`);
+      setTargetScreen(AppScreen.ENTRY);
+      if (hasExitedLanding) {
+        setCurrentScreen(AppScreen.ENTRY);
+      }
       setLastSyncTime(new Date());
     } catch (err: any) {
       console.error("Profile load error:", err);
       setError(`Profile error: ${err.message || "Could not load or create profile."}`);
-      setCurrentScreen(AppScreen.SIGN_IN);
+      setTargetScreen(AppScreen.SIGN_IN);
+      if (hasExitedLanding) {
+        setCurrentScreen(AppScreen.SIGN_IN);
+      }
     } finally {
       setIsSyncing(false);
     }
@@ -740,7 +748,10 @@ export default function App() {
         setError(null); // Clear errors on successful session
         await loadProfile(sessionEmail, true);
       } else {
-        setCurrentScreen(AppScreen.SIGN_IN);
+        setTargetScreen(AppScreen.SIGN_IN);
+        if (hasExitedLanding) {
+          setCurrentScreen(AppScreen.SIGN_IN);
+        }
       }
     });
     return () => unsubscribe();
@@ -1258,6 +1269,25 @@ export default function App() {
     }, 'image/png');
   };
 
+  useEffect(() => {
+    if (currentScreen === AppScreen.LANDING && !hasExitedLanding) {
+      const timer = setTimeout(() => {
+        handleEnterAcademy();
+      }, 4000); // 4 seconds delay
+      return () => clearTimeout(timer);
+    }
+  }, [currentScreen, hasExitedLanding, targetScreen]);
+
+  const handleEnterAcademy = () => {
+    setHasExitedLanding(true);
+    if (targetScreen) {
+      setCurrentScreen(targetScreen);
+    } else {
+      // If auth check is still slow, go to loading or sign in
+      setCurrentScreen(AppScreen.SIGN_IN);
+    }
+  };
+
   const currentQ = activeQuiz?.questions[currentIndex];
   const isBoardGrade = user.gradeLevel === '10' || user.gradeLevel === '12';
 
@@ -1447,7 +1477,7 @@ export default function App() {
 
                     <div className="pt-10">
                       <Button 
-                        onClick={() => setCurrentScreen(AppScreen.SIGN_IN)}
+                        onClick={handleEnterAcademy}
                         className="h-24 px-16 rounded-[3rem] font-headline font-extrabold uppercase tracking-[0.4em] text-xl shadow-2xl shadow-primary/40 group relative overflow-hidden neon-glow-primary border-4 border-primary/20"
                       >
                         <span className="relative z-10 flex items-center justify-center gap-6">
