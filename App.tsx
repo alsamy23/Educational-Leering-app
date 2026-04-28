@@ -6,7 +6,7 @@ import {
   BookOpen, Eye, Calculator, CheckCircle2, AlertCircle, 
   ChevronRight, Download, Search, User as UserIcon, Settings, History,
   LayoutDashboard, Home, SignalLow, SignalMedium, SignalHigh, Signal, Share2,
-  Volume2, VolumeX, FileText, FolderSync, PlusCircle, Target, BrainCircuit, Zap, Gamepad2, Users, Play, ArrowRight
+  Volume2, VolumeX, FileText, FolderSync, PlusCircle, Target, BrainCircuit, Zap, Gamepad2, Users, Play, ArrowRight, ShieldCheck
 } from 'lucide-react';
 import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel, TestRecord, StudyMaterial } from './types';
 import * as idb from 'idb-keyval';
@@ -1269,7 +1269,7 @@ export default function App() {
     }, 'image/png');
   };
 
-  const handleEnterAcademy = (role?: 'student' | 'teacher') => {
+  const handleEnterAcademy = (role?: 'student' | 'teacher', isGuest: boolean = false) => {
     setHasExitedLanding(true);
     
     if (role === 'teacher') {
@@ -1278,10 +1278,15 @@ export default function App() {
       setIsClassroomMode(false);
     }
 
+    if (isGuest) {
+      setUser(prev => ({ ...prev, isGuest: true }));
+      setCurrentScreen(AppScreen.ENTRY);
+      return;
+    }
+
     if (targetScreen) {
       setCurrentScreen(targetScreen);
     } else {
-      // If auth check is still slow, go to loading or sign in
       setCurrentScreen(AppScreen.SIGN_IN);
     }
   };
@@ -1504,20 +1509,31 @@ export default function App() {
 
                           <div className="flex flex-wrap gap-4 pt-4">
                             <Button 
-                              onClick={() => handleEnterAcademy('student')}
-                              className="h-16 px-10 rounded-full font-headline font-extrabold uppercase tracking-[0.2em] text-sm shadow-xl shadow-primary/20 group bg-primary hover:bg-primary/90 text-white border-none"
+                              onClick={() => handleEnterAcademy('student', true)}
+                              className="h-16 px-10 rounded-full font-headline font-extrabold uppercase tracking-[0.2em] text-sm shadow-xl shadow-primary/20 group bg-primary hover:bg-primary/90 text-white border-none animate-pulse hover:animate-none"
                             >
                               <span className="flex items-center gap-3">
-                                Start as Student <Rocket className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                Continue as Guest <Rocket className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                               </span>
                             </Button>
                             <Button 
                               variant="outline"
-                              onClick={() => handleEnterAcademy('teacher')}
+                              onClick={() => handleEnterAcademy('teacher', true)}
                               className="h-16 px-10 rounded-full font-headline font-extrabold uppercase tracking-[0.2em] text-sm border-slate-200 text-slate-900 hover:bg-slate-50"
                             >
                               Join as Teacher
                             </Button>
+                          </div>
+
+                          <div className="flex items-center gap-6 pt-4">
+                             <div className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full border border-green-100">
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">100% Free & Safe</span>
+                             </div>
+                             <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-100">
+                                <ShieldCheck className="w-3 h-3" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Secure Topic Sync</span>
+                             </div>
                           </div>
 
                           <div className="flex items-center gap-6 pt-8 border-t border-slate-100">
@@ -1674,7 +1690,7 @@ export default function App() {
                                      </div>
                                    ))}
                                 </div>
-                                <Button onClick={() => handleEnterAcademy('student')} className="w-full h-16 rounded-full bg-white text-slate-900 font-headline font-extrabold uppercase tracking-widest hover:bg-slate-100 transition-all border-none">
+                                <Button onClick={() => handleEnterAcademy('student', true)} className="w-full h-16 rounded-full bg-white text-slate-900 font-headline font-extrabold uppercase tracking-widest hover:bg-slate-100 transition-all border-none">
                                    Enter Academy
                                 </Button>
                              </div>
@@ -1737,15 +1753,15 @@ export default function App() {
                                 <ul className="space-y-4 text-sm font-bold text-slate-600">
                                    <li className="hover:text-primary transition-colors cursor-pointer">Syllabus AI</li>
                                    <li className="hover:text-primary transition-colors cursor-pointer">Classroom Battle</li>
-                                   <li className="hover:text-primary transition-colors cursor-pointer">Leaderboards</li>
+                                   <li className="hover:text-primary transition-colors cursor-pointer">Secure Individual Tests</li>
                                 </ul>
                              </div>
                              <div className="space-y-6">
-                                <p className="text-[10px] font-headline font-extrabold text-slate-400 uppercase tracking-widest">Company</p>
+                                <p className="text-[10px] font-headline font-extrabold text-slate-400 uppercase tracking-widest">Feedback & Contact</p>
                                 <ul className="space-y-4 text-sm font-bold text-slate-600">
-                                   <li className="hover:text-primary transition-colors cursor-pointer">About Us</li>
-                                   <li className="hover:text-primary transition-colors cursor-pointer">Contact</li>
-                                   <li className="hover:text-primary transition-colors cursor-pointer">Privacy</li>
+                                   <li className="hover:text-primary transition-colors cursor-pointer">Feedback Form</li>
+                                   <li onClick={() => window.location.href = 'mailto:alsamy36@gmail.com'} className="hover:text-primary transition-colors cursor-pointer">Contact Us</li>
+                                   <li className="hover:text-primary transition-colors cursor-pointer">Report an Issue</li>
                                 </ul>
                              </div>
                           </div>
@@ -1832,26 +1848,39 @@ export default function App() {
                   </div>
                 </div>
 
-                <Button 
-                  onClick={async () => {
-                    setError(null);
-                    try {
-                      await loginWithGoogle();
-                    } catch (e: any) {
-                      setError(`Failed to sign in: ${e.code || e.message}`);
-                    }
-                  }} 
-                  variant="outline"
-                  className="w-full h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs flex items-center justify-center gap-3 border-white/10 hover:bg-white/5 transition-all"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                  </svg>
-                  Sync with Google
-                </Button>
+                <div className="grid gap-4">
+                  <Button 
+                    onClick={async () => {
+                      setError(null);
+                      try {
+                        await loginWithGoogle();
+                      } catch (e: any) {
+                        setError(`Failed to sign in: ${e.code || e.message}`);
+                      }
+                    }} 
+                    variant="outline"
+                    className="w-full h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs flex items-center justify-center gap-3 border-white/10 hover:bg-white/5 transition-all"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                    </svg>
+                    Sync with Google
+                  </Button>
+
+                  <button 
+                    onClick={() => {
+                      setUser(prev => ({ ...prev, isGuest: true }));
+                      setCurrentScreen(AppScreen.ENTRY);
+                    }}
+                    className="w-full h-16 bg-white/5 border border-white/10 border-dashed rounded-[2rem] flex flex-col items-center justify-center gap-1 group hover:border-primary/50 hover:bg-primary/5 transition-all"
+                  >
+                    <span className="text-[10px] font-headline font-extrabold text-on-surface uppercase tracking-[0.3em] group-hover:text-primary">Continue as Guest</span>
+                    <span className="text-[8px] font-body font-bold text-outline uppercase tracking-widest opacity-60">(No Email Required)</span>
+                  </button>
+                </div>
 
                 <div className="pt-4">
                   <button 
