@@ -6,7 +6,7 @@ import {
   BookOpen, Eye, Calculator, CheckCircle2, AlertCircle, 
   ChevronRight, Download, Search, User as UserIcon, Settings, History,
   LayoutDashboard, Home, SignalLow, SignalMedium, SignalHigh, Signal, Share2,
-  Volume2, VolumeX, FileText, FolderSync, PlusCircle
+  Volume2, VolumeX, FileText, FolderSync, PlusCircle, Target, BrainCircuit, Zap, Gamepad2, Users, Play, ArrowRight
 } from 'lucide-react';
 import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel, TestRecord, StudyMaterial } from './types';
 import * as idb from 'idb-keyval';
@@ -1269,17 +1269,15 @@ export default function App() {
     }, 'image/png');
   };
 
-  useEffect(() => {
-    if (currentScreen === AppScreen.LANDING && !hasExitedLanding) {
-      const timer = setTimeout(() => {
-        handleEnterAcademy();
-      }, 4000); // 4 seconds delay
-      return () => clearTimeout(timer);
-    }
-  }, [currentScreen, hasExitedLanding, targetScreen]);
-
-  const handleEnterAcademy = () => {
+  const handleEnterAcademy = (role?: 'student' | 'teacher') => {
     setHasExitedLanding(true);
+    
+    if (role === 'teacher') {
+      setIsClassroomMode(true);
+    } else if (role === 'student') {
+      setIsClassroomMode(false);
+    }
+
     if (targetScreen) {
       setCurrentScreen(targetScreen);
     } else {
@@ -1374,6 +1372,12 @@ export default function App() {
               <LogOut className="w-5 h-5" />
               Logout
             </button>
+
+            <div className="mt-8 pt-4 border-t border-outline-variant/10 text-center lg:text-left">
+               <p className="text-[8px] font-headline font-extrabold text-primary uppercase tracking-[0.3em] mb-1 drop-shadow-sm">Founder & CEO</p>
+               <h4 className="text-on-surface font-headline font-extrabold text-sm italic leading-none">L Samy, M.Phil.</h4>
+               <p className="text-[7px] font-body font-bold text-outline uppercase tracking-widest mt-1.5 opacity-60">15+ Yrs International Academic Leadership</p>
+            </div>
           </div>
         </aside>
       )}
@@ -1446,111 +1450,333 @@ export default function App() {
           <div className="max-w-7xl mx-auto w-full min-h-full lg:px-12 xl:px-20 flex flex-col">
             <div className="flex-1 w-full py-8 lg:py-16 px-4 md:px-8">
               {currentScreen === AppScreen.LANDING && (
-                <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center overflow-hidden">
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="relative z-10 space-y-12 max-w-4xl"
-                  >
-                    <div className="space-y-4">
-                      <motion.div
-                        animate={{ y: [0, -20, 0] }}
-                        transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                        className="mx-auto w-32 h-32 md:w-48 md:h-48 bg-primary/10 rounded-[3rem] flex items-center justify-center neon-glow-primary border border-primary/20"
-                      >
-                        <Trophy className="w-20 h-20 md:w-32 md:h-32 text-primary" />
-                      </motion.div>
-                      <div className="flex flex-wrap justify-center gap-2 md:gap-4 mb-2">
-                         <span className="px-3 py-1 bg-surface-container border border-primary/20 rounded-full text-[8px] md:text-[10px] font-headline font-extrabold text-primary uppercase tracking-widest">Global Rewards System</span>
-                         <span className="px-3 py-1 bg-surface-container border border-secondary/20 rounded-full text-[8px] md:text-[10px] font-headline font-extrabold text-secondary uppercase tracking-widest">Powered by AI Technology</span>
-                      </div>
-                      <h2 className="text-xl md:text-2xl font-headline font-extrabold text-on-surface uppercase tracking-[0.4em] italic drop-shadow-sm">Built for Ambitious Students</h2>
-                    </div>
-
-                    <h1 className="text-6xl md:text-8xl lg:text-9xl font-headline font-extrabold tracking-tighter text-on-surface leading-[0.9] tv-text-shadow mt-4">
-                      Master Your <span className="text-primary italic drop-shadow-[0_0_15px_rgba(255,77,148,0.5)]">Future</span><br/> with AI
-                    </h1>
-                    
-                    <p className="text-lg md:text-2xl font-body font-bold text-on-surface-variant max-w-2xl mx-auto leading-relaxed opacity-80 mt-6">
-                      ScholarEarn turns your academic journey into a rewarding adventure. Join the most advanced learning system to level up and dominate.
-                    </p>
-
-                    <div className="pt-10">
-                      <Button 
-                        onClick={handleEnterAcademy}
-                        className="h-24 px-16 rounded-[3rem] font-headline font-extrabold uppercase tracking-[0.4em] text-xl shadow-2xl shadow-primary/40 group relative overflow-hidden neon-glow-primary border-4 border-primary/20"
-                      >
-                        <span className="relative z-10 flex items-center justify-center gap-6">
-                          Enter Academy <ChevronRight className="w-8 h-8 group-hover:translate-x-3 transition-transform" />
-                        </span>
-                        <div className="absolute inset-0 bg-gradient-to-r from-primary to-secondary opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      </Button>
-                      
-                      {/* Social Proof for Instagram / Marketing */}
-                      <div className="mt-8 flex flex-col items-center gap-2">
-                        <div className="flex items-center gap-1 text-amber-400">
-                           <Star className="w-4 h-4 fill-current" />
-                           <Star className="w-4 h-4 fill-current" />
-                           <Star className="w-4 h-4 fill-current" />
-                           <Star className="w-4 h-4 fill-current" />
-                           <Star className="w-4 h-4 fill-current" />
+                <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-primary/20">
+                  {/* Navbar */}
+                  <nav className="sticky top-0 z-[100] bg-white/80 backdrop-blur-md border-b border-slate-200">
+                    <div className="max-w-7xl mx-auto px-4 md:px-8 h-20 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+                          <GraduationCap className="w-6 h-6 text-white" />
                         </div>
-                        <p className="text-[10px] md:text-xs font-headline font-extrabold text-on-surface uppercase tracking-[0.2em] opacity-80">
-                           "The syllabus prep tool I wish I had earlier."
-                        </p>
-                        <p className="text-[9px] font-body font-bold text-outline uppercase tracking-widest opacity-50">
-                           — Verified Student Board Progress
-                        </p>
+                        <span className="font-headline font-extrabold text-2xl tracking-tighter text-slate-900 italic">Scholar<span className="text-primary">Earn</span></span>
                       </div>
+                      <div className="hidden md:flex items-center gap-8">
+                        <a href="#features" className="text-sm font-bold text-slate-600 hover:text-primary transition-colors">Features</a>
+                        <a href="#how-it-works" className="text-sm font-bold text-slate-600 hover:text-primary transition-colors">How It Works</a>
+                        <a href="#about" className="text-sm font-bold text-slate-600 hover:text-primary transition-colors">About</a>
+                        <div className="h-4 w-px bg-slate-200" />
+                        <button onClick={() => handleEnterAcademy()} className="text-sm font-bold text-slate-900 border border-slate-200 px-6 py-2.5 rounded-full hover:bg-slate-50 transition-all">Log In</button>
+                        <button onClick={() => handleEnterAcademy()} className="text-sm font-bold text-white bg-primary px-6 py-2.5 rounded-full shadow-lg shadow-primary/20 hover:scale-105 transition-all">Sign Up</button>
+                      </div>
+                      <button onClick={() => handleEnterAcademy()} className="md:hidden p-2 text-slate-600">
+                         <ChevronRight className="w-6 h-6" />
+                      </button>
+                    </div>
+                  </nav>
+
+                  {/* Hero Section */}
+                  <section className="relative pt-16 pb-24 md:pt-32 md:pb-40 overflow-hidden">
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none">
+                       <div className="absolute top-[-10%] left-[10%] w-96 h-96 bg-primary/5 rounded-full blur-[100px]" />
+                       <div className="absolute bottom-[10%] right-[10%] w-[500px] h-[500px] bg-secondary/5 rounded-full blur-[120px]" />
                     </div>
 
-                    {/* How It Works Layer */}
-                    <div className="pt-16 md:pt-24 grid grid-cols-1 md:grid-cols-3 gap-6 text-left max-w-5xl mx-auto w-full">
-                      <div className="p-6 md:p-8 bg-surface-container-lowest/50 border border-white/5 rounded-3xl backdrop-blur-sm shadow-xl">
-                         <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center mb-4 neon-glow-primary">
-                            <span className="font-headline font-extrabold text-primary text-xl">1</span>
-                         </div>
-                         <h3 className="text-on-surface font-headline font-extrabold uppercase tracking-widest text-lg mb-2">Set Target</h3>
-                         <p className="text-on-surface-variant font-body font-bold text-sm leading-relaxed opacity-80">Enter any topic or subject you want to master. The AI instantly generates tailored content for your specific grade and board.</p>
-                      </div>
-                      <div className="p-6 md:p-8 bg-surface-container-lowest/50 border border-white/5 rounded-3xl backdrop-blur-sm shadow-xl">
-                         <div className="w-12 h-12 bg-secondary/20 rounded-2xl flex items-center justify-center mb-4 neon-glow-secondary">
-                            <span className="font-headline font-extrabold text-secondary text-xl">2</span>
-                         </div>
-                         <h3 className="text-on-surface font-headline font-extrabold uppercase tracking-widest text-lg mb-2">Play & Learn</h3>
-                         <p className="text-on-surface-variant font-body font-bold text-sm leading-relaxed opacity-80">Answer fast-paced micro-quizzes against the clock. Get immediate AI expert feedback on every single question to actually learn.</p>
-                      </div>
-                      <div className="p-6 md:p-8 bg-surface-container-lowest/50 border border-white/5 rounded-3xl backdrop-blur-sm shadow-xl">
-                         <div className="w-12 h-12 bg-tertiary/20 rounded-2xl flex items-center justify-center mb-4 neon-glow-tertiary">
-                            <span className="font-headline font-extrabold text-tertiary text-xl">3</span>
-                         </div>
-                         <h3 className="text-on-surface font-headline font-extrabold uppercase tracking-widest text-lg mb-2">Dominate</h3>
-                         <p className="text-on-surface-variant font-body font-bold text-sm leading-relaxed opacity-80">Level up your tiers from Bronze to Diamond, collect gaming badges, and send Challenge Links to friends globally.</p>
-                      </div>
-                    </div>
+                    <div className="max-w-7xl mx-auto px-4 md:px-8 relative z-10">
+                      <div className="grid lg:grid-cols-2 gap-16 items-center">
+                        <motion.div 
+                          initial={{ opacity: 0, x: -30 }} 
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.8 }}
+                          className="text-left space-y-8"
+                        >
+                          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
+                            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                            <span className="text-[11px] font-headline font-extrabold text-primary uppercase tracking-[0.2em]">Verified Academic Excellence</span>
+                          </div>
+                          
+                          <h1 className="text-5xl md:text-7xl font-headline font-extrabold text-slate-900 leading-[1.1] tracking-tight">
+                            Turn Your Classroom into a <span className="text-primary italic">Competitive</span> Learning Space
+                          </h1>
+                          
+                          <p className="text-lg md:text-xl text-slate-600 font-body font-medium leading-relaxed max-w-xl">
+                            Create AI-powered quizzes, challenge students, and track performance instantly with board-aligned questions generated by senior faculty expertise.
+                          </p>
 
-                    <div className="pt-20 pb-4 w-full flex flex-col md:flex-row items-start md:items-center justify-between text-[10px] font-body font-bold text-outline opacity-60 gap-6 mt-auto">
-                       <div className="text-left max-w-sm">
-                          <p className="font-headline font-extrabold text-on-surface uppercase tracking-widest mb-1">🛡️ 100% Data Privacy</p>
-                          <p className="leading-relaxed">We do NOT track, sell, or exploit student data. Your progress tracking is exclusively for your academic growth.</p>
-                       </div>
-                       <div className="text-left md:text-right">
-                          <p className="font-headline font-extrabold text-primary uppercase tracking-widest mb-1">Founder & Director</p>
-                          <p className="text-on-surface font-bold text-xs">L Samy, M.Phil.</p>
-                          <p className="mb-1">15+ Years Global Teaching Experience</p>
-                          <a href="mailto:alsamy36@gmail.com" className="hover:text-primary transition-colors underline decoration-white/20 underline-offset-2">alsamy36@gmail.com</a>
-                          <p className="mt-3 text-[8px] tracking-widest uppercase">© 2026 ScholarEarn. All rights reserved.</p>
+                          <div className="flex flex-wrap gap-4 pt-4">
+                            <Button 
+                              onClick={() => handleEnterAcademy('student')}
+                              className="h-16 px-10 rounded-full font-headline font-extrabold uppercase tracking-[0.2em] text-sm shadow-xl shadow-primary/20 group bg-primary hover:bg-primary/90 text-white border-none"
+                            >
+                              <span className="flex items-center gap-3">
+                                Start as Student <Rocket className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                              </span>
+                            </Button>
+                            <Button 
+                              variant="outline"
+                              onClick={() => handleEnterAcademy('teacher')}
+                              className="h-16 px-10 rounded-full font-headline font-extrabold uppercase tracking-[0.2em] text-sm border-slate-200 text-slate-900 hover:bg-slate-50"
+                            >
+                              Join as Teacher
+                            </Button>
+                          </div>
+
+                          <div className="flex items-center gap-6 pt-8 border-t border-slate-100">
+                             <div className="flex -space-x-3">
+                                {[1,2,3,4].map(i => <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-slate-200" />)}
+                             </div>
+                             <div>
+                                <p className="text-sm font-bold text-slate-900">850+ Students</p>
+                                <p className="text-xs text-slate-500 font-medium italic">Preparing for Boards today</p>
+                             </div>
+                          </div>
+                        </motion.div>
+
+                        {/* Interactive UI Mockup */}
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          transition={{ duration: 0.8, delay: 0.2 }}
+                          className="relative"
+                        >
+                          <div className="relative z-10 w-full max-w-[400px] mx-auto perspective-1000">
+                             <div className="bg-[#1a1a1e] rounded-[3rem] p-4 border-[8px] border-slate-900 shadow-2xl rotate-y-[-10deg] rotate-x-[5deg]">
+                                <div className="bg-[#0a0a0b] rounded-[2.5rem] p-6 h-[500px] flex flex-col text-white text-left">
+                                   <div className="flex justify-between items-center mb-10">
+                                      <div className="space-y-1">
+                                         <p className="text-[10px] text-primary font-bold tracking-widest uppercase">Live Quiz</p>
+                                         <h4 className="text-lg font-headline font-extrabold italic">Grade 10: Physics</h4>
+                                      </div>
+                                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                                         <Trophy className="w-5 h-5 text-tertiary" />
+                                      </div>
+                                   </div>
+                                   
+                                   <div className="space-y-4 flex-1">
+                                      {[1,2,3].map(i => (
+                                         <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                               <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-[10px] font-bold">{i}</div>
+                                               <p className="text-sm font-bold">Student {i}</p>
+                                            </div>
+                                            <p className="text-primary font-bold">{1000 - (i*150)} pts</p>
+                                         </div>
+                                      ))}
+                                   </div>
+
+                                   <div className="mt-auto pt-6">
+                                      <div className="w-full h-12 rounded-2xl bg-primary flex items-center justify-center font-bold">Responded: 18/20</div>
+                                   </div>
+                                </div>
+                             </div>
+                          </div>
+                          
+                          {/* Floating Accents */}
+                          <motion.div 
+                            animate={{ y: [0, -20, 0] }} 
+                            transition={{ duration: 4, repeat: Infinity }}
+                            className="absolute -top-10 -right-4 md:-right-10 z-20 bg-white p-6 rounded-3xl shadow-xl border border-slate-100 hidden md:block"
+                          >
+                             <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center">
+                                   <CheckCircle2 className="w-6 h-6 text-green-600" />
+                                </div>
+                                <div>
+                                   <p className="text-sm font-bold text-slate-900">Adaptive AI</p>
+                                   <p className="text-[10px] text-slate-500 font-medium">Difficulty Level: Board Standard</p>
+                                </div>
+                             </div>
+                          </motion.div>
+                        </motion.div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* How it Works Section */}
+                  <section id="how-it-works" className="py-24 bg-white border-y border-slate-100">
+                    <div className="max-w-7xl mx-auto px-4 md:px-8 text-center">
+                      <div className="space-y-4 mb-16">
+                        <h2 className="text-sm font-headline font-extrabold text-primary uppercase tracking-[0.4em]">Efficiency Core</h2>
+                        <h3 className="text-4xl md:text-5xl font-headline font-extrabold text-slate-900 tracking-tight">How ScholarEarn Works</h3>
+                      </div>
+
+                      <div className="grid md:grid-cols-3 gap-12 relative">
+                        {/* Connecting Line */}
+                        <div className="hidden md:block absolute top-12 left-1/4 right-1/4 h-px border-t border-dashed border-slate-200 -z-0" />
+                        
+                        {[
+                          { step: "01", title: "Teacher Creates", desc: "Instantly generate quizzes from any syllabus or PDF using pedagogical AI.", Icon: FileText },
+                          { step: "02", title: "Students Join", desc: "Share a 6-digit classroom code or challenge link for instant competitive entry.", Icon: Users },
+                          { step: "03", title: "Real-time Leaderboard", desc: "Watch scores climb instantly. Identify gaps with AI-driven gap analysis.", Icon: Trophy }
+                        ].map((item, idx) => (
+                          <div key={idx} className="relative z-10 flex flex-col items-center">
+                             <div className="w-24 h-24 rounded-[2rem] bg-slate-50 border border-slate-200 flex items-center justify-center mb-6 shadow-sm group hover:border-primary transition-colors">
+                                <item.Icon className="w-8 h-8 text-slate-400 group-hover:text-primary transition-colors" />
+                             </div>
+                             <p className="text-xs font-headline font-extrabold text-primary mb-2 tracking-widest">{item.step}</p>
+                             <h4 className="text-xl font-headline font-extrabold text-slate-900 mb-3">{item.title}</h4>
+                             <p className="text-slate-500 font-body font-medium leading-relaxed max-w-[280px] mx-auto text-sm">{item.desc}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Feature Grid: Built for Teachers & Students */}
+                  <section id="features" className="py-24 md:py-40">
+                    <div className="max-w-7xl mx-auto px-4 md:px-8">
+                       <div className="grid lg:grid-cols-2 gap-20 items-center">
+                          <div className="space-y-10">
+                             <div className="space-y-4">
+                                <h2 className="text-4xl md:text-5xl font-headline font-extrabold text-slate-900 tracking-tight leading-tight">Built for <span className="text-primary">Teachers</span> and <span className="text-secondary">Students</span></h2>
+                                <p className="text-lg text-slate-600 font-body font-medium leading-relaxed max-w-lg">
+                                   Bridging the gap between instruction and assessment with tools designed for both classroom control and student mastery.
+                                </p>
+                             </div>
+
+                             <div className="space-y-8">
+                                <div className="flex gap-6 items-start">
+                                   <div className="w-14 h-14 rounded-2xl bg-primary/5 flex items-center justify-center shrink-0">
+                                      <Target className="w-7 h-7 text-primary" />
+                                   </div>
+                                   <div className="space-y-2">
+                                      <h4 className="text-lg font-headline font-extrabold text-slate-900 uppercase tracking-widest italic">Board Precision AI</h4>
+                                      <p className="text-slate-500 text-sm font-medium leading-relaxed">Our AI doesn't just ask questions; it generates high-order thinking problems grounded in CBSE, ICSE, and global curriculum standards.</p>
+                                   </div>
+                                </div>
+                                <div className="flex gap-6 items-start">
+                                   <div className="w-14 h-14 rounded-2xl bg-secondary/5 flex items-center justify-center shrink-0">
+                                      <BrainCircuit className="w-7 h-7 text-secondary" />
+                                   </div>
+                                   <div className="space-y-2">
+                                      <h4 className="text-lg font-headline font-extrabold text-slate-900 uppercase tracking-widest italic">Infinite Micro-Batches</h4>
+                                      <p className="text-slate-500 text-sm font-medium leading-relaxed">Don't settle for static question banks. Generate infinite iterations of the same topic to ensure 100% mastery through repetition.</p>
+                                   </div>
+                                </div>
+                             </div>
+                          </div>
+
+                          <div className="bg-slate-900 rounded-[3rem] p-10 md:p-16 text-white relative overflow-hidden">
+                             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[100px]" />
+                             <div className="relative z-10 space-y-8">
+                                <h3 className="text-2xl font-headline font-extrabold italic tracking-tight">For Students: Play to Master</h3>
+                                <div className="grid gap-4">
+                                   {[
+                                     "Compete in live real-time arenas",
+                                     "Earn rewards and tier upgrades",
+                                     "Personalized feedback for every error",
+                                     "Share your profile & rank globally"
+                                   ].map((f, i) => (
+                                     <div key={i} className="flex items-center gap-4 text-sm font-bold text-slate-300">
+                                        <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center">
+                                           <CheckCircle2 className="w-3 h-3 text-primary" />
+                                        </div>
+                                        {f}
+                                     </div>
+                                   ))}
+                                </div>
+                                <Button onClick={() => handleEnterAcademy('student')} className="w-full h-16 rounded-full bg-white text-slate-900 font-headline font-extrabold uppercase tracking-widest hover:bg-slate-100 transition-all border-none">
+                                   Enter Academy
+                                </Button>
+                             </div>
+                          </div>
                        </div>
                     </div>
-                  </motion.div>
-                  
-                  {/* Background Accents */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full pointer-events-none overflow-hidden opacity-20">
-                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 60, repeat: Infinity, ease: "linear" }} className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] border-[40px] border-dashed border-primary/10 rounded-full" />
-                    <div className="absolute inset-0 bg-radial-gradient from-primary/5 to-transparent" />
-                  </div>
+                  </section>
+
+                  {/* Testimonial Simulation */}
+                  <section className="py-24 bg-slate-50 border-y border-slate-100 overflow-hidden">
+                     <div className="max-w-7xl mx-auto px-4 md:px-8 text-center space-y-16">
+                        <div className="space-y-4">
+                           <h2 className="text-4xl md:text-5xl font-headline font-extrabold text-slate-900 tracking-tight">Trusted by Teachers</h2>
+                           <p className="text-slate-500 font-body font-medium">Verified board exam progress from early adopters.</p>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-3 gap-8 text-left">
+                           {[
+                             { name: "Rahul J.", role: "Math Lead, Grade 10", text: "The board alignment is scary good. It identifies exactly where my students are failing in calculus concepts." },
+                             { name: "Sarah M.", role: "Principal, Global School", text: "Finally an EdTech tool that prioritizes teacher control and curriculum grounding over gimmicks." },
+                             { name: "Kevin L.", role: "Physics Enthusiast", text: "Infinite batches changed the game for me. I can practice the same hard topic until I have it perfect." }
+                           ].map((t, i) => (
+                              <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-6">
+                                 <div className="flex text-amber-500">
+                                    {[1,2,3,4,5].map(s => <Star key={s} className="w-4 h-4 fill-current mx-0.5" />)}
+                                 </div>
+                                 <p className="text-slate-700 font-body font-medium leading-relaxed italic">"{t.text}"</p>
+                                 <div className="pt-6 border-t border-slate-50">
+                                    <p className="text-sm font-bold text-slate-900">{t.name}</p>
+                                    <p className="text-xs text-slate-500 font-medium">{t.role}</p>
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+                     </div>
+                  </section>
+
+                  {/* Footer */}
+                  <footer id="about" className="pt-24 pb-12 bg-white text-slate-900">
+                    <div className="max-w-7xl mx-auto px-4 md:px-8">
+                       <div className="grid md:grid-cols-3 gap-16 pb-20 border-b border-slate-100">
+                          <div className="space-y-6">
+                             <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                                   <GraduationCap className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="font-headline font-extrabold text-xl tracking-tighter text-slate-900 italic">ScholarEarn</span>
+                             </div>
+                             <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                                Our AI-driven pedagogical core ensures every student receives the precision required for board-level academic mastery.
+                             </p>
+                             <div className="flex gap-4">
+                               <a href="mailto:alsamy36@gmail.com" className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-primary transition-colors hover:border-primary"><Mail className="w-4 h-4" /></a>
+                             </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 lg:gap-12 gap-8">
+                             <div className="space-y-6">
+                                <p className="text-[10px] font-headline font-extrabold text-slate-400 uppercase tracking-widest">Platform</p>
+                                <ul className="space-y-4 text-sm font-bold text-slate-600">
+                                   <li className="hover:text-primary transition-colors cursor-pointer">Syllabus AI</li>
+                                   <li className="hover:text-primary transition-colors cursor-pointer">Classroom Battle</li>
+                                   <li className="hover:text-primary transition-colors cursor-pointer">Leaderboards</li>
+                                </ul>
+                             </div>
+                             <div className="space-y-6">
+                                <p className="text-[10px] font-headline font-extrabold text-slate-400 uppercase tracking-widest">Company</p>
+                                <ul className="space-y-4 text-sm font-bold text-slate-600">
+                                   <li className="hover:text-primary transition-colors cursor-pointer">About Us</li>
+                                   <li className="hover:text-primary transition-colors cursor-pointer">Contact</li>
+                                   <li className="hover:text-primary transition-colors cursor-pointer">Privacy</li>
+                                </ul>
+                             </div>
+                          </div>
+
+                          <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-200">
+                             <p className="text-[10px] font-headline font-extrabold text-primary uppercase tracking-[0.4em] mb-4">Founder & CEO</p>
+                             <div className="space-y-4">
+                                <div className="space-y-1">
+                                   <h4 className="text-xl font-headline font-extrabold text-slate-900 italic leading-none">L Samy, M.Phil.</h4>
+                                   <p className="text-[10px] font-body font-bold text-slate-400 uppercase tracking-widest">15+ Yrs International Lead</p>
+                                </div>
+                                <p className="text-xs text-slate-500 font-medium leading-relaxed italic">
+                                   "Directing global education through data-driven academic mastery since 2011."
+                                </p>
+                             </div>
+                          </div>
+                       </div>
+                       
+                       <div className="pt-12 flex flex-col md:flex-row items-center justify-between gap-6">
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">© 2026 ScholarEarn. Build for Board Mastery.</p>
+                          <div className="flex items-center gap-8 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                             <span className="cursor-pointer hover:text-slate-900">Privacy Policy</span>
+                             <span className="cursor-pointer hover:text-slate-900">Terms of Service</span>
+                             <span className="cursor-pointer hover:text-slate-900">Cookie Hub</span>
+                          </div>
+                       </div>
+                    </div>
+                  </footer>
                 </div>
               )}
+
 
               {currentScreen === AppScreen.ADMIN_DASHBOARD && (
                 <AdminDashboard onBack={() => setCurrentScreen(AppScreen.ENTRY)} />
@@ -1640,6 +1866,12 @@ export default function App() {
                      <span className="font-headline font-extrabold text-on-surface uppercase tracking-widest block mb-1">🛡️ Strict Data Privacy Policy</span>
                      We do not collect personal data beyond what is required to save your progress. ScholarEarn prioritizes your academic privacy over all else.
                    </p>
+                </div>
+                
+                <div className="pt-6 border-t border-white/5 flex flex-col items-center gap-2">
+                   <p className="text-[8px] font-headline font-extrabold text-primary uppercase tracking-[0.4em] mb-1 drop-shadow-sm">Founder & CEO</p>
+                   <h4 className="text-on-surface font-headline font-extrabold text-lg italic leading-none">L Samy, M.Phil.</h4>
+                   <p className="text-[8px] font-body font-bold text-outline uppercase tracking-widest opacity-60">15+ Years International Academic Leadership</p>
                 </div>
               </div>
               {error && <p className="text-error text-[10px] font-body font-bold p-3 bg-error-container/20 rounded-xl border border-error/10">{error}</p>}
@@ -1962,6 +2194,19 @@ export default function App() {
             </div>
             
             {error && <p className="text-center text-error text-[10px] font-headline font-extrabold uppercase bg-error-container/30 p-3 rounded-xl border border-red-100">{error}</p>}
+
+            <div className="pt-12 pb-6 border-t border-white/5 mt-12 flex flex-col md:flex-row items-center justify-between gap-6 opacity-40 hover:opacity-100 transition-opacity">
+               <div className="text-left">
+                  <p className="text-[9px] font-headline font-extrabold text-primary uppercase tracking-[0.4em] mb-2">Founder's Guarantee</p>
+                  <p className="max-w-xs text-[10px] font-body font-bold text-on-surface-variant leading-relaxed italic">
+                     "Our AI models are grounded in real board standards to ensure students don't just memorize, but master the syllabus."
+                  </p>
+               </div>
+               <div className="text-center md:text-right">
+                  <h4 className="text-on-surface font-headline font-extrabold text-lg italic leading-none mb-1">L Samy, M.Phil.</h4>
+                  <p className="text-[9px] font-body font-bold text-outline uppercase tracking-widest">ScholarEarn Hub • Founder & CEO</p>
+               </div>
+            </div>
           </div>
         )}
 
