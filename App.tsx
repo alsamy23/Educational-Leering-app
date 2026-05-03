@@ -48,14 +48,14 @@ const MotivationalPopup = ({ show, label = "Spectacular!" }: { show: boolean, la
   );
 };
 
-const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[], timer: number) => void, onCancel: () => void }) => {
+const ClassroomSetupView = ({ onStart, onCancel, initialTimer = 45 }: { onStart: (groups: Group[], timer: number) => void, onCancel: () => void, initialTimer?: number }) => {
   const [groups, setGroups] = useState<Group[]>([
     { id: '1', name: 'Alpha Squad', score: 0, members: [] },
     { id: '2', name: 'Beta Brains', score: 0, members: [] },
     { id: '3', name: 'Gamma Giants', score: 0, members: [] },
     { id: '4', name: 'Delta Dynamos', score: 0, members: [] },
   ]);
-  const [timer, setTimer] = useState<number>(45);
+  const [timer, setTimer] = useState<number>(initialTimer);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -180,6 +180,7 @@ const ClassroomSetupView = ({ onStart, onCancel }: { onStart: (groups: Group[], 
               onChange={(e) => setTimer(Number(e.target.value))}
               className="bg-surface-container border border-white/5 rounded-xl px-4 py-2 text-sm font-body font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
+              <option value={0}>No Timer (Practice Mode)</option>
               <option value={30}>30 Seconds</option>
               <option value={45}>45 Seconds (Default)</option>
               <option value={50}>50 Seconds</option>
@@ -2243,6 +2244,7 @@ export default function App() {
           <ClassroomSetupView 
             onStart={startClassroomSession} 
             onCancel={() => setCurrentScreen(AppScreen.ENTRY)} 
+            initialTimer={questionTimer}
           />
         )}
 
