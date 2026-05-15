@@ -11,9 +11,11 @@ import {
 import { UserProfile, QuizSession, AppScreen, StudyFocus, QuestionType, Group, ClassroomSession, DifficultyLevel, TestRecord, StudyMaterial } from './types';
 import * as idb from 'idb-keyval';
 import * as pdfjsLib from 'pdfjs-dist';
+// @ts-ignore - TS doesn't recognize Vite's ?url syntax out of the box
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 import { generateQuizQuestions, generateSpeech, playAudio, stopAudio } from './services/geminiService';
 import { Button } from './components/Button';
@@ -381,13 +383,16 @@ const MaterialManager = ({
     setIsProcessingPdf(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      // Use Uint8Array which is safer for getDocument
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+      const pdf = await loadingTask.promise;
       let fullText = '';
       
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        const pageText = textContent.items.map((item: any) => item.str || '').join(' ');
         fullText += pageText + '\n';
       }
 
