@@ -3,5 +3,8 @@
   "description": "An AI-powered diagnostic platform for curriculum mastery and board exam readiness. Supports personalized adaptive learning and competitive classroom assessments for Grades 1-12.",
   "requestFramePermissions": [
     "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }

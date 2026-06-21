@@ -267,16 +267,40 @@ export const generateQuizQuestions = async (
 
 const validateAndFormatQuestions = (parsed: any[], topic: string = "this topic"): QuizQuestion[] => {
   if (!Array.isArray(parsed)) throw new Error("Response is not an array");
-  return parsed.map((q: any, index: number) => ({
+  return parsed.map((q: any, index: number) => {
+    const rawOptions = Array.isArray(q.options) && q.options.length === 4 
+      ? q.options 
+      : ["Option A", "Option B", "Option C", "Option D"];
+    const rawCorrectIndex = typeof q.correctIndex === 'number' ? q.correctIndex : 0;
+    
+    // Shuffle options client-side and dynamically adjust correctIndex to eliminate LLM biases (like B, B, B)
+    const mappedOptions = rawOptions.map((opt: string, idx: number) => ({
+      text: opt,
+      isCorrect: idx === rawCorrectIndex
+    }));
+    
+    // Perform standard Fisher-Yates shuffle
+    for (let i = mappedOptions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = mappedOptions[i];
+      mappedOptions[i] = mappedOptions[j];
+      mappedOptions[j] = temp;
+    }
+    
+    const shuffledOptions = mappedOptions.map((item: { text: string; isCorrect: boolean }) => item.text);
+    const shuffledCorrectIndex = mappedOptions.findIndex((item: { text: string; isCorrect: boolean }) => item.isCorrect);
+
+    return {
       id: q.id || index,
       type: q.type || QuestionType.MCQ,
       text: q.text && q.text.trim() !== "" ? q.text : `Analyze the concepts of ${topic} to find the solution.`,
       contextMaterial: q.contextMaterial || undefined,
-      options: Array.isArray(q.options) && q.options.length === 4 ? q.options : ["Option A", "Option B", "Option C", "Option D"],
-      correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+      options: shuffledOptions,
+      correctIndex: shuffledCorrectIndex >= 0 ? shuffledCorrectIndex : 0,
       explanation: q.explanation || "No explanation provided.",
       inquiryPrompt: q.inquiryPrompt || `How would this change if we altered the initial conditions of the ${topic} problem?`
-  }));
+    };
+  });
 };
 
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
@@ -301,6 +325,107 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
     console.error("TTS Error", e);
     return new ArrayBuffer(0); // Fail silently for audio
   }
+};
+
+let currentUtterance: SpeechSynthesisUtterance | null = null;
+
+export const speakTextLocal = (text: string, onStart?: () => void, onEnd?: () => void): Promise<void> => {
+  return new Promise((resolve) => {
+    if (!window.speechSynthesis) {
+      resolve();
+      return;
+    }
+    
+    window.speechSynthesis.cancel(); // Stop any pending reading
+    
+    // Clean text of markdown characters
+    const cleanedText = text.replace(/[*_`#]/g, '').trim();
+    if (!cleanedText) {
+      resolve();
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(cleanedText);
+    currentUtterance = utterance;
+
+    const setVoiceAndSpeak = () => {
+      const voices = window.speechSynthesis.getVoices();
+      
+      // Look for en-IN or hi-IN voices
+      // 1. Try to find an Indian English male voice (e.g. Microsoft Ravi, Google Ravi, en-IN with male/guy)
+      let chosenVoice = voices.find(v => 
+        (v.lang.toLowerCase().includes('en-in') || v.lang.toLowerCase().includes('en_in')) && 
+        (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('ravi') || v.name.toLowerCase().includes('dilip') || v.name.toLowerCase().includes('guy') || v.name.toLowerCase().includes('prakash'))
+      );
+      
+      // 2. Fall back to any en-IN voice (Indian English)
+      if (!chosenVoice) {
+        chosenVoice = voices.find(v => v.lang.toLowerCase().includes('en-in') || v.lang.toLowerCase().includes('en_in'));
+      }
+      
+      // 3. Fall back to hi-IN (Hindi India)
+      if (!chosenVoice) {
+        chosenVoice = voices.find(v => v.lang.toLowerCase().includes('hi-in') || v.lang.toLowerCase().includes('hi_in'));
+      }
+      
+      // 4. Fall back to any English male voice
+      if (!chosenVoice) {
+        chosenVoice = voices.find(v => 
+          v.lang.toLowerCase().startsWith('en') && 
+          (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('guy') || v.name.toLowerCase().includes('david') || v.name.toLowerCase().includes('george'))
+        );
+      }
+      
+      // 5. Fall back to any English voice
+      if (!chosenVoice) {
+        chosenVoice = voices.find(v => v.lang.toLowerCase().startsWith('en'));
+      }
+
+      if (chosenVoice) {
+        utterance.voice = chosenVoice;
+      }
+      
+      // Apply exact low-pitched, Indian-accent friendly voice adjustments
+      utterance.pitch = 0.82; // Lower, deeper voice pitch
+      utterance.rate = 0.88;  // Slightly slower/composed pace for classroom understanding
+      
+      utterance.onstart = () => {
+        if (onStart) onStart();
+      };
+      
+      utterance.onend = () => {
+        if (currentUtterance === utterance) {
+          currentUtterance = null;
+        }
+        if (onEnd) onEnd();
+        resolve();
+      };
+      
+      utterance.onerror = (err) => {
+        console.error("SpeechSynthesis error:", err);
+        if (currentUtterance === utterance) {
+          currentUtterance = null;
+        }
+        if (onEnd) onEnd();
+        resolve();
+      };
+      
+      window.speechSynthesis.speak(utterance);
+    };
+
+    const initialVoices = window.speechSynthesis.getVoices();
+    if (initialVoices.length === 0) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        setVoiceAndSpeak();
+      };
+      // Timeout fallback in case onvoiceschanged does not trigger
+      setTimeout(() => {
+        setVoiceAndSpeak();
+      }, 500);
+    } else {
+      setVoiceAndSpeak();
+    }
+  });
 };
 
 export const playAudio = async (buffer: ArrayBuffer) => {
