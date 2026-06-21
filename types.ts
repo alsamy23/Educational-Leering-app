@@ -34,7 +34,7 @@ export interface UserProfile {
   gradeLevel: string;
   section?: string;
   subject: string;
-  board?: string; // e.g. CBSE, ICSE, IGCSE, State Board
+  board?: string; // e.g. CBSE, ICSE, IGCSE, State Board, or Major stream
   focus: StudyFocus;
   topic: string;
   level: number; // Progressive level (1, 2, 3...)
@@ -44,6 +44,7 @@ export interface UserProfile {
   progressMap?: Record<string, number>;
   role?: 'admin' | 'user';
   isGuest?: boolean;
+  educationLevel?: 'School' | 'College' | 'Competitive' | 'Personal';
 }
 
 export interface QuizQuestion {

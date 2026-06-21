@@ -90,10 +90,40 @@ export const generateQuizQuestions = async (
   const difficultyContext = difficulty && difficulty !== DifficultyLevel.DEFAULT 
     ? `The difficulty level for this group is: ${difficulty}. Adjust question complexity accordingly.` 
     : "";
-  const boardContext = profile.board ? `Educational Board: ${profile.board}. 
-  CRITICAL: Follow the STRIKE PATTERN and SYLLABUS of the LATEST VERSION (Academic Year 2025-2026). 
-  Refer to official 2026 sample question papers and question patterns for ${profile.board}. 
-  Ensure questions align with the most recent curriculum updates and exam structures.` : "";
+  const eduLevel = profile.educationLevel || 'School';
+  let educationalSettingPrompt = "";
+  
+  if (eduLevel === 'School') {
+    educationalSettingPrompt = `
+      ROLE: Act as an Expert school curriculum designer and board examination author for Grade ${profile.gradeLevel}.
+      EDUCATION STREAM: School Education (K-12).
+      GRADE TARGET: Grade ${profile.gradeLevel}.
+      CURRICULUM/BOARD: ${profile.board || "General Board"}.
+      ACADEMIC LEVEL: Focus on grade-appropriate curriculum pillars, core textbooks syllabus, and official blueprint model.
+    `;
+  } else if (eduLevel === 'College') {
+    educationalSettingPrompt = `
+      ROLE: Act as an elite University Professor, Academic Dean, and Senior College Lecturer.
+      EDUCATION STREAM: Higher Education / College Level.
+      YEAR/SEMESTER: ${profile.gradeLevel || "General Year"}.
+      DEGREE STREAM & MAJOR: ${profile.board || "General Major / Arts & Sciences"}.
+      ACADEMIC LEVEL: College level rigor. Focus on theoretical depth, research application, critical analytical thinking, and complex academic insights. Ensure content matches undergraduate or postgraduate examination level.
+    `;
+  } else if (eduLevel === 'Competitive') {
+    educationalSettingPrompt = `
+      ROLE: Act as a master Trainer for Competitive Entrance Exams and Professional Certification Panels.
+      EDUCATION STREAM: Competitive Exam Preparation & Career Certifications.
+      TARGET EXAM / BOARD: ${profile.board || "General Competitive Exam"}.
+      ACADEMIC LEVEL: Tough entrance assessment standards with a focus on core exam patterns (analytical, logical, and concept integration). Focus on maximizing score diagnostics, trick questions, and solving professional-grade problems.
+    `;
+  } else {
+    educationalSettingPrompt = `
+      ROLE: Act as an Expert Personal Mentor and Subject Matter Genius.
+      EDUCATION STREAM: Personal Learning, Lifelong Education & Custom Upskilling.
+      TARGET LEVEL: ${profile.board || "General / Adaptive"}.
+      ACADEMIC LEVEL: Customized individual development, clear analogies, active practice, and concept reinforcement. Ideal for self-learners, hobbyists, or professionals upskilling.
+    `;
+  }
 
   // Check for non-English subject/topic (e.g. Tamil)
   const isTargetLanguageOtherThanEnglish = /tamil|hindi|telugu|kannada|malayalam|french|spanish|german/i.test(profile.subject) || /tamil|hindi|telugu|kannada|malayalam|french|spanish|german/i.test(topic);
@@ -109,8 +139,8 @@ export const generateQuizQuestions = async (
     ? `SOURCE-GROUNDED MODE (STRICT):
     A specific curriculum segment or textbook material has been provided below. 
     1. Your primary task is to generate questions derived EXCLUSIVELY from this source material.
-    2. However, you MUST still respect the Grade Level (${profile.gradeLevel}) and Board Standards (${profile.board || "General"}).
-    3. Ensure the vocabulary and complexity are appropriate for Grade ${profile.gradeLevel}.
+    2. However, you MUST still respect the Educational Setting / Stream (${eduLevel}), target year/academic stage (${profile.gradeLevel}), and standards (${profile.board || "General"}).
+    3. Ensure the vocabulary and complexity are completely appropriate for ${profile.gradeLevel}.
     
     SOURCE MATERIAL:
     """
@@ -119,17 +149,16 @@ export const generateQuizQuestions = async (
     ` 
     : `CURRICULUM-BASELINE MODE (STRICT):
     No private source material was provided. 
-    1. You MUST generate questions based on the official ${profile.board || "Global"} curriculum standards for Grade ${profile.gradeLevel}.
-    2. Focus on the core pillars of the ${profile.board} syllabus for the subject "${profile.subject}".
-    3. Refer to the standard academic patterns for the current year.`;
+    1. You MUST generate questions based on the official curriculum/course standards for ${eduLevel} - ${profile.board || "General"}.
+    2. Focus on the core pillars of the syllabus/topic for the subject "${profile.subject}".
+    3. Refer to standard academic structures matching ${profile.gradeLevel}.`;
 
-  const prompt = `Act as an Expert Curriculum Designer and Academic Strategist for Grade ${profile.gradeLevel}.
-  Current Academic Year: ${currentYear} (Targeting 2026 Exams).
+  const prompt = `
+  ${educationalSettingPrompt}
+  Current Academic Year: ${currentYear}-${currentYear + 1} (Targeting ${currentYear + 1} Exams).
   Subject: ${profile.subject}.
-  Board: ${profile.board || "General"}.
   Topic: ${topic}.
   Context: ${focusContext}.
-  ${boardContext}
   ${languageInstruction}
   ${groupContext}
   ${difficultyContext}
@@ -141,12 +170,12 @@ export const generateQuizQuestions = async (
   TASK: Generate exactly 5 questions for this Batch. 
   
   PEDAGOGICAL GOAL (EXAM EXCELLENCE):
-  - PRIMARY OBJECTIVE: ${sourceMaterial ? "Synthesize the source material into high-quality assessments aligned with exam patterns." : "Strictly follow Board curriculum standards to ensure exam readiness."}
+  - PRIMARY OBJECTIVE: ${sourceMaterial ? "Synthesize the source material into high-quality assessments aligned with exam patterns." : "Strictly follow curriculum and textbook standards to ensure exam readiness."}
   - Test foundational understanding, conceptual clarity, and the ability to apply the specific topic.
-  - Questions must mirror the complexity (MCQs, Case Studies, etc.) of actual board exam patterns.
-  - ${gradeInt < 6 
+  - Questions must mirror the complexity (MCQs, Case Studies, etc.) of actual board or exam patterns.
+  - ${eduLevel === 'School' && gradeInt < 6 
       ? "For PRIMARY SCHOOL: Focus on simplified core curriculum pillars. Ensure questions reflect standard educational early-years patterns." 
-      : "For High School: Focus on analytical rigor. Every question must evaluate syllabus-specific mastery."}
+      : "Focus on analytical rigor. Every question must evaluate syllabus-specific mastery."}
   - Provide an 'inquiryPrompt' as a "Diagnostic Challenge" to help students identify areas for further study.
   
   MODE-SPECIFIC GUIDANCE:
@@ -154,16 +183,16 @@ export const generateQuizQuestions = async (
   - CLASSROOM BATTLE: Questions should be competitive and balanced, designed to test the group's collective knowledge of core curriculum points under pressure.
   
   CRITICAL ACCORDING TO CURRICULUM & UNIQUENESS (CLASSROOM ANTI-REPEAT PROTOCOL):
-  - Ensure 100% adherence strictly to the official board curriculum for this grade. No generic questions. Use exact curriculum terminology.
+  - Ensure 100% adherence strictly to the official curriculum for this level. No generic questions. Use exact curriculum terminology.
   - To absolutely prevent repeating questions between different groups, you MUST use the RandomSeed (${seed}) to deeply alter the sub-topic focus, problem formats, and numerical values. 
   - Group ${groupName || "N/A"} must receive an entirely distinct set of 5 questions than any other group. DO NOT recycle common starter questions.
   
   QUESTION TYPES DISTRIBUTION:
-  - If Grade >= 9: Include at least 1 'CASE_STUDY' and 1 'VISUAL_ANALYSIS'.
-  - If Grade < 9: Mostly MCQ and WORD_PROBLEM.
+  - Match question complexity and types with the target educational tier (${eduLevel}). For advanced levels (College, Competitive), include Case Studies and complex situations.
+  - Include at least 1 'CASE_STUDY' and 1 'VISUAL_ANALYSIS' if possible.
   
   GUIDELINES:
-  - CASE_STUDY: Provide a short paragraph (50-80 words) in 'contextMaterial' that the student must analyze to answer the question.
+  - CASE_STUDY: Provide a short paragraph (50-100 words) in 'contextMaterial' that the student must analyze to answer the question.
   - VISUAL_ANALYSIS: Describe a diagram, graph, or physical setup in 'contextMaterial' (e.g., "A circuit diagram shows two resistors in parallel...") and ask a question based on it. (Do NOT provide images, purely textual visual descriptions).
   - The 'explanation' must be detailed.
   - The 'text' field MUST contain the actual question and MUST NOT be empty.`;

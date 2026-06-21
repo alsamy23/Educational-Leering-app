@@ -1,6 +1,6 @@
 {
   "name": "ScholarEarn",
-  "description": "An AI-powered diagnostic platform for curriculum mastery and board exam readiness. Supports personalized adaptive learning and competitive classroom assessments for Grades 1-12.",
+  "description": "An AI-powered diagnostic platform for curriculum mastery and exam readiness. Supports personalized adaptive learning and competitive classroom assessments for School boards (K-12), College students, and Competitive exam preparation.",
   "requestFramePermissions": [
     "microphone"
   ],

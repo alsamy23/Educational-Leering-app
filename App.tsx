@@ -5,7 +5,7 @@ import {
   Trash2, Eye, Award, Clock, GraduationCap, Monitor, FileText,
   User, ShieldCheck, HelpCircle, Laptop, Lightbulb, Users,
   ListRestart, Check, X, SignalLow, SignalMedium, SignalHigh,
-  Settings, LogOut, Info, RefreshCw
+  Settings, LogOut, Info, RefreshCw, Mic, MicOff, Download, Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -14,10 +14,99 @@ import {
   Group, ClassroomSession, AppScreen
 } from './types';
 import { Button } from './components/Button';
-import { db, auth, loginWithGoogle, logout, handleFirestoreError, OperationType } from './firebase';
+import { db, auth, loginWithGoogle, loginAnonymously, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { generateQuizQuestions, speakTextLocal } from './services/geminiService';
+import * as pdfjsLib from 'pdfjs-dist';
+import { get as get_idb, set as set_idb } from 'idb-keyval';
+
+// Configure pdfjs worker source via jsDelivr CDN
+const pdfjsVersion = pdfjsLib.version || '5.6.205';
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.mjs`;
+
+// --- Browser-Native Audio Feedback Synthesizer ---
+let audioCtx: AudioContext | null = null;
+
+const playAudioFeedback = (isCorrect: boolean) => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    if (!audioCtx) {
+      audioCtx = new AudioContextClass();
+    } else if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    const now = audioCtx.currentTime;
+
+    if (isCorrect) {
+      // Pleasant rising bright two-tone chime (Interval of major third / perfect fifth)
+      // Note A: C5 (523.25 Hz)
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, now);
+      osc1.frequency.exponentialRampToValueAtTime(659.25, now + 0.08); // slide cleanly up to E5
+      
+      gain1.gain.setValueAtTime(0.001, now);
+      gain1.gain.linearRampToValueAtTime(0.12, now + 0.02);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      
+      osc1.connect(gain1);
+      gain1.connect(audioCtx.destination);
+      
+      osc1.start(now);
+      osc1.stop(now + 0.25);
+
+      // Note B: E5 (659.25 Hz) -> A5 (880.00 Hz)
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      
+      const delay = 0.08;
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(659.25, now + delay);
+      osc2.frequency.exponentialRampToValueAtTime(880.00, now + delay + 0.12);
+      
+      gain2.gain.setValueAtTime(0.001, now + delay);
+      gain2.gain.linearRampToValueAtTime(0.15, now + delay + 0.02);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.35);
+      
+      osc2.connect(gain2);
+      gain2.connect(audioCtx.destination);
+      
+      osc2.start(now + delay);
+      osc2.stop(now + delay + 0.35);
+    } else {
+      // Soft low-passed descending buzz tone (Triangle wave filters out harsh harmonics, pleasant design)
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+      
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(150.00, now);
+      osc.frequency.linearRampToValueAtTime(110.00, now + 0.3);
+      
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(600, now);
+      
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      osc.start(now);
+      osc.stop(now + 0.3);
+    }
+  } catch (error) {
+    console.warn("Native audio synthesizer blocked or unsupported:", error);
+  }
+};
 
 // --- Sub-Component: MotivationalPopup ---
 interface MotivationalPopupProps {
@@ -63,9 +152,19 @@ interface MaterialManagerProps {
 const MaterialManager: React.FC<MaterialManagerProps> = ({
   isOpen, onClose, materials, onAdd, onDelete, onSelect, selectedId
 }) => {
+  const [activeTab, setActiveTab] = useState<'text' | 'pdf'>('text');
+
+  // Manual text tab state
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+
+  // PDF Book tab state
+  const [pdfParsing, setPdfParsing] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
+  const [dragActive, setDragActive] = useState(false);
+
   const [error, setError] = useState('');
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -81,6 +180,86 @@ const MaterialManager: React.FC<MaterialManagerProps> = ({
     setError('');
   };
 
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handlePdfFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handlePdfFile(e.target.files[0]);
+    }
+  };
+
+  const handlePdfFile = async (file: File) => {
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith('.pdf')) {
+      setError("Please select a valid PDF file (.pdf format).");
+      return;
+    }
+
+    setPdfParsing(true);
+    setError("");
+    setPdfProgress({ current: 0, total: 0 });
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      const totalPages = pdf.numPages;
+      setPdfProgress({ current: 0, total: totalPages });
+
+      let fullText = "";
+
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        setPdfProgress({ current: pageNum, total: totalPages });
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        
+        const pageText = textContent.items
+          .map((item: any) => item.str || '')
+          .join(' ');
+
+        fullText += `--- Page ${pageNum} ---\n` + pageText + '\n\n';
+      }
+
+      const trimmedText = fullText.trim();
+      if (!trimmedText || trimmedText.length < 15) {
+        throw new Error("Could not extract any extractable text from this digital book. Ensure it is not an image-only scan or completely blank.");
+      }
+
+      // Format readable title by omitting extension & spacing symbols
+      const displayTitle = file.name
+        .replace(/\.[^/.]+$/, "")
+        .replace(/[_-]/g, " ")
+        .trim();
+
+      onAdd(displayTitle, trimmedText);
+      setPdfParsing(false);
+      setPdfProgress({ current: 0, total: 0 });
+    } catch (err: any) {
+      console.error("PDF Parsing exception:", err);
+      setError(err?.message || "Failure parsing full book contents. Try another PDF or paste text chapters.");
+      setPdfParsing(false);
+      setPdfProgress({ current: 0, total: 0 });
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md">
       <motion.div 
@@ -94,7 +273,11 @@ const MaterialManager: React.FC<MaterialManagerProps> = ({
             <BookOpen className="w-6 h-6 text-primary" />
             <h3 className="text-xl font-headline font-extrabold text-on-surface tracking-tighter">Study Material Hub</h3>
           </div>
-          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface p-1 rounded-full bg-white/5 transition-colors">
+          <button 
+            onClick={onClose} 
+            disabled={pdfParsing}
+            className="text-on-surface-variant hover:text-on-surface p-1 rounded-full bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -102,24 +285,99 @@ const MaterialManager: React.FC<MaterialManagerProps> = ({
         <div className="p-6 overflow-y-auto no-scrollbar space-y-6 flex-1">
           {error && <p className="text-xs text-error font-body font-bold">{error}</p>}
 
-          <form onSubmit={handleSubmit} className="space-y-4 bg-white/5 p-5 rounded-2xl border border-white/5">
-            <p className="text-xs font-headline font-extrabold uppercase text-primary tracking-wider italic">Add Curriculum Text</p>
-            <input 
-              type="text" 
-              placeholder="Material Title (e.g. NCERT Science Chapter 12)" 
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-surface-container border border-white/5 text-sm font-body font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-            <textarea 
-              placeholder="Paste official textbook reading segments, curriculum syllabus points, or study notes here..." 
-              value={content}
-              rows={4}
-              onChange={e => setContent(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-surface-container border border-white/5 text-sm font-body font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-            <Button type="submit" className="py-2.5">Ingest Material</Button>
-          </form>
+          {/* Interactive Navigation Tabs switcher */}
+          <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5">
+            <button
+              onClick={() => { if (!pdfParsing) setActiveTab('text'); }}
+              disabled={pdfParsing}
+              type="button"
+              className={`flex-1 py-2 rounded-xl text-xs font-headline font-extrabold transition-all cursor-pointer ${activeTab === 'text' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface opacity-70'} disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              Paste Reading Text
+            </button>
+            <button
+              onClick={() => { if (!pdfParsing) setActiveTab('pdf'); }}
+              disabled={pdfParsing}
+              type="button"
+              className={`flex-1 py-2 rounded-xl text-xs font-headline font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeTab === 'pdf' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface opacity-70'} disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              <FileText className="w-3.5 h-3.5" /> Book Uploader (.PDF)
+            </button>
+          </div>
+
+          {activeTab === 'text' ? (
+            <form onSubmit={handleSubmit} className="space-y-4 bg-white/5 p-5 rounded-2xl border border-white/5">
+              <p className="text-xs font-headline font-extrabold uppercase text-primary tracking-wider italic">Add Curriculum Text</p>
+              <input 
+                type="text" 
+                placeholder="Material Title (e.g. NCERT Science Chapter 12)" 
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-surface-container border border-white/5 text-sm font-body font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+              <textarea 
+                placeholder="Paste official textbook reading segments, curriculum syllabus points, or study notes here..." 
+                value={content}
+                rows={4}
+                onChange={e => setContent(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-surface-container border border-white/5 text-sm font-body font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+              <Button type="submit" className="py-2.5">Ingest Material</Button>
+            </form>
+          ) : (
+            <div className="space-y-4 bg-white/5 p-5 rounded-2xl border border-white/5">
+              <div className="flex justify-between items-center">
+                <p className="text-xs font-headline font-extrabold uppercase text-primary tracking-wider italic">Upload Entire Textbook Book</p>
+                <span className="text-[10px] font-mono font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-full">Offline Storage Only</span>
+              </div>
+
+              {pdfParsing ? (
+                <div className="border border-primary/20 bg-primary/5 rounded-2xl p-6 text-center space-y-4">
+                  <div className="flex justify-center">
+                    <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-headline font-extrabold text-on-surface">Extracting Full Study Companion</p>
+                    <p className="text-xs text-on-surface-variant">Page {pdfProgress.current} of {pdfProgress.total || 'estimating...'}</p>
+                  </div>
+                  
+                  {/* Visual Progress Bar */}
+                  <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden border border-white/5">
+                    <div 
+                      className="bg-primary h-full rounded-full transition-all duration-150" 
+                      style={{ width: `${pdfProgress.total ? (pdfProgress.current / pdfProgress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-primary/80 font-mono tracking-widest uppercase">Converting Digital Layout Offline...</p>
+                </div>
+              ) : (
+                <div 
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  onClick={() => pdfInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragActive ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-primary/45 hover:bg-white/5'}`}
+                >
+                  <input 
+                    ref={pdfInputRef}
+                    type="file" 
+                    accept="application/pdf"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                  />
+                  <div className="flex flex-col items-center gap-3">
+                    <FileText className="w-10 h-10 text-primary/70" />
+                    <div className="space-y-1.5">
+                      <p className="text-sm font-headline font-extrabold text-on-surface">Drag &amp; Drop textbook book file here</p>
+                      <p className="text-xs text-on-surface-variant">or <span className="text-primary hover:underline font-bold">browse local files (.pdf)</span></p>
+                    </div>
+                    <p className="text-[10px] uppercase text-on-surface-variant/40 font-mono tracking-wider">IndexedDB client side cache handles entire files safely offline</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-3">
             <p className="text-xs font-headline font-extrabold uppercase text-on-surface-variant tracking-wider">Your Source Library ({materials.length})</p>
@@ -131,7 +389,8 @@ const MaterialManager: React.FC<MaterialManagerProps> = ({
                   <div key={m.id} className={`flex items-center justify-between p-4 rounded-xl border ${selectedId === m.id ? 'bg-primary/10 border-primary/40' : 'bg-surface-container-lowest border-white/5'} transition-all`}>
                     <button 
                       onClick={() => onSelect(selectedId === m.id ? null : m.id)}
-                      className="flex-1 text-left"
+                      disabled={pdfParsing}
+                      className="flex-1 text-left disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <p className="text-sm font-headline font-extrabold text-on-surface flex items-center gap-2">
                         {selectedId === m.id && <Check className="w-4 h-4 text-primary" />}
@@ -141,7 +400,8 @@ const MaterialManager: React.FC<MaterialManagerProps> = ({
                     </button>
                     <button 
                       onClick={() => onDelete(m.id)}
-                      className="text-error/70 hover:text-error p-2 hover:bg-white/5 rounded-xl transition-all"
+                      disabled={pdfParsing}
+                      className="text-error/70 hover:text-error p-2 hover:bg-white/5 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -376,6 +636,33 @@ export default function App() {
   // --- Firebase Synchronization & Auth States ---
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const handleGoogleLogin = async () => {
+    setAuthError(null);
+    try {
+      await loginWithGoogle();
+    } catch (err: any) {
+      console.warn("Google Sign-In caught error in sandbox:", err);
+      setAuthError(
+        "Browser sandbox restrictions blocked the Google Sign-In popup. " +
+        "You can click 'Open in new tab' in settings to use Google, or click below to join with an instant Guest Account!"
+      );
+    }
+  };
+
+  const handleAnonymousLogin = async () => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      await loginAnonymously();
+    } catch (err: any) {
+      console.error("Anonymous Sign-In failed:", err);
+      setAuthError("Failed to sign in as guest: " + (err.message || err));
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   // --- Core Domain State ---
   const [user, setUser] = useState<UserProfile>({
@@ -388,7 +675,8 @@ export default function App() {
     level: 1,
     totalQuizzes: 0,
     totalPoints: 0,
-    testHistory: []
+    testHistory: [],
+    educationLevel: 'School'
   });
 
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.ENTRY);
@@ -411,6 +699,188 @@ export default function App() {
 
   // --- Reading Aloud Audio state ---
   const [isReadingAloud, setIsReadingAloud] = useState<boolean>(false);
+  const [soundEffectsEnabled, setSoundEffectsEnabled] = useState<boolean>(true);
+
+  // --- Voice Answer Recorder Web Speech API states ---
+  const [isRecordingAnswer, setIsRecordingAnswer] = useState<boolean>(false);
+  const [spokenAnswerText, setSpokenAnswerText] = useState<string>("");
+  const [speechError, setSpeechError] = useState<string>("");
+  const recognitionRef = useRef<any>(null);
+  const autoAdvanceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const matchSpokenTextToOption = (spoken: string, options: string[]): number => {
+    const text = spoken.toLowerCase().trim();
+    const words = text.split(/\s+/);
+    
+    // 1. Spoken letters map (A, B, C, D)
+    const letterMap: Record<string, number> = {
+      'a': 0, 'alpha': 0, 'apple': 0, 'awesome': 0, 'first': 0,
+      'b': 1, 'bee': 1, 'be': 1, 'beta': 1, 'boy': 1, 'second': 1,
+      'c': 2, 'see': 2, 'sea': 2, 'charlie': 2, 'cat': 2, 'third': 2,
+      'd': 3, 'dee': 3, 'delta': 3, 'dog': 3, 'the': 3, 'four': 3, 'fourth': 3
+    };
+
+    for (const word of words) {
+      const cleanWord = word.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
+      if (letterMap[cleanWord] !== undefined) {
+        return letterMap[cleanWord];
+      }
+    }
+
+    for (const letter of ['a', 'b', 'c', 'd']) {
+      if (text.includes(`option ${letter}`) || text.includes(`choice ${letter}`) || text.includes(`select ${letter}`) || text.includes(`answer ${letter}`)) {
+        return letter.charCodeAt(0) - 97;
+      }
+    }
+
+    // 2. Numeric indices map
+    const numberMap: Record<string, number> = {
+      '1': 0, 'one': 0,
+      '2': 1, 'two': 1, 'to': 1, 'too': 1,
+      '3': 2, 'three': 2,
+      '4': 3, 'four': 3, 'for': 3
+    };
+
+    for (const word of words) {
+      const cleanWord = word.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
+      if (numberMap[cleanWord] !== undefined) {
+        return numberMap[cleanWord];
+      }
+    }
+
+    // 3. Exact or loose options content matching
+    let bestMatchIndex = -1;
+    let bestMatchScore = 0;
+
+    options.forEach((option, idx) => {
+      const optText = option.toLowerCase().trim();
+      if (text === optText) {
+        bestMatchIndex = idx;
+        bestMatchScore = 100;
+      } else if (text.includes(optText) && optText.length > 3 && optText.length > bestMatchScore) {
+        bestMatchIndex = idx;
+        bestMatchScore = optText.length;
+      } else if (optText.includes(text) && text.length > 3 && text.length > bestMatchScore) {
+        bestMatchIndex = idx;
+        bestMatchScore = text.length;
+      }
+    });
+
+    if (bestMatchIndex !== -1) {
+      return bestMatchIndex;
+    }
+
+    // 4. Overlap fallback
+    let maxOverlap = 0;
+    options.forEach((option, idx) => {
+      const optWords = option.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "").split(/\s+/).filter(w => w.length > 2);
+      const spokenWords = text.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "").split(/\s+/).filter(w => w.length > 2);
+      const overlap = optWords.filter(w => spokenWords.includes(w)).length;
+      if (overlap > maxOverlap) {
+        maxOverlap = overlap;
+        bestMatchIndex = idx;
+      }
+    });
+
+    if (maxOverlap > 0) {
+      return bestMatchIndex;
+    }
+
+    return -1;
+  };
+
+  const startRecordingAnswer = () => {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    setIsReadingAloud(false);
+    
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSpeechError("Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.");
+      setTimeout(() => setSpeechError(""), 4000);
+      return;
+    }
+
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => {
+        setIsRecordingAnswer(true);
+        setSpokenAnswerText("");
+        setSpeechError("");
+      };
+
+      rec.onresult = (event: any) => {
+        if (event.results && event.results[0] && event.results[0][0]) {
+          const result = event.results[0][0].transcript;
+          setSpokenAnswerText(result);
+          
+          const currentQ = currentQuestions[currentQuestionIndex];
+          if (currentQ) {
+            const matchedIdx = matchSpokenTextToOption(result, currentQ.options);
+            if (matchedIdx !== -1) {
+              handleOptionClick(matchedIdx);
+            } else {
+              setSpeechError(`Could not match voice input: "${result}". Speak an option letter (e.g., "Option A") or opt text.`);
+              setTimeout(() => setSpeechError(""), 5000);
+            }
+          }
+        }
+      };
+
+      rec.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        if (event.error === 'not-allowed') {
+          setSpeechError("Microphone access denied. Please allow microphone permission in your browser.");
+        } else if (event.error === 'no-speech') {
+          setSpeechError("No speech detected. Please speak louder or closer to the microphone.");
+        } else if (event.error === 'network') {
+          setSpeechError("Network error occurred. The browser's speech recognition service is temporarily unreachable. Please check your internet or retry.");
+        } else {
+          setSpeechError(`Speech recognition error: ${event.error}`);
+        }
+        setIsRecordingAnswer(false);
+        setTimeout(() => setSpeechError(""), 6000);
+      };
+
+      rec.onend = () => {
+        setIsRecordingAnswer(false);
+      };
+
+      recognitionRef.current = rec;
+      rec.start();
+    } catch (err: any) {
+      console.error(err);
+      setSpeechError("Failed to initialize speech recognition.");
+      setIsRecordingAnswer(false);
+      setTimeout(() => setSpeechError(""), 4000);
+    }
+  };
+
+  const stopRecordingAnswer = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    setIsRecordingAnswer(false);
+  };
+
+  const toggleRecordingAnswer = () => {
+    if (isRecordingAnswer) {
+      stopRecordingAnswer();
+    } else {
+      startRecordingAnswer();
+    }
+  };
 
   // --- Classroom Multiplayer Battle stats ---
   const [classroomSession, setClassroomSession] = useState<ClassroomSession | null>(null);
@@ -421,6 +891,31 @@ export default function App() {
   ]);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
   const [isMaterialManagerOpen, setIsMaterialManagerOpen] = useState<boolean>(false);
+
+  // Load study materials from IndexedDB on startup (stays in browser, complies with offline local mandate)
+  useEffect(() => {
+    const loadIndexedDbMaterials = async () => {
+      try {
+        const stored = await get_idb<StudyMaterial[]>('scholarearn_custom_materials');
+        if (stored && stored.length > 0) {
+          setMaterials(stored);
+        }
+      } catch (err) {
+        console.warn("Could not retrieve custom study materials from browser cache:", err);
+      }
+    };
+    loadIndexedDbMaterials();
+  }, []);
+
+  // Helper to persist materials to IndexedDB
+  const saveMaterialsToIndexedDb = async (updated: StudyMaterial[]) => {
+    setMaterials(updated);
+    try {
+      await set_idb('scholarearn_custom_materials', updated);
+    } catch (err) {
+      console.warn("Could not persist custom study materials in browser cache:", err);
+    }
+  };
 
   // --- Diagnosis Synthesizer Loaders ---
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
@@ -454,7 +949,8 @@ export default function App() {
               level: 1,
               totalQuizzes: 0,
               totalPoints: 0,
-              testHistory: []
+              testHistory: [],
+              educationLevel: 'School'
             };
             await setDoc(userDocRef, initialUser);
             setUser(initialUser);
@@ -550,6 +1046,11 @@ export default function App() {
 
   // --- Load and synthesize questions ---
   const initiateDiagnosis = async () => {
+    if (autoAdvanceTimeoutRef.current) {
+      clearTimeout(autoAdvanceTimeoutRef.current);
+      autoAdvanceTimeoutRef.current = null;
+    }
+
     if (!user.name.trim()) {
       alert("Please configure your Student Name before starting the diagnose course.");
       return;
@@ -628,6 +1129,11 @@ export default function App() {
 
   // --- Trigger Classroom Battle ---
   const startClassroomSession = async (groupsList: Group[], timerDuration: number) => {
+    if (autoAdvanceTimeoutRef.current) {
+      clearTimeout(autoAdvanceTimeoutRef.current);
+      autoAdvanceTimeoutRef.current = null;
+    }
+
     if (!user.topic.trim()) {
       alert("Please select or type a Topic focus first.");
       return;
@@ -710,6 +1216,10 @@ export default function App() {
       isCorrect: correct
     });
 
+    if (soundEffectsEnabled) {
+      playAudioFeedback(correct);
+    }
+
     // Update ongoing answers
     const nextAnswers = [...userAnswers];
     nextAnswers[currentQuestionIndex] = optionIdx;
@@ -720,6 +1230,14 @@ export default function App() {
       const niceWords = ['Outstanding!', 'Phenomenal!', 'Impeccable!', 'Strategic Mind!', 'Elite Master!'];
       setMotivationText(niceWords[Math.floor(Math.random() * niceWords.length)]);
       setShowMotivationalPopup(true);
+
+      // Instantly clear any old timeout, set the automatic next answer transition to 2500ms
+      if (autoAdvanceTimeoutRef.current) {
+        clearTimeout(autoAdvanceTimeoutRef.current);
+      }
+      autoAdvanceTimeoutRef.current = setTimeout(() => {
+        handleNextQuizQuestion();
+      }, 4000);
     }
 
     // Adapt states
@@ -756,6 +1274,15 @@ export default function App() {
 
   // --- Advance inside Quiz ---
   const handleNextQuizQuestion = () => {
+    if (autoAdvanceTimeoutRef.current) {
+      clearTimeout(autoAdvanceTimeoutRef.current);
+      autoAdvanceTimeoutRef.current = null;
+    }
+
+    // Reset voice recording results
+    setSpokenAnswerText("");
+    setSpeechError("");
+
     if (currentQuestionIndex + 1 < currentQuestions.length) {
       setCurrentQuestionIndex(prev => prev + 1);
       setFeedback(null);
@@ -833,6 +1360,672 @@ export default function App() {
     }
   };
 
+  // --- Export / Download Report Card Handlers ---
+  const downloadTextReport = () => {
+    if (!activeQuiz) return;
+    const dateStr = new Date().toLocaleDateString();
+    const percentage = Math.round((activeQuiz.score / activeQuiz.questions.length) * 100);
+    
+    let content = `======================================================================\n`;
+    content += `               SCHOLAR EARN — DIAGNOSTIC REPORT CARD                  \n`;
+    content += `======================================================================\n\n`;
+    content += `STUDENT INTELLIGENCE PROFILE:\n`;
+    content += `---------------------\n`;
+    content += `Student Name   : ${activeQuiz.profile.name}\n`;
+    content += `Grade Level    : Grade ${activeQuiz.profile.gradeLevel}\n`;
+    content += `Subject Focus  : ${activeQuiz.profile.subject}\n`;
+    content += `Topic Focus    : ${activeQuiz.profile.topic}\n`;
+    content += `Syllabus Focus : ${activeQuiz.profile.focus}\n`;
+    content += `Date Evaluated : ${dateStr}\n\n`;
+    
+    content += `DIAGNOSTIC SCORE ACQUISITION:\n`;
+    content += `---------------------\n`;
+    content += `Score Accrued  : ${activeQuiz.score} / ${activeQuiz.questions.length} (${percentage}% Accuracy)\n`;
+    content += `Points Earned  : +${activeQuiz.score * 10} pts\n`;
+    content += `Level Status   : Progressive Level ${activeQuiz.profile.level}\n\n`;
+    
+    content += `EXPERT EVALUATOR RECOMMENDATION:\n`;
+    content += `--------------------------------\n`;
+    const recommendation = activeQuiz.score === 5 
+      ? "Flawless score! Your conceptual foundation is rock-solid. You are authorized to step up layout progressive level challenges." 
+      : activeQuiz.score >= 3 
+        ? "Competent coverage! Focus on explanations mapped in wrong choices to reinforce board diagnostics." 
+        : "Requires review. Ingest related source textbook readings inside the Library to ground future diagnostics.";
+    content += `${recommendation}\n\n`;
+    
+    content += `ITEMIZED QUESTION PERFORMANCE EVALUATION:\n`;
+    content += `======================================================================\n\n`;
+    
+    activeQuiz.questions.forEach((q, idx) => {
+      const userAnsIdx = activeQuiz.userAnswers[idx];
+      const isCorrect = userAnsIdx === q.correctIndex;
+      const userSelection = userAnsIdx !== null ? q.options[userAnsIdx] : "Unanswered/Timeout";
+      const correctSelection = q.options[q.correctIndex];
+      
+      content += `QUESTION ${idx + 1}: ${q.text}\n`;
+      if (q.contextMaterial) {
+        content += `[Context Detail]: ${q.contextMaterial}\n`;
+      }
+      content += `----------------------------------------------------------------------\n`;
+      q.options.forEach((opt, oIdx) => {
+        const optionPrefix = String.fromCharCode(65 + oIdx);
+        let marker = "   ";
+        if (oIdx === q.correctIndex) marker = "[✓]";
+        if (oIdx === userAnsIdx && !isCorrect) marker = "[✗]";
+        content += `  ${marker} ${optionPrefix}. ${opt}\n`;
+      });
+      content += `\n`;
+      content += `  Your Answer   : ${userAnsIdx !== null ? String.fromCharCode(65 + userAnsIdx) : "None"} (${userSelection})\n`;
+      content += `  Correct Answer: ${String.fromCharCode(65 + q.correctIndex)} (${correctSelection})\n`;
+      content += `  Evaluation    : ${isCorrect ? "CORRECT" : "INCORRECT"}\n`;
+      content += `  Explanation   : ${q.explanation}\n`;
+      if (q.inquiryPrompt) {
+        content += `  Inquiry Drift : ${q.inquiryPrompt}\n`;
+      }
+      content += `======================================================================\n\n`;
+    });
+    
+    content += `Generated dynamically via Scholar Earn Intelligent Adaptive Sandbox.\n`;
+    
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${activeQuiz.profile.name.replace(/\s+/g, '_')}_ScholarEarn_ReportCard.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadHtmlReport = () => {
+    if (!activeQuiz) return;
+    const dateStr = new Date().toLocaleDateString();
+    const percentage = Math.round((activeQuiz.score / activeQuiz.questions.length) * 100);
+    const recommendation = activeQuiz.score === 5 
+      ? "Flawless score! Your conceptual foundation is rock-solid. You are authorized to step up progressive level challenges." 
+      : activeQuiz.score >= 3 
+        ? "Competent coverage! Focus on explanations mapped in wrong choices to reinforce board diagnostics." 
+        : "Requires review. Ingest related source textbook readings inside the Library to ground future diagnostics.";
+
+    let content = "";
+    content += "<!DOCTYPE html>\n";
+    content += "<html lang=\"en\">\n";
+    content += "<head>\n";
+    content += "    <meta charset=\"UTF-8\">\n";
+    content += "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
+    content += "    <title>Scholar Earn Diagnostic Report Card - " + activeQuiz.profile.name + "</title>\n";
+    content += "    <style>\n";
+    content += "        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');\n";
+    content += "        \n";
+    content += "        :root {\n";
+    content += "            --primary: #4f46e5;\n";
+    content += "            --primary-light: #e0e7ff;\n";
+    content += "            --tertiary: #0d9488;\n";
+    content += "            --tertiary-light: #ccfbf1;\n";
+    content += "            --danger: #e11d48;\n";
+    content += "            --danger-light: #ffe4e6;\n";
+    content += "            --surface: #f8fafc;\n";
+    content += "            --text-main: #0f172a;\n";
+    content += "            --text-muted: #475569;\n";
+    content += "            --border: #e2e8f0;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        body {\n";
+    content += "            font-family: 'Inter', sans-serif;\n";
+    content += "            background-color: #f1f5f9;\n";
+    content += "            color: var(--text-main);\n";
+    content += "            margin: 0;\n";
+    content += "            padding: 40px 20px;\n";
+    content += "            display: flex;\n";
+    content += "            justify-content: center;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .report-card {\n";
+    content += "            background: white;\n";
+    content += "            max-width: 850px;\n";
+    content += "            width: 100%;\n";
+    content += "            border-radius: 24px;\n";
+    content += "            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05);\n";
+    content += "            border: 1px solid var(--border);\n";
+    content += "            padding: 40px;\n";
+    content += "            box-sizing: border-box;\n";
+    content += "            position: relative;\n";
+    content += "            overflow: hidden;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .report-card::before {\n";
+    content += "            content: '';\n";
+    content += "            position: absolute;\n";
+    content += "            top: 0;\n";
+    content += "            left: 0;\n";
+    content += "            right: 0;\n";
+    content += "            height: 8px;\n";
+    content += "            background: linear-gradient(90deg, var(--primary), var(--tertiary));\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .header-section {\n";
+    content += "            display: flex;\n";
+    content += "            justify-content: space-between;\n";
+    content += "            align-items: center;\n";
+    content += "            border-bottom: 2px solid var(--border);\n";
+    content += "            padding-bottom: 24px;\n";
+    content += "            margin-bottom: 30px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .branding h1 {\n";
+    content += "            font-family: 'Space Grotesk', sans-serif;\n";
+    content += "            font-weight: 700;\n";
+    content += "            font-size: 28px;\n";
+    content += "            color: var(--primary);\n";
+    content += "            margin: 0;\n";
+    content += "            letter-spacing: -0.5px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .branding p {\n";
+    content += "            font-size: 11px;\n";
+    content += "            text-transform: uppercase;\n";
+    content += "            font-weight: 700;\n";
+    content += "            letter-spacing: 2px;\n";
+    content += "            color: var(--text-muted);\n";
+    content += "            margin: 4px 0 0 0;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .metadata-badge {\n";
+    content += "            text-align: right;\n";
+    content += "            font-size: 13px;\n";
+    content += "            color: var(--text-muted);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .metadata-badge .code {\n";
+    content += "            font-family: 'JetBrains Mono', monospace;\n";
+    content += "            font-weight: 600;\n";
+    content += "            color: var(--text-main);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .profile-grid {\n";
+    content += "            display: grid;\n";
+    content += "            grid-template-cols: repeat(auto-fit, minmax(200px, 1fr));\n";
+    content += "            gap: 20px;\n";
+    content += "            margin-bottom: 35px;\n";
+    content += "            background: var(--surface);\n";
+    content += "            padding: 24px;\n";
+    content += "            border-radius: 16px;\n";
+    content += "            border: 1px solid var(--border);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .profile-item {\n";
+    content += "            display: flex;\n";
+    content += "            flex-direction: column;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .profile-item .label {\n";
+    content += "            font-size: 11px;\n";
+    content += "            text-transform: uppercase;\n";
+    content += "            font-weight: 600;\n";
+    content += "            color: var(--text-muted);\n";
+    content += "            margin-bottom: 4px;\n";
+    content += "            letter-spacing: 0.5px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .profile-item .val {\n";
+    content += "            font-size: 15px;\n";
+    content += "            font-weight: 700;\n";
+    content += "            color: var(--text-main);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .metrics-container {\n";
+    content += "            display: grid;\n";
+    content += "            grid-template-cols: repeat(auto-fit, minmax(240px, 1fr));\n";
+    content += "            gap: 20px;\n";
+    content += "            margin-bottom: 35px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .metric-box {\n";
+    content += "            border-radius: 16px;\n";
+    content += "            padding: 24px;\n";
+    content += "            text-align: center;\n";
+    content += "            display: flex;\n";
+    content += "            flex-direction: column;\n";
+    content += "            justify-content: center;\n";
+    content += "            align-items: center;\n";
+    content += "            border: 1px solid transparent;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .metric-box.score {\n";
+    content += "            background-color: var(--primary-light);\n";
+    content += "            color: var(--primary);\n";
+    content += "            border-color: rgba(79, 70, 229, 0.2);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .metric-box.points {\n";
+    content += "            background-color: var(--tertiary-light);\n";
+    content += "            color: var(--tertiary);\n";
+    content += "            border-color: rgba(13, 148, 136, 0.2);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .metric-box .title {\n";
+    content += "            font-size: 11px;\n";
+    content += "            text-transform: uppercase;\n";
+    content += "            font-weight: 700;\n";
+    content += "            letter-spacing: 1.5px;\n";
+    content += "            margin-bottom: 8px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .metric-box .value {\n";
+    content += "            font-size: 42px;\n";
+    content += "            font-weight: 800;\n";
+    content += "            font-family: 'Space Grotesk', sans-serif;\n";
+    content += "            line-height: 1;\n";
+    content += "            margin: 0;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .metric-box .subtext {\n";
+    content += "            font-size: 12px;\n";
+    content += "            margin-top: 6px;\n";
+    content += "            font-weight: 500;\n";
+    content += "            opacity: 0.8;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .recommendation-box {\n";
+    content += "            background: linear-gradient(135deg, #faf5ff, #f3e8ff);\n";
+    content += "            border: 1px solid #e9d5ff;\n";
+    content += "            border-radius: 16px;\n";
+    content += "            padding: 24px;\n";
+    content += "            margin-bottom: 40px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .recommendation-box h3 {\n";
+    content += "            font-family: 'Space Grotesk', sans-serif;\n";
+    content += "            margin: 0 0 8px 0;\n";
+    content += "            color: #7e22ce;\n";
+    content += "            font-size: 16px;\n";
+    content += "            font-weight: 700;\n";
+    content += "            text-transform: uppercase;\n";
+    content += "            letter-spacing: 0.5px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .recommendation-box p {\n";
+    content += "            margin: 0;\n";
+    content += "            font-size: 14px;\n";
+    content += "            line-height: 1.6;\n";
+    content += "            color: #581c87;\n";
+    content += "            font-weight: 500;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .solution-section h3 {\n";
+    content += "            font-family: 'Space Grotesk', sans-serif;\n";
+    content += "            color: var(--text-main);\n";
+    content += "            font-size: 18px;\n";
+    content += "            font-weight: 700;\n";
+    content += "            margin: 0 0 20px 0;\n";
+    content += "            border-left: 4px solid var(--primary);\n";
+    content += "            padding-left: 12px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .solution-item {\n";
+    content += "            background: white;\n";
+    content += "            border: 1px solid var(--border);\n";
+    content += "            border-radius: 16px;\n";
+    content += "            padding: 24px;\n";
+    content += "            margin-bottom: 20px;\n";
+    content += "            transition: all 0.2s ease;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .solution-item.correct {\n";
+    content += "            border-left: 5px solid var(--tertiary);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .solution-item.incorrect {\n";
+    content += "            border-left: 5px solid var(--danger);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .solution-header {\n";
+    content += "            display: flex;\n";
+    content += "            justify-content: space-between;\n";
+    content += "            align-items: flex-start;\n";
+    content += "            margin-bottom: 15px;\n";
+    content += "            gap: 15px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .question-num {\n";
+    content += "            font-family: 'Space Grotesk', sans-serif;\n";
+    content += "            font-weight: 700;\n";
+    content += "            font-size: 13px;\n";
+    content += "            text-transform: uppercase;\n";
+    content += "            letter-spacing: 1px;\n";
+    content += "            padding: 4px 10px;\n";
+    content += "            border-radius: 8px;\n";
+    content += "            white-space: nowrap;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .correct .question-num {\n";
+    content += "            background-color: var(--tertiary-light);\n";
+    content += "            color: var(--tertiary);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .incorrect .question-num {\n";
+    content += "            background-color: var(--danger-light);\n";
+    content += "            color: var(--danger);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .question-text {\n";
+    content += "            font-size: 15px;\n";
+    content += "            font-weight: 600;\n";
+    content += "            line-height: 1.5;\n";
+    content += "            color: var(--text-main);\n";
+    content += "            margin: 0;\n";
+    content += "            flex-grow: 1;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .context-box {\n";
+    content += "            font-family: 'JetBrains Mono', monospace;\n";
+    content += "            background: #f8fafc;\n";
+    content += "            border: 1px solid var(--border);\n";
+    content += "            padding: 12px 16px;\n";
+    content += "            border-radius: 10px;\n";
+    content += "            font-size: 12px;\n";
+    content += "            color: var(--text-muted);\n";
+    content += "            margin: 10px 0 15px 0;\n";
+    content += "            line-height: 1.5;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .options-list {\n";
+    content += "            display: grid;\n";
+    content += "            grid-template-cols: 1fr;\n";
+    content += "            gap: 10px;\n";
+    content += "            margin-bottom: 20px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .option-val {\n";
+    content += "            font-size: 13px;\n";
+    content += "            padding: 10px 14px;\n";
+    content += "            border-radius: 10px;\n";
+    content += "            border: 1px solid var(--border);\n";
+    content += "            display: flex;\n";
+    content += "            align-items: center;\n";
+    content += "            gap: 10px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .option-val.correct-choice {\n";
+    content += "            background-color: #f0fdf4;\n";
+    content += "            border-color: #bbf7d0;\n";
+    content += "            color: #166534;\n";
+    content += "            font-weight: 600;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .option-val.user-wrong-choice {\n";
+    content += "            background-color: #fef2f2;\n";
+    content += "            border-color: #fecaca;\n";
+    content += "            color: #991b1b;\n";
+    content += "            font-weight: 600;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .badge-marker {\n";
+    content += "            width: 20px;\n";
+    content += "            height: 20px;\n";
+    content += "            border-radius: 50%;\n";
+    content += "            display: inline-flex;\n";
+    content += "            align-items: center;\n";
+    content += "            justify-content: center;\n";
+    content += "            font-size: 10px;\n";
+    content += "            font-weight: 700;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .correct-choice .badge-marker {\n";
+    content += "            background-color: #15803d;\n";
+    content += "            color: white;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .user-wrong-choice .badge-marker {\n";
+    content += "            background-color: var(--danger);\n";
+    content += "            color: white;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .explanation-block {\n";
+    content += "            background-color: var(--surface);\n";
+    content += "            border-radius: 12px;\n";
+    content += "            padding: 16px;\n";
+    content += "            border: 1px solid var(--border);\n";
+    content += "        }\n";
+    content += "        \n";
+    content += "        .explanation-block .label-title {\n";
+    content += "            font-size: 11px;\n";
+    content += "            text-transform: uppercase;\n";
+    content += "            font-weight: 700;\n";
+    content += "            color: var(--text-muted);\n";
+    content += "            margin-bottom: 6px;\n";
+    content += "            letter-spacing: 0.5px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .explanation-block .explanation-text {\n";
+    content += "            font-size: 13px;\n";
+    content += "            line-height: 1.6;\n";
+    content += "            color: var(--text-muted);\n";
+    content += "            margin: 0;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .inquiry-drift {\n";
+    content += "            margin-top: 10px;\n";
+    content += "            font-size: 12px;\n";
+    content += "            font-style: italic;\n";
+    content += "            color: var(--primary);\n";
+    content += "            font-weight: 500;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .footer {\n";
+    content += "            margin-top: 50px;\n";
+    content += "            border-top: 1px dashed var(--border);\n";
+    content += "            padding-top: 20px;\n";
+    content += "            text-align: center;\n";
+    content += "            font-size: 11px;\n";
+    content += "            color: var(--text-muted);\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .print-btn-float {\n";
+    content += "            position: fixed;\n";
+    content += "            bottom: 30px;\n";
+    content += "            right: 30px;\n";
+    content += "            background: var(--primary);\n";
+    content += "            color: white;\n";
+    content += "            border: none;\n";
+    content += "            padding: 14px 24px;\n";
+    content += "            border-radius: 50px;\n";
+    content += "            font-family: 'Space Grotesk', sans-serif;\n";
+    content += "            font-weight: 700;\n";
+    content += "            font-size: 14px;\n";
+    content += "            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4);\n";
+    content += "            cursor: pointer;\n";
+    content += "            transition: all 0.2s ease;\n";
+    content += "            display: flex;\n";
+    content += "            align-items: center;\n";
+    content += "            gap: 10px;\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        .print-btn-float:hover {\n";
+    content += "            transform: translateY(-2px);\n";
+    content += "            box-shadow: 0 12px 20px -3px rgba(79, 70, 229, 0.5);\n";
+    content += "        }\n";
+    content += "        \n";
+    content += "        @media (max-width: 600px) {\n";
+    content += "            body {\n";
+    content += "                padding: 10px;\n";
+    content += "            }\n";
+    content += "            .report-card {\n";
+    content += "                padding: 20px;\n";
+    content += "            }\n";
+    content += "            .header-section {\n";
+    content += "                flex-direction: column;\n";
+    content += "                align-items: flex-start;\n";
+    content += "                gap: 15px;\n";
+    content += "            }\n";
+    content += "            .metadata-badge {\n";
+    content += "                text-align: left;\n";
+    content += "            }\n";
+    content += "        }\n";
+    content += "\n";
+    content += "        @media print {\n";
+    content += "            body {\n";
+    content += "                background: white;\n";
+    content += "                padding: 0;\n";
+    content += "                color: black;\n";
+    content += "            }\n";
+    content += "            .report-card {\n";
+    content += "                box-shadow: none;\n";
+    content += "                border: none;\n";
+    content += "                padding: 0;\n";
+    content += "                width: 100%;\n";
+    content += "                max-width: 100%;\n";
+    content += "            }\n";
+    content += "            .print-btn-float {\n";
+    content += "                display: none;\n";
+    content += "            }\n";
+    content += "            .solution-item {\n";
+    content += "                break-inside: avoid;\n";
+    content += "            }\n";
+    content += "        }\n";
+    content += "    </style>\n";
+    content += "</head>\n";
+    content += "<body>\n";
+    content += "\n";
+    content += "    <div class=\"report-card\">\n";
+    content += "        <div class=\"header-section\">\n";
+    content += "            <div class=\"branding\">\n";
+    content += "                <h1>Scholar Earn</h1>\n";
+    content += "                <p>Intelligent Adaptive Sandbox Report</p>\n";
+    content += "            </div>\n";
+    content += "            <div class=\"metadata-badge\">\n";
+    content += "                Registered Diagnostic Code:<br>\n";
+    content += "                <span class=\"code\">SEQ-" + Math.floor(Math.random() * 900000 + 100000) + "</span><br>\n";
+    content += "                Issued on " + dateStr + "\n";
+    content += "            </div>\n";
+    content += "        </div>\n";
+    content += "\n";
+    content += "        <div class=\"profile-grid\">\n";
+    content += "            <div class=\"profile-item\">\n";
+    content += "                <span class=\"label\">Student Name</span>\n";
+    content += "                <span class=\"val\">" + activeQuiz.profile.name + "</span>\n";
+    content += "            </div>\n";
+    content += "            <div class=\"profile-item\">\n";
+    content += "                <span class=\"label\">Academic Target</span>\n";
+    content += "                <span class=\"val\">Grade " + activeQuiz.profile.gradeLevel + "</span>\n";
+    content += "            </div>\n";
+    content += "            <div class=\"profile-item\">\n";
+    content += "                <span class=\"label\">Syllabus Track</span>\n";
+    content += "                <span class=\"val\">" + activeQuiz.profile.focus + "</span>\n";
+    content += "            </div>\n";
+    content += "            <div class=\"profile-item\">\n";
+    content += "                <span class=\"label\">Diagnostic Category</span>\n";
+    content += "                <span class=\"val\">" + activeQuiz.profile.subject + "</span>\n";
+    content += "            </div>\n";
+    content += "            <div class=\"profile-item\">\n";
+    content += "                <span class=\"label\">Challenge Topic</span>\n";
+    content += "                <span class=\"val\">" + activeQuiz.profile.topic + "</span>\n";
+    content += "            </div>\n";
+    content += "        </div>\n";
+    content += "\n";
+    content += "        <div class=\"metrics-container\">\n";
+    content += "            <div class=\"metric-box score\">\n";
+    content += "                <span class=\"title\">Evaluative Accuracy</span>\n";
+    content += "                <p class=\"value\">" + activeQuiz.score + "/" + activeQuiz.questions.length + "</p>\n";
+    content += "                <span class=\"subtext\">" + percentage + "% Complete Mastery</span>\n";
+    content += "            </div>\n";
+    content += "            <div class=\"metric-box points\">\n";
+    content += "                <span class=\"title\">Skill Accumulation</span>\n";
+    content += "                <p class=\"value\">+" + (activeQuiz.score * 10) + " pts</p>\n";
+    content += "                <span class=\"subtext\">Progressive Level Level " + activeQuiz.profile.level + " Reached</span>\n";
+    content += "            </div>\n";
+    content += "        </div>\n";
+    content += "\n";
+    content += "        <div class=\"recommendation-box\">\n";
+    content += "            <h3>Expert Evaluator Recommendation</h3>\n";
+    content += "            <p>" + recommendation + "</p>\n";
+    content += "        </div>\n";
+    content += "\n";
+    content += "        <div class=\"solution-section\">\n";
+    content += "            <h3>Itemized Challenge Mastery Review</h3>\n";
+
+    activeQuiz.questions.forEach((q, idx) => {
+      const userAnsIdx = activeQuiz.userAnswers[idx];
+      const isCorrect = userAnsIdx === q.correctIndex;
+      const isUnanswered = userAnsIdx === null;
+      
+      content += "\n";
+      content += "            <div class=\"solution-item " + (isCorrect ? "correct" : "incorrect") + "\">\n";
+      content += "                <div class=\"solution-header\">\n";
+      content += "                    <span class=\"question-num\">Q" + (idx + 1) + " &mdash; " + (isCorrect ? "Correct" : isUnanswered ? "Unanswered" : "Incorrect") + "</span>\n";
+      content += "                    <p class=\"question-text\">" + q.text.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</p>\n";
+      content += "                </div>\n";
+      
+      if (q.contextMaterial) {
+        content += "                <div class=\"context-box\">\n";
+        content += "                    <strong>Reference Context:</strong><br>\n";
+        content += "                    " + q.contextMaterial.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "\n";
+        content += "                </div>\n";
+      }
+
+      content += "                <div class=\"options-list\">\n";
+
+      q.options.forEach((opt, oIdx) => {
+        const optionLetter = String.fromCharCode(65 + oIdx);
+        let specialClass = "";
+        let markerText = "<span>" + optionLetter + ".</span> ";
+        
+        if (oIdx === q.correctIndex) {
+          specialClass = "correct-choice";
+          markerText = "<span class=\"badge-marker\">✓</span> ";
+        } else if (oIdx === userAnsIdx && !isCorrect) {
+          specialClass = "user-wrong-choice";
+          markerText = "<span class=\"badge-marker\">✗</span> ";
+        }
+        
+        content += "                    <div class=\"option-val " + specialClass + "\">\n";
+        content += "                        " + markerText + " " + opt.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "\n";
+        content += "                    </div>\n";
+      });
+
+      content += "                </div>\n";
+      content += "\n";
+      content += "                <div class=\"explanation-block\">\n";
+      content += "                    <p class=\"label-title\">Explanatory Feed</p>\n";
+      content += "                    <p class=\"explanation-text\">" + q.explanation.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</p>\n";
+      if (q.inquiryPrompt) {
+        content += "                    <p class=\"inquiry-drift\">💡 Explore Further: " + q.inquiryPrompt.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</p>\n";
+      }
+      content += "                </div>\n";
+      content += "            </div>\n";
+    });
+
+    content += "        </div>\n";
+    content += "\n";
+    content += "        <div class=\"footer\">\n";
+    content += "            Generated via Scholar Earn Intelligent Adaptive Sandbox. Powered by Gemini AI Experts.\n";
+    content += "        </div>\n";
+    content += "    </div>\n";
+    content += "\n";
+    content += "    <button class=\"print-btn-float\" onclick=\"window.print()\">\n";
+    content += "        <svg style=\"width:20px;height:20px\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n";
+    content += "            <polyline points=\"6 9 6 2 18 2 18 9\"></polyline>\n";
+    content += "            <path d=\"M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2\"></path>\n";
+    content += "            <rect x=\"6\" y=\"14\" width=\"12\" height=\"8\"></rect>\n";
+    content += "        </svg>\n";
+    content += "        Print / Save PDF\n";
+    content += "    </button>\n";
+    content += "\n";
+    content += "</body>\n";
+    content += "</html>";
+
+    const blob = new Blob([content], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${activeQuiz.profile.name.replace(/\s+/g, '_')}_ScholarEarn_ReportCard.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // --- Custom Material Handlers ---
   const handleAddNewMaterial = (title: string, content: string) => {
     const newItem: StudyMaterial = {
@@ -841,13 +2034,15 @@ export default function App() {
       content,
       timestamp: Date.now()
     };
-    setMaterials([...materials, newItem]);
+    const updated = [...materials, newItem];
+    saveMaterialsToIndexedDb(updated);
     setSelectedMaterialId(newItem.id);
     setIsMaterialManagerOpen(false);
   };
 
   const handleDeleteMaterial = (id: string) => {
-    setMaterials(materials.filter(m => m.id !== id));
+    const updated = materials.filter(m => m.id !== id);
+    saveMaterialsToIndexedDb(updated);
     if (selectedMaterialId === id) setSelectedMaterialId(null);
   };
 
@@ -871,6 +2066,10 @@ export default function App() {
 
   // --- Reset to profile launch ---
   const handleResetToMenu = () => {
+    if (autoAdvanceTimeoutRef.current) {
+      clearTimeout(autoAdvanceTimeoutRef.current);
+      autoAdvanceTimeoutRef.current = null;
+    }
     setCurrentScreen(AppScreen.ENTRY);
     setCurrentQuestions([]);
     setCurrentQuestionIndex(0);
@@ -909,7 +2108,7 @@ export default function App() {
           <GraduationCap className="w-8 h-8 text-primary" />
           <div>
             <h1 className="text-xl md:text-2xl font-headline font-extrabold text-on-surface tracking-tighter italic">ScholarEarn</h1>
-            <p className="text-[9px] uppercase tracking-widest text-primary/80 font-headline font-bold">2026 Academic Diagnostician</p>
+            <p className="text-[9px] uppercase tracking-widest text-primary/80 font-headline font-bold">Academic Diagnosis Platform</p>
           </div>
         </div>
 
@@ -976,15 +2175,62 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <button 
-              onClick={loginWithGoogle}
-              className="px-4 py-2 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-on-surface rounded-xl font-headline font-extrabold text-[10px] uppercase tracking-wider transition-colors"
-            >
-              Google Join
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button 
+                onClick={handleGoogleLogin}
+                className="px-3.5 py-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-on-surface rounded-xl font-headline font-extrabold text-[9px] uppercase tracking-wider transition-colors"
+                title="Sign in with your Google account"
+              >
+                Google Join
+              </button>
+              <button 
+                onClick={handleAnonymousLogin}
+                className="px-3.5 py-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-on-surface-variant font-headline font-extrabold text-[9px] uppercase tracking-wider rounded-xl transition-colors"
+                title="Instantly sign in as a guest with 1 tap (Highly recommended inside iframe preview)"
+              >
+                Guest Join
+              </button>
+            </div>
           )}
         </div>
       </header>
+
+      {/* Dynamic Sandbox Auth Error Handler Banner */}
+      {authError && (
+        <div className="max-w-4xl mx-auto w-full px-4 md:px-6 pt-4">
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-surface-container-highest/90 border border-secondary/30 p-4 rounded-2xl shadow-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 text-xs font-body"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-secondary/15 text-secondary flex-none mt-0.5 animate-pulse">
+                <Info className="w-4 h-4" />
+              </div>
+              <div className="space-y-1 text-left">
+                <p className="font-headline font-extrabold text-on-surface text-sm">Preview Iframe Sandbox Warning</p>
+                <p className="text-on-surface-variant leading-relaxed">{authError}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 justify-end flex-none">
+              <button 
+                onClick={handleAnonymousLogin}
+                className="px-3 py-2 bg-primary text-on-primary font-headline font-bold text-[9px] uppercase tracking-wider rounded-xl hover:bg-primary/90 active:scale-95 transition-all shadow-md"
+              >
+                Instant Guest Account
+              </button>
+              <button 
+                onClick={() => setAuthError(null)}
+                className="p-1.5 text-on-surface-variant hover:text-on-surface bg-white/5 rounded-xl border border-white/5 hover:border-white/10"
+                title="Dismiss warning"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Adaptive Screen Margins & Centered layouts based on configurations */}
       <main className={`flex-1 flex flex-col justify-start transition-all duration-300 ${
@@ -1013,7 +2259,87 @@ export default function App() {
 
                 <div className="space-y-1.5">
                   <h2 className="text-2xl md:text-3xl font-headline font-extrabold text-on-surface tracking-tighter tv-text-shadow italic">Mastery Entrance</h2>
-                  <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-headline font-bold">Configure client profiling models</p>
+                  <p className="text-[10px] uppercase tracking-widest text-primary font-headline font-extrabold">Students' Learning & Diagnosis Platform</p>
+                </div>
+
+                <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex gap-3 text-xs text-on-surface-variant font-body">
+                  <div className="p-2 bg-primary/10 text-primary rounded-xl h-fit">
+                    <Sparkles className="w-4 h-4 animate-pulse" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-headline font-extrabold text-on-surface text-sm">Welcome to ScholarEarn!</p>
+                    <p>This is a dedicated <strong>student's learning platform</strong> designed for syllabus alignment, customized practice, and diagnostic self-evaluation without any unnecessary pressure. Define your study program below to generate instant quizzes!</p>
+                  </div>
+                </div>
+
+                {/* Horizontal Education Level Selector */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                    <GraduationCap className="w-3.5 h-3.5 text-primary" /> Educational Stream Level
+                  </label>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                    {[
+                      { id: 'School', label: 'School (K-12)', icon: BookOpen, desc: 'Grades 1-12 & Boards' },
+                      { id: 'College', label: 'College Degree', icon: GraduationCap, desc: 'UG / PG & Majors' },
+                      { id: 'Competitive', label: 'Competitive Exam', icon: Trophy, desc: 'JEE/NEET/UPSC/Certs' },
+                      { id: 'Personal', label: 'Personal Study', icon: Sparkles, desc: 'General & Skill Topics' }
+                    ].map(tab => {
+                      const Icon = tab.icon;
+                      const isSelected = (user.educationLevel || 'School') === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => {
+                            let defaultBoard = '';
+                            let defaultGrade = '';
+                            let defaultSubject = '';
+                            let defaultTopic = '';
+                            if (tab.id === 'School') {
+                              defaultBoard = 'CBSE';
+                              defaultGrade = '10';
+                              defaultSubject = 'Science';
+                              defaultTopic = 'Light - Reflection and Refraction';
+                            } else if (tab.id === 'College') {
+                              defaultBoard = 'Computer Science & Engineering';
+                              defaultGrade = 'Third Year';
+                              defaultSubject = 'Artificial Intelligence';
+                              defaultTopic = 'Neural Networks and Deep Learning';
+                            } else if (tab.id === 'Competitive') {
+                              defaultBoard = 'UPSC Civil Services';
+                              defaultGrade = 'Prelims Phase';
+                              defaultSubject = 'Indian Polity & Constitution';
+                              defaultTopic = 'Fundamental Rights';
+                            } else {
+                              defaultBoard = 'Professional Level';
+                              defaultGrade = 'Self-Paced';
+                              defaultSubject = 'Creative Writing';
+                              defaultTopic = 'Plot Structure and Narrative Arc';
+                            }
+                            syncLocalUserProfile({
+                              ...user,
+                              educationLevel: tab.id as any,
+                              board: defaultBoard,
+                              gradeLevel: defaultGrade,
+                              subject: defaultSubject,
+                              topic: defaultTopic
+                            });
+                          }}
+                          className={`flex flex-col items-start justify-between p-3.5 rounded-2xl border text-left transition-all ${
+                            isSelected 
+                              ? 'bg-primary/20 border-primary text-on-surface shadow-lg shadow-primary/10' 
+                              : 'bg-surface-container-lowest/60 border-white/5 text-on-surface-variant hover:border-white/10 hover:bg-surface-container-lowest/80'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Icon className={`w-4 h-4 ${isSelected ? 'text-primary' : 'text-on-surface-variant/70'}`} />
+                            <span className="text-xs font-headline font-bold">{tab.label}</span>
+                          </div>
+                          <span className="text-[9px] text-on-surface-variant/60 block mt-1 line-clamp-1">{tab.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1031,38 +2357,146 @@ export default function App() {
                     />
                   </div>
 
-                  {/* Syllabus board */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                      <ShieldCheck className="w-3 h-3" /> Curriculum Syllabus Board
-                    </label>
-                    <select
-                      value={user.board}
-                      onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
-                      className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                    >
-                      <option value="CBSE">CBSE Board (Academic Year 2025-2026)</option>
-                      <option value="ICSE">ICSE Board Standards</option>
-                      <option value="IGCSE">International IGCSE Syllabus</option>
-                      <option value="State Board">Indian State Board Curriculum</option>
-                    </select>
-                  </div>
+                  {/* Syllabus / Board or Degree Major fields - Rendered Conditionally */}
+                  {(user.educationLevel || 'School') === 'School' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                        <ShieldCheck className="w-3 h-3" /> Curriculum Syllabus Board (K-12)
+                      </label>
+                      <select
+                        value={user.board || 'CBSE'}
+                        onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
+                      >
+                        <option value="CBSE">CBSE Board (Academic Year 2026-2027)</option>
+                        <option value="ICSE">ICSE Board Standards</option>
+                        <option value="IGCSE">International IGCSE Syllabus</option>
+                        <option value="State Board">Indian State Board Curriculum</option>
+                      </select>
+                    </div>
+                  )}
 
-                  {/* Grade dropdown */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                      <Trophy className="w-3 h-3" /> Class Grade Target
-                    </label>
-                    <select
-                      value={user.gradeLevel}
-                      onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
-                      className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                    >
-                      {Array.from({ length: 12 }, (_, i) => (
-                        <option key={i+1} value={(i+1).toString()}>Grade {i+1} (National Standard)</option>
-                      ))}
-                    </select>
-                  </div>
+                  {(user.educationLevel || 'School') === 'College' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                        <GraduationCap className="w-3 h-3" /> Degree major / Academic Stream
+                      </label>
+                      <input
+                        type="text"
+                        value={user.board || ''}
+                        onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                        placeholder="e.g. Computer Science, Medicine, MBA, Arts"
+                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
+                      />
+                    </div>
+                  )}
+
+                  {(user.educationLevel || 'School') === 'Competitive' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                        <Trophy className="w-3 h-3" /> Target Exam / Board
+                      </label>
+                      <input
+                        type="text"
+                        value={user.board || ''}
+                        onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                        placeholder="e.g. UPSC CSE, IIT JEE, NEET, GATE, AWS"
+                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
+                      />
+                    </div>
+                  )}
+
+                  {(user.educationLevel || 'School') === 'Personal' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                        <Sparkles className="w-3 h-3" /> Skill Focus Level
+                      </label>
+                      <select
+                        value={user.board || 'Advanced Masterclass'}
+                        onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
+                      >
+                        <option value="Beginner Theory">Beginner Theory & Foundational</option>
+                        <option value="Intermediate Applied">Intermediate Applied Skills</option>
+                        <option value="Advanced Masterclass">Advanced Masterclass & Pro</option>
+                        <option value="Specialized Vocations">Specialized Practice / Vocation</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Year or Grade selection dropdowns - Rendered Conditionally */}
+                  {(user.educationLevel || 'School') === 'School' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                        <Trophy className="w-3 h-3" /> Class Grade Target
+                      </label>
+                      <select
+                        value={user.gradeLevel}
+                        onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
+                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
+                      >
+                        {Array.from({ length: 12 }, (_, i) => (
+                          <option key={i+1} value={(i+1).toString()}>Grade {i+1} (National Standard)</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {(user.educationLevel || 'School') === 'College' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                        <Trophy className="w-3 h-3" /> Academic Year Stage
+                      </label>
+                      <select
+                        value={user.gradeLevel}
+                        onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
+                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
+                      >
+                        <option value="First Year">First Year (UG Core)</option>
+                        <option value="Second Year">Second Year (Intermediate UG)</option>
+                        <option value="Third Year">Third Year (Pre-Final Core)</option>
+                        <option value="Fourth Year">Fourth Year (Final Capstone)</option>
+                        <option value="Postgraduate Year 1">Postgraduate Year 1 (Master's Focus)</option>
+                        <option value="Postgraduate Year 2">Postgraduate Year 2 (Advanced Master's)</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {(user.educationLevel || 'School') === 'Competitive' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                        <Shield className="w-3 h-3" /> Exam Tier Stage
+                      </label>
+                      <select
+                        value={user.gradeLevel}
+                        onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
+                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
+                      >
+                        <option value="Prelims / Foundation">Prelims / Phase 1 Foundations</option>
+                        <option value="Mains / Advanced">Mains / Phase 2 Written Exams</option>
+                        <option value="All-In-One Mock Tier">All-In-One Full Blueprint Syllabus</option>
+                        <option value="Professional Credentials">Professional Credentials Assessment</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {(user.educationLevel || 'School') === 'Personal' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                        <ShieldCheck className="w-3 h-3" /> Study Rhythm
+                      </label>
+                      <select
+                        value={user.gradeLevel}
+                        onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
+                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
+                      >
+                        <option value="Self-Paced Study">Self-Paced / Casual Learning</option>
+                        <option value="Professional Upskilling">Professional Fast-Track</option>
+                        <option value="Weekend Bootcamps">Weekend Focus Study</option>
+                        <option value="Daily Academic Habit">Daily Habit Reinforcement</option>
+                      </select>
+                    </div>
+                  )}
 
                   {/* Academic focus dropdown */}
                   <div className="space-y-2">
@@ -1309,15 +2743,103 @@ export default function App() {
                       {currentQuestions[currentQuestionIndex].text}
                     </h2>
 
-                    {/* Speech Speak Aloud Toggles */}
-                    <button 
-                      onClick={handleReadAloud}
-                      type="button"
-                      className={`p-2.5 rounded-xl border flex-none ${isReadingAloud ? 'bg-primary text-on-primary border-primary animate-pulse' : 'bg-surface text-primary border-primary/20 hover:bg-primary/10'} transition-all`}
-                      title={isReadingAloud ? "Stop speech synthesizer" : "Low Pitch Indian Accent Speak Aloud"}
-                    >
-                      {isReadingAloud ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                    </button>
+                    {/* Audio action controller bar */}
+                    <div className="flex gap-2 flex-none items-center self-start">
+                      {/* Speech Speak Aloud Toggles */}
+                      <button 
+                        onClick={handleReadAloud}
+                        type="button"
+                        className={`p-2.5 rounded-xl border flex-none ${isReadingAloud ? 'bg-primary text-on-primary border-primary animate-pulse' : 'bg-surface text-primary border-primary/20 hover:bg-primary/10'} transition-all`}
+                        title={isReadingAloud ? "Stop speech synthesizer" : "Speak question aloud"}
+                      >
+                        {isReadingAloud ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                      </button>
+
+                      {/* Interactive Correct/Incorrect Sound Effects Toggle */}
+                      <button 
+                        onClick={() => setSoundEffectsEnabled(!soundEffectsEnabled)}
+                        type="button"
+                        className={`p-2.5 rounded-xl border flex-none bg-surface transition-all relative ${soundEffectsEnabled ? 'border-primary/20 hover:bg-primary/10 text-primary' : 'border-white/5 opacity-50 text-on-surface-variant'}`}
+                        title={soundEffectsEnabled ? "Mute interactive sound effects" : "Unmute interactive sound effects"}
+                      >
+                        <div className="relative">
+                          {soundEffectsEnabled ? <Volume2 className="w-4 h-4 text-primary" /> : <VolumeX className="w-4 h-4 text-on-surface-variant/40" />}
+                          <span className="absolute -top-1.5 -right-2 text-[7px] font-extrabold uppercase text-primary font-mono tracking-tight bg-surface px-0.5 rounded">
+                            {soundEffectsEnabled ? "FX" : "—"}
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Web Speech API Record Answer Button */}
+                      <button 
+                        onClick={toggleRecordingAnswer}
+                        type="button"
+                        disabled={!!feedback}
+                        className={`p-2.5 rounded-xl border flex-none relative transition-all ${
+                          isRecordingAnswer 
+                            ? 'bg-error text-white border-error animate-pulse shadow-error/30 shadow-lg' 
+                            : 'bg-surface text-secondary border-secondary/20 hover:bg-secondary/10'
+                        } ${!!feedback ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
+                        title={isRecordingAnswer ? "Stop speech transcription" : "Speak to record and submit your answer"}
+                      >
+                        {isRecordingAnswer ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                        {isRecordingAnswer && (
+                          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Web Speech Feedback Notification Area */}
+                  <div className="space-y-2">
+                    {isRecordingAnswer && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-[11px] font-body bg-error/15 border border-error/20 p-3 rounded-2xl flex items-center justify-between gap-3 text-error"
+                      >
+                        <div className="flex items-center gap-2 text-left">
+                          <span className="flex h-2.5 w-2.5 relative flex-none animate-bounce">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-error"></span>
+                          </span>
+                          <p className="font-headline font-bold uppercase tracking-wider animate-pulse">Microphone active: Say option label (e.g., "Option A") or exact option text now...</p>
+                        </div>
+                        <div className="flex gap-0.5 items-center flex-none">
+                          <span className="w-0.5 h-3 bg-error animate-bounce" style={{ animationDelay: '0.1s' }} />
+                          <span className="w-0.5 h-4.5 bg-error animate-bounce" style={{ animationDelay: '0.2s' }} />
+                          <span className="w-0.5 h-2.5 bg-error animate-bounce" style={{ animationDelay: '0.3s' }} />
+                          <span className="w-0.5 h-4 bg-error animate-bounce" style={{ animationDelay: '0.4s' }} />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {spokenAnswerText && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-xs font-body bg-secondary/15 border border-secondary/20 p-3 rounded-2xl text-on-surface flex items-center gap-2.5"
+                      >
+                        <Mic className="w-4 h-4 text-secondary flex-none animate-pulse" />
+                        <p className="font-bold text-left">
+                          Transcribed Answer: <span className="text-secondary italic font-extrabold font-headline">"{spokenAnswerText}"</span>
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {speechError && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-xs font-body bg-error/15 border border-error/20 p-3 rounded-2xl text-error flex items-center gap-2.5"
+                      >
+                        <Info className="w-4 h-4 text-error flex-none" />
+                        <p className="font-bold text-left">{speechError}</p>
+                      </motion.div>
+                    )}
                   </div>
 
                   {/* Options Matrix Selection List */}
@@ -1433,15 +2955,44 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-1.5 text-xs">
+                <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-1.5 text-xs text-left">
                   <p className="font-headline font-extrabold text-on-surface uppercase tracking-wider">Expert Evaluator Recommendation</p>
                   <p className="font-body font-bold text-on-surface-variant leading-relaxed">
                     {activeQuiz.score === 5 
-                      ? "Flawless score! Your conceptual foundation is rock-solid. You are authorized to step up layout progressive level challenges." 
+                      ? "Flawless score! Your conceptual foundation is rock-solid. You are authorized to step up progressive level challenges." 
                       : activeQuiz.score >= 3 
                         ? "Competent coverage! Focus on explanations mapped in wrong choices to reinforce board diagnostics." 
                         : "Requires review. Ingest related source textbook readings inside the Library to ground future diagnostics."}
                   </p>
+                </div>
+
+                {/* PDF & TXT Dynamic Exporters */}
+                <div className="p-5 bg-gradient-to-br from-primary/5 to-tertiary/5 rounded-3xl border border-primary/20 space-y-3.5 text-left">
+                  <div className="flex items-center gap-2.5">
+                    <Award className="w-5 h-5 text-primary" />
+                    <div>
+                      <h4 className="font-headline font-extrabold text-on-surface text-xs uppercase tracking-wide">Scholar Earn Student Registry</h4>
+                      <p className="text-[10px] text-on-surface-variant font-medium">Verify or download your finalized progress metrics below.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1.5">
+                    <button
+                      onClick={downloadHtmlReport}
+                      type="button"
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-primary hover:bg-primary/95 text-on-primary rounded-xl font-headline font-extrabold text-[10px] uppercase tracking-wider transition-all active:scale-95 shadow-md shadow-primary/20 cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      Print / Save Board PDF
+                    </button>
+                    <button
+                      onClick={downloadTextReport}
+                      type="button"
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-on-surface rounded-xl font-headline font-extrabold text-[10px] uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-tertiary" />
+                      Download Text Report
+                    </button>
+                  </div>
                 </div>
               </div>
 
