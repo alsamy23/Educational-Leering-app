@@ -234,7 +234,7 @@ export const generateQuizQuestions = async (
                 required: ["id", "type", "text", "options", "correctIndex", "explanation", "inquiryPrompt"]
               }
             },
-            temperature: 0.95
+            temperature: 0.2
           }
         });
 

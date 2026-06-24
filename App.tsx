@@ -3,7 +3,7 @@ import {
   BookOpen, Sparkles, Rocket, Trophy, Play, CheckCircle, 
   ChevronRight, Volume2, VolumeX, Shield, ArrowLeft, Plus, 
   Trash2, Eye, Award, Clock, GraduationCap, Monitor, FileText,
-  User, ShieldCheck, HelpCircle, Laptop, Lightbulb, Users,
+  User, ShieldCheck, HelpCircle, Laptop, Smartphone, Lightbulb, Users,
   ListRestart, Check, X, SignalLow, SignalMedium, SignalHigh,
   Settings, LogOut, Info, RefreshCw, Mic, MicOff, Download, Printer
 } from 'lucide-react';
@@ -900,6 +900,7 @@ export default function App() {
   // --- Timing HUD and Clock positioning ---
   const [timeLeft, setTimeLeft] = useState<number>(45);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  const [individualTimer, setIndividualTimer] = useState<number>(45);
   const [dragOffset, setDragOffset] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
   const isDragging = useRef(false);
   const originalPos = useRef({ x: 0, y: 0 });
@@ -1306,7 +1307,7 @@ export default function App() {
         setUserAnswers(new Array(questionsFetched.length).fill(null));
         setFeedback(null);
         
-        const testTimer = 45; // default individual countdown
+        const testTimer = individualTimer; // selected individual countdown
         setTimeLeft(testTimer);
         setIsTimerRunning(true);
 
@@ -1494,7 +1495,7 @@ export default function App() {
       setCurrentQuestionIndex(prev => prev + 1);
       setFeedback(null);
       
-      const nextTimer = classroomSession ? (classroomSession.questionTimer || 45) : 45;
+      const nextTimer = classroomSession ? (classroomSession.questionTimer || 45) : individualTimer;
       setTimeLeft(nextTimer);
       setIsTimerRunning(nextTimer > 0);
 
@@ -2296,15 +2297,17 @@ export default function App() {
       {currentScreen === AppScreen.QUIZ && timeLeft > 0 && isTimerRunning && (
         <div 
           style={{ transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` }}
-          className="fixed z-50 p-2 cursor-grab active:cursor-grabbing hover:scale-105 transition-transform"
+          className="fixed z-50 p-2 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
-          <div className="bg-surface border-2 border-primary rounded-2xl p-3 shadow-2xl flex items-center gap-2.5 outline-none font-headline font-extrabold text-xs uppercase italic tracking-widest text-primary neon-glow-primary">
-            <Clock className="w-5 h-5 text-primary animate-pulse" />
-            <span>Clock: {timeLeft}s</span>
+          <div className="bg-[#991b1b] border-4 border-[#d97706] rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3 outline-none font-headline font-extrabold text-sm uppercase italic tracking-widest text-white shadow-[#7f1d1d]/60">
+            <Clock className="w-6 h-6 text-[#f59e0b] animate-bounce" />
+            <span className="text-[#fef08a] font-black drop-shadow-sm">
+              Time Left: <span className="text-white text-lg font-black">{timeLeft}</span>s
+            </span>
           </div>
         </div>
       )}
@@ -2361,6 +2364,13 @@ export default function App() {
               title="Full width classroom TV Presentation mode"
             >
               <Monitor className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={() => setScreenViewMode('mobile')}
+              className={`p-1.5 rounded-lg transition-all ${screenViewMode === 'mobile' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant'}`}
+              title="Simulated Mobile Layout view"
+            >
+              <Smartphone className="w-4 h-4" />
             </button>
           </div>
 
@@ -2458,8 +2468,8 @@ export default function App() {
               exit={{ opacity: 0, y: -15 }}
               className="w-full space-y-4"
             >
-              {/* Responsive Navigation Tab Bar (visible ONLY on mobile) */}
-              <div className="lg:hidden flex gap-1 p-1 bg-white/5 border border-white/10 rounded-2xl w-full backdrop-blur-md">
+              {/* Responsive Navigation Tab Bar (visible ONLY on mobile or simulated mobile view) */}
+              <div className={`${screenViewMode === 'mobile' ? 'flex' : 'lg:hidden flex'} gap-1 p-1 bg-white/5 border border-white/10 rounded-2xl w-full backdrop-blur-md`}>
                 <button
                   onClick={() => setEntryMobileTab('library')}
                   type="button"
@@ -2499,10 +2509,10 @@ export default function App() {
               </div>
 
               {/* Majestic 3-Column Layout: Library, Config, Records */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start w-full">
+              <div className={`grid gap-5 items-start w-full ${screenViewMode === 'mobile' ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-12'}`}>
                 
                 {/* Column 1: Study Material Library (Left) */}
-                <div className={`${entryMobileTab === 'library' ? 'block' : 'hidden'} lg:block lg:col-span-4 h-full`}>
+                <div className={`${entryMobileTab === 'library' ? 'block' : 'hidden'} ${screenViewMode === 'mobile' ? '' : 'lg:block lg:col-span-4'} h-full`}>
                   <StudyLibraryInlinePanel 
                     materials={materials}
                     selectedId={selectedMaterialId}
@@ -2513,7 +2523,7 @@ export default function App() {
                 </div>
 
                 {/* Column 2: Mastery Settings (Center) */}
-                <div className={`${entryMobileTab === 'profile' ? 'block' : 'hidden'} lg:block lg:col-span-5`}>
+                <div className={`${entryMobileTab === 'profile' ? 'block' : 'hidden'} ${screenViewMode === 'mobile' ? '' : 'lg:block lg:col-span-5'}`}>
                   <div className="bg-[#faf6eb] text-[#1e293b] border border-[#e4dcc4] shadow-xl rounded-[2rem] p-5 md:p-6 space-y-4 relative overflow-hidden border-t-[10px] border-[#1e3a8a]">
                     <div className="absolute top-0 right-0 w-20 h-20 bg-[#1e3a8a]/5 rounded-bl-[3rem] flex items-center justify-center border-l border-b border-[#e4dcc4]">
                       <Sparkles className="w-6 h-6 text-[#1e3a8a] animate-pulse" />
@@ -2735,6 +2745,35 @@ export default function App() {
                           />
                         </div>
                       </div>
+
+                      {/* Diagnostic Timer Selection */}
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-[#1e3a8a]" /> Individual Diagnostic Timer
+                        </label>
+                        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                          {[
+                            { label: '45s', value: 45 },
+                            { label: '1 min', value: 60 },
+                            { label: '2 min', value: 120 },
+                            { label: '3 min', value: 180 },
+                            { label: 'No Time', value: 0 }
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setIndividualTimer(opt.value)}
+                              className={`flex-1 min-w-[50px] py-1.5 px-2 rounded-xl text-[10px] font-headline font-extrabold border transition-all ${
+                                individualTimer === opt.value
+                                  ? 'bg-[#1e3a8a] border-[#1e3a8a] text-white shadow-md'
+                                  : 'bg-[#fcfaf4] border-[#e4dcc4] text-[#7c755d] hover:bg-[#f5efe0]'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Integrated Launch buttons */}
@@ -2756,7 +2795,7 @@ export default function App() {
                 </div>
 
                 {/* Column 3: Performance, Stats & History Logs (Right) */}
-                <div className={`${entryMobileTab === 'records' ? 'block' : 'hidden'} lg:block lg:col-span-3 h-full`}>
+                <div className={`${entryMobileTab === 'records' ? 'block' : 'hidden'} ${screenViewMode === 'mobile' ? '' : 'lg:block lg:col-span-3'} h-full`}>
                   <div className="bg-[#faf6eb] text-[#1e293b] border border-[#e4dcc4] shadow-xl rounded-[2rem] p-5 space-y-4 relative overflow-hidden border-t-[10px] border-[#047857] h-full flex flex-col justify-between">
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 border-b border-[#e4dcc4] pb-2">
