@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality, Type } from "@google/genai";
+import { GoogleGenAI, Modality, Type, ThinkingLevel } from "@google/genai";
 import Groq from "groq-sdk";
 import { QuizQuestion, UserProfile, QuestionType, StudyFocus, DifficultyLevel } from '../types';
 
@@ -207,11 +207,12 @@ export const generateQuizQuestions = async (
       try {
         const ai = getAIWithKey(key);
         const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          model: 'gemini-3.5-flash',
           contents: prompt,
           config: {
             systemInstruction: `You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades. ${groupName ? `This batch is specifically for Group ${groupName}. Ensure uniqueness.` : ''}`,
             responseMimeType: "application/json",
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
             responseSchema: {
               type: Type.ARRAY,
               items: {
