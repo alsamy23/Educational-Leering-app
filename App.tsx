@@ -575,6 +575,212 @@ const ClassroomSetupView: React.FC<ClassroomSetupViewProps> = ({ onStart, onCanc
   );
 };
 
+// --- Sub-Component: StudyLibraryInlinePanel ---
+const StudyLibraryInlinePanel: React.FC<{
+  materials: StudyMaterial[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onAdd: (title: string, content: string) => void;
+  onDelete: (id: string) => void;
+}> = ({ materials, selectedId, onSelect, onAdd, onDelete }) => {
+  const [activeTab, setActiveTab] = useState<'text' | 'pdf'>('text');
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [pdfParsing, setPdfParsing] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
+  const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState('');
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !content.trim()) {
+      setError('Fill in both title and contents.');
+      return;
+    }
+    onAdd(title.trim(), content.trim());
+    setTitle('');
+    setContent('');
+    setError('');
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+    else setDragActive(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation(); setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) handlePdfFile(e.dataTransfer.files[0]);
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) handlePdfFile(e.target.files[0]);
+  };
+
+  const handlePdfFile = async (file: File) => {
+    if (!file) return;
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith('.pdf')) {
+      setError("Please select a valid PDF file.");
+      return;
+    }
+    setPdfParsing(true); setError(""); setPdfProgress({ current: 0, total: 0 });
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      const totalPages = pdf.numPages;
+      setPdfProgress({ current: 0, total: totalPages });
+      let fullText = "";
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        setPdfProgress({ current: pageNum, total: totalPages });
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str || '').join(' ');
+        fullText += `--- Page ${pageNum} ---\n` + pageText + '\n\n';
+      }
+      const trimmedText = fullText.trim();
+      if (!trimmedText || trimmedText.length < 15) throw new Error("Could not extract any text.");
+      const displayTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ").trim();
+      onAdd(displayTitle, trimmedText);
+      setPdfParsing(false);
+    } catch (err: any) {
+      setError(err?.message || "Failure parsing PDF.");
+      setPdfParsing(false);
+    }
+  };
+
+  return (
+    <div className="bg-[#faf6eb] text-[#1e293b] border border-[#e4dcc4] shadow-xl rounded-[2rem] p-5 space-y-4 relative overflow-hidden border-t-[10px] border-[#b45309] h-full flex flex-col justify-between">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 border-b border-[#e4dcc4] pb-2">
+          <BookOpen className="w-4.5 h-4.5 text-[#b45309]" />
+          <div>
+            <h3 className="text-sm font-headline font-black text-[#1e3a8a] tracking-tight">Study Library</h3>
+            <p className="text-[8px] text-[#7c755d] uppercase tracking-wider font-extrabold mt-0.5">Academic Syllabus & Book References</p>
+          </div>
+        </div>
+
+        {error && <p className="text-[10px] text-red-600 font-bold bg-red-50 p-2 rounded-xl border border-red-100">{error}</p>}
+
+        <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-0.5 no-scrollbar">
+          {materials.length === 0 ? (
+            <p className="text-[10px] text-[#7c755d]/80 italic text-center py-4 bg-[#f5efe0]/40 rounded-xl border border-dashed border-[#e4dcc4]">No custom syllabus text added. Evaluating using standard curriculum standards.</p>
+          ) : (
+            materials.map(m => (
+              <div 
+                key={m.id} 
+                className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                  selectedId === m.id 
+                    ? 'bg-[#1e3a8a]/5 border-[#1e3a8a]/30 shadow-sm' 
+                    : 'bg-[#fcfaf4] border-[#e4dcc4] hover:bg-[#f5efe0]'
+                }`}
+              >
+                <button 
+                  onClick={() => onSelect(selectedId === m.id ? null : m.id)}
+                  disabled={pdfParsing}
+                  className="flex-1 text-left min-w-0"
+                >
+                  <span className="text-[11px] font-headline font-extrabold text-[#1e3a8a] flex items-center gap-1">
+                    {selectedId === m.id ? (
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                    ) : (
+                      <span className="w-3 h-3 rounded-full border border-[#cbd5e1] flex-shrink-0" />
+                    )}
+                    <span className="truncate">{m.title}</span>
+                  </span>
+                </button>
+                <button 
+                  onClick={() => onDelete(m.id)}
+                  disabled={pdfParsing}
+                  className="text-red-700 hover:text-red-900 p-1 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                  title="Remove material"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-3 pt-3 border-t border-[#e4dcc4]">
+        {/* Toggle options */}
+        <div className="flex gap-1 p-0.5 bg-[#f5efe0] rounded-lg border border-[#e4dcc4]">
+          <button
+            onClick={() => { if (!pdfParsing) setActiveTab('text'); }}
+            disabled={pdfParsing}
+            className={`flex-1 py-1 rounded-md text-[9px] font-headline font-extrabold transition-all uppercase tracking-wider ${
+              activeTab === 'text' ? 'bg-[#1e3a8a] text-white shadow-sm' : 'text-[#7c755d] hover:text-[#1e3a8a]'
+            }`}
+          >
+            Paste Text
+          </button>
+          <button
+            onClick={() => { if (!pdfParsing) setActiveTab('pdf'); }}
+            disabled={pdfParsing}
+            className={`flex-1 py-1 rounded-md text-[9px] font-headline font-extrabold transition-all uppercase tracking-wider flex items-center justify-center gap-0.5 ${
+              activeTab === 'pdf' ? 'bg-[#1e3a8a] text-white shadow-sm' : 'text-[#7c755d] hover:text-[#1e3a8a]'
+            }`}
+          >
+            <FileText className="w-3 h-3" /> PDF Book
+          </button>
+        </div>
+
+        {activeTab === 'text' ? (
+          <form onSubmit={handleSubmit} className="space-y-1.5">
+            <input 
+              type="text" 
+              placeholder="Title (e.g. Science Ch 5)" 
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-[10px] rounded-lg bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+            />
+            <textarea 
+              placeholder="Paste reading texts..." 
+              value={content}
+              rows={2}
+              onChange={e => setContent(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-[10px] rounded-lg bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+            />
+            <button 
+              type="submit" 
+              className="w-full py-1.5 bg-[#b45309] hover:bg-[#92400e] text-white font-headline font-extrabold text-[9px] uppercase tracking-wider rounded-lg transition-colors shadow-sm"
+            >
+              Ingest Notes
+            </button>
+          </form>
+        ) : (
+          <div className="space-y-1">
+            {pdfParsing ? (
+              <div className="bg-[#1e3a8a]/5 border border-[#1e3a8a]/10 rounded-lg p-2.5 text-center space-y-1">
+                <RefreshCw className="w-4 h-4 text-[#1e3a8a] animate-spin mx-auto" />
+                <p className="text-[10px] font-bold text-[#1e293b]">Extracting Book...</p>
+                <div className="w-full bg-[#cbd5e1] rounded-full h-1 overflow-hidden">
+                  <div className="bg-[#1e3a8a] h-full transition-all" style={{ width: `${pdfProgress.total ? (pdfProgress.current / pdfProgress.total) * 100 : 0}%` }} />
+                </div>
+              </div>
+            ) : (
+              <div 
+                onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrop}
+                onClick={() => pdfInputRef.current?.click()}
+                className={`border border-dashed rounded-lg p-3 text-center cursor-pointer transition-all ${
+                  dragActive ? 'border-[#1e3a8a] bg-[#1e3a8a]/5' : 'border-[#cbd5e1] hover:border-[#1e3a8a]'
+                }`}
+              >
+                <input ref={pdfInputRef} type="file" accept="application/pdf" onChange={handleFileInputChange} className="hidden" />
+                <FileText className="w-4 h-4 text-[#cbd5e1] mx-auto mb-0.5" />
+                <p className="text-[9px] font-bold text-[#1e293b]">Drag or Click PDF Book</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // --- Sub-Component: ProgressScreen ---
 const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ user, onBack }) => {
   const history = user.testHistory || [];
@@ -680,6 +886,7 @@ export default function App() {
   });
 
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.ENTRY);
+  const [entryMobileTab, setEntryMobileTab] = useState<'profile' | 'library' | 'records'>('profile');
   const [currentQuestions, setCurrentQuestions] = useState<QuizQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
@@ -2249,369 +2456,366 @@ export default function App() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
-              className="w-full space-y-6"
+              className="w-full space-y-4"
             >
-              {/* Core centring wrapper with NO top margins */}
-              <div className="bg-surface-container-lowest/80 glass-card p-6 md:p-10 rounded-[2.5rem] shadow-2xl border border-white/10 space-y-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-bl-[4rem] flex items-center justify-center border-l border-b border-white/5">
-                  <Sparkles className="w-8 h-8 text-primary animate-pulse" />
+              {/* Responsive Navigation Tab Bar (visible ONLY on mobile) */}
+              <div className="lg:hidden flex gap-1 p-1 bg-white/5 border border-white/10 rounded-2xl w-full backdrop-blur-md">
+                <button
+                  onClick={() => setEntryMobileTab('library')}
+                  type="button"
+                  className={`flex-1 py-2.5 rounded-xl text-[10px] uppercase font-headline font-black flex items-center justify-center gap-1.5 transition-all ${
+                    entryMobileTab === 'library' 
+                      ? 'bg-[#b45309] text-white shadow-md' 
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Library</span>
+                </button>
+                <button
+                  onClick={() => setEntryMobileTab('profile')}
+                  type="button"
+                  className={`flex-1 py-2.5 rounded-xl text-[10px] uppercase font-headline font-black flex items-center justify-center gap-1.5 transition-all ${
+                    entryMobileTab === 'profile' 
+                      ? 'bg-[#1e3a8a] text-white shadow-md' 
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <Rocket className="w-3.5 h-3.5 animate-pulse" />
+                  <span>Entrance</span>
+                </button>
+                <button
+                  onClick={() => setEntryMobileTab('records')}
+                  type="button"
+                  className={`flex-1 py-2.5 rounded-xl text-[10px] uppercase font-headline font-black flex items-center justify-center gap-1.5 transition-all ${
+                    entryMobileTab === 'records' 
+                      ? 'bg-[#047857] text-white shadow-md' 
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span>History</span>
+                </button>
+              </div>
+
+              {/* Majestic 3-Column Layout: Library, Config, Records */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start w-full">
+                
+                {/* Column 1: Study Material Library (Left) */}
+                <div className={`${entryMobileTab === 'library' ? 'block' : 'hidden'} lg:block lg:col-span-4 h-full`}>
+                  <StudyLibraryInlinePanel 
+                    materials={materials}
+                    selectedId={selectedMaterialId}
+                    onSelect={setSelectedMaterialId}
+                    onAdd={handleAddNewMaterial}
+                    onDelete={handleDeleteMaterial}
+                  />
                 </div>
 
-                <div className="space-y-1.5">
-                  <h2 className="text-2xl md:text-3xl font-headline font-extrabold text-on-surface tracking-tighter tv-text-shadow italic">Mastery Entrance</h2>
-                  <p className="text-[10px] uppercase tracking-widest text-primary font-headline font-extrabold">Students' Learning & Diagnosis Platform</p>
+                {/* Column 2: Mastery Settings (Center) */}
+                <div className={`${entryMobileTab === 'profile' ? 'block' : 'hidden'} lg:block lg:col-span-5`}>
+                  <div className="bg-[#faf6eb] text-[#1e293b] border border-[#e4dcc4] shadow-xl rounded-[2rem] p-5 md:p-6 space-y-4 relative overflow-hidden border-t-[10px] border-[#1e3a8a]">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-[#1e3a8a]/5 rounded-bl-[3rem] flex items-center justify-center border-l border-b border-[#e4dcc4]">
+                      <Sparkles className="w-6 h-6 text-[#1e3a8a] animate-pulse" />
+                    </div>
+
+                    <div className="flex items-center gap-2 border-b border-[#e4dcc4] pb-2">
+                      <GraduationCap className="w-5 h-5 text-[#1e3a8a]" />
+                      <div>
+                        <h3 className="text-sm font-headline font-black text-[#1e3a8a] tracking-tight">Mastery Configurator</h3>
+                        <p className="text-[8px] text-[#7c755d] uppercase tracking-wider font-extrabold mt-0.5">Define Your Academic Objectives</p>
+                      </div>
+                    </div>
+
+                    {/* Horizontal Stream Level Selector */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                        <GraduationCap className="w-3 h-3 text-[#1e3a8a]" /> Educational Stream Level
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { id: 'School', label: 'School (K-12)', icon: BookOpen },
+                          { id: 'College', label: 'College Degree', icon: GraduationCap },
+                          { id: 'Competitive', label: 'Competitive Exam', icon: Trophy },
+                          { id: 'Personal', label: 'Personal Study', icon: Sparkles }
+                        ].map(tab => {
+                          const Icon = tab.icon;
+                          const isSelected = (user.educationLevel || 'School') === tab.id;
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => {
+                                let defaultBoard = '';
+                                let defaultGrade = '';
+                                let defaultSubject = '';
+                                let defaultTopic = '';
+                                if (tab.id === 'School') {
+                                  defaultBoard = 'CBSE';
+                                  defaultGrade = '10';
+                                  defaultSubject = 'Science';
+                                  defaultTopic = 'Light - Reflection and Refraction';
+                                } else if (tab.id === 'College') {
+                                  defaultBoard = 'Computer Science & Engineering';
+                                  defaultGrade = 'Third Year';
+                                  defaultSubject = 'Artificial Intelligence';
+                                  defaultTopic = 'Neural Networks and Deep Learning';
+                                } else if (tab.id === 'Competitive') {
+                                  defaultBoard = 'UPSC Civil Services';
+                                  defaultGrade = 'Prelims Phase';
+                                  defaultSubject = 'Indian Polity & Constitution';
+                                  defaultTopic = 'Fundamental Rights';
+                                } else {
+                                  defaultBoard = 'Professional Level';
+                                  defaultGrade = 'Self-Paced';
+                                  defaultSubject = 'Creative Writing';
+                                  defaultTopic = 'Plot Structure and Narrative Arc';
+                                }
+                                syncLocalUserProfile({
+                                  ...user,
+                                  educationLevel: tab.id as any,
+                                  board: defaultBoard,
+                                  gradeLevel: defaultGrade,
+                                  subject: defaultSubject,
+                                  topic: defaultTopic
+                                });
+                              }}
+                              className={`flex items-center gap-1.5 p-2 rounded-xl border text-left transition-all ${
+                                isSelected 
+                                  ? 'bg-[#1e3a8a] border-[#1e3a8a] text-white shadow-md' 
+                                  : 'bg-[#fcfaf4] border-[#e4dcc4] text-[#7c755d] hover:bg-[#f5efe0]'
+                              }`}
+                            >
+                              <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span className="text-[10px] font-headline font-extrabold truncate">{tab.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {/* Name field */}
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                          <User className="w-3 h-3" /> Student Name
+                        </label>
+                        <input 
+                          type="text" 
+                          value={user.name}
+                          onChange={e => syncLocalUserProfile({ ...user, name: e.target.value })}
+                          className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                          placeholder="Student Name / Nickname"
+                        />
+                      </div>
+
+                      {/* Syllabus / Board selection dropdown */}
+                      {(user.educationLevel || 'School') === 'School' && (
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3" /> Board Syllabus
+                          </label>
+                          <select
+                            value={user.board || 'CBSE'}
+                            onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                          >
+                            <option value="CBSE">CBSE Board (Academic Year 2026-2027)</option>
+                            <option value="ICSE">ICSE Board Standards</option>
+                            <option value="IGCSE">International IGCSE Syllabus</option>
+                            <option value="State Board">Indian State Board Curriculum</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {(user.educationLevel || 'School') === 'College' && (
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <GraduationCap className="w-3 h-3" /> Degree stream
+                          </label>
+                          <input
+                            type="text"
+                            value={user.board || ''}
+                            onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                            placeholder="e.g. Computer Science, Medicine"
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                          />
+                        </div>
+                      )}
+
+                      {(user.educationLevel || 'School') === 'Competitive' && (
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <Trophy className="w-3 h-3" /> Target Exam
+                          </label>
+                          <input
+                            type="text"
+                            value={user.board || ''}
+                            onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                            placeholder="e.g. UPSC, IIT JEE, NEET"
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                          />
+                        </div>
+                      )}
+
+                      {(user.educationLevel || 'School') === 'Personal' && (
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" /> Skill Focus
+                          </label>
+                          <select
+                            value={user.board || 'Advanced Masterclass'}
+                            onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                          >
+                            <option value="Beginner Theory">Beginner Theory</option>
+                            <option value="Intermediate Applied">Intermediate Applied</option>
+                            <option value="Advanced Masterclass">Advanced Masterclass</option>
+                            <option value="Specialized Vocations">Specialized Practice</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Year or Grade selection */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <Shield className="w-3 h-3" /> Target Stage
+                          </label>
+                          <input 
+                            type="text"
+                            value={user.gradeLevel}
+                            onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                            placeholder="e.g. Grade 10, Final Year"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <Lightbulb className="w-3 h-3" /> Learning Focus
+                          </label>
+                          <select
+                            value={user.focus}
+                            onChange={e => syncLocalUserProfile({ ...user, focus: e.target.value as StudyFocus })}
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                          >
+                            <option value={StudyFocus.SYLLABUS}>Core Syllabus</option>
+                            <option value={StudyFocus.PATTERN}>Exam Pattern</option>
+                            <option value={StudyFocus.TOPICS}>Custom Subtopics</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Subject & Topic inputs */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <HelpCircle className="w-3 h-3" /> Subject
+                          </label>
+                          <input 
+                            type="text" 
+                            value={user.subject}
+                            onChange={e => syncLocalUserProfile({ ...user, subject: e.target.value })}
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                            placeholder="Subject (e.g. Science)"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" /> Focus Topic
+                          </label>
+                          <input 
+                            type="text" 
+                            value={user.topic}
+                            onChange={e => syncLocalUserProfile({ ...user, topic: e.target.value })}
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                            placeholder="Topic (e.g. Lenses)"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Integrated Launch buttons */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2">
+                      <button 
+                        onClick={initiateDiagnosis}
+                        className="h-12 rounded-xl text-[10px] font-headline font-black uppercase tracking-wider bg-[#1e3a8a] hover:bg-[#172554] text-white flex items-center justify-center gap-1.5 transition-all shadow-md md:col-span-2"
+                      >
+                        <Rocket className="w-3.5 h-3.5 animate-bounce" /> Start Diagnostic
+                      </button>
+                      <button 
+                        onClick={launchClassroomBattleSetup}
+                        className="h-12 rounded-xl text-[10px] font-headline font-black uppercase tracking-wider bg-[#b45309] hover:bg-[#92400e] text-white flex items-center justify-center gap-1.5 transition-all shadow-md md:col-span-1"
+                      >
+                        <Users className="w-3.5 h-3.5" /> Classroom Battle
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex gap-3 text-xs text-on-surface-variant font-body">
-                  <div className="p-2 bg-primary/10 text-primary rounded-xl h-fit">
-                    <Sparkles className="w-4 h-4 animate-pulse" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="font-headline font-extrabold text-on-surface text-sm">Welcome to ScholarEarn!</p>
-                    <p>This is a dedicated <strong>student's learning platform</strong> designed for syllabus alignment, customized practice, and diagnostic self-evaluation without any unnecessary pressure. Define your study program below to generate instant quizzes!</p>
-                  </div>
-                </div>
+                {/* Column 3: Performance, Stats & History Logs (Right) */}
+                <div className={`${entryMobileTab === 'records' ? 'block' : 'hidden'} lg:block lg:col-span-3 h-full`}>
+                  <div className="bg-[#faf6eb] text-[#1e293b] border border-[#e4dcc4] shadow-xl rounded-[2rem] p-5 space-y-4 relative overflow-hidden border-t-[10px] border-[#047857] h-full flex flex-col justify-between">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 border-b border-[#e4dcc4] pb-2">
+                        <Trophy className="w-4.5 h-4.5 text-[#047857]" />
+                        <div>
+                          <h3 className="text-sm font-headline font-black text-[#047857] tracking-tight">Academic Records</h3>
+                          <p className="text-[8px] text-[#7c755d] uppercase tracking-wider font-extrabold mt-0.5">Your Achievements & History</p>
+                        </div>
+                      </div>
 
-                {/* Horizontal Education Level Selector */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                    <GraduationCap className="w-3.5 h-3.5 text-primary" /> Educational Stream Level
-                  </label>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                    {[
-                      { id: 'School', label: 'School (K-12)', icon: BookOpen, desc: 'Grades 1-12 & Boards' },
-                      { id: 'College', label: 'College Degree', icon: GraduationCap, desc: 'UG / PG & Majors' },
-                      { id: 'Competitive', label: 'Competitive Exam', icon: Trophy, desc: 'JEE/NEET/UPSC/Certs' },
-                      { id: 'Personal', label: 'Personal Study', icon: Sparkles, desc: 'General & Skill Topics' }
-                    ].map(tab => {
-                      const Icon = tab.icon;
-                      const isSelected = (user.educationLevel || 'School') === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => {
-                            let defaultBoard = '';
-                            let defaultGrade = '';
-                            let defaultSubject = '';
-                            let defaultTopic = '';
-                            if (tab.id === 'School') {
-                              defaultBoard = 'CBSE';
-                              defaultGrade = '10';
-                              defaultSubject = 'Science';
-                              defaultTopic = 'Light - Reflection and Refraction';
-                            } else if (tab.id === 'College') {
-                              defaultBoard = 'Computer Science & Engineering';
-                              defaultGrade = 'Third Year';
-                              defaultSubject = 'Artificial Intelligence';
-                              defaultTopic = 'Neural Networks and Deep Learning';
-                            } else if (tab.id === 'Competitive') {
-                              defaultBoard = 'UPSC Civil Services';
-                              defaultGrade = 'Prelims Phase';
-                              defaultSubject = 'Indian Polity & Constitution';
-                              defaultTopic = 'Fundamental Rights';
-                            } else {
-                              defaultBoard = 'Professional Level';
-                              defaultGrade = 'Self-Paced';
-                              defaultSubject = 'Creative Writing';
-                              defaultTopic = 'Plot Structure and Narrative Arc';
-                            }
-                            syncLocalUserProfile({
-                              ...user,
-                              educationLevel: tab.id as any,
-                              board: defaultBoard,
-                              gradeLevel: defaultGrade,
-                              subject: defaultSubject,
-                              topic: defaultTopic
-                            });
-                          }}
-                          className={`flex flex-col items-start justify-between p-3.5 rounded-2xl border text-left transition-all ${
-                            isSelected 
-                              ? 'bg-primary/20 border-primary text-on-surface shadow-lg shadow-primary/10' 
-                              : 'bg-surface-container-lowest/60 border-white/5 text-on-surface-variant hover:border-white/10 hover:bg-surface-container-lowest/80'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Icon className={`w-4 h-4 ${isSelected ? 'text-primary' : 'text-on-surface-variant/70'}`} />
-                            <span className="text-xs font-headline font-bold">{tab.label}</span>
-                          </div>
-                          <span className="text-[9px] text-on-surface-variant/60 block mt-1 line-clamp-1">{tab.desc}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                      {/* Rank credentials stats */}
+                      <div className="grid grid-cols-2 gap-2 text-center">
+                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200">
+                          <p className="text-[8px] uppercase font-black text-amber-800 tracking-wider">Level Rank</p>
+                          <p className="text-base font-headline font-black text-[#b45309] mt-0.5">Lv {user.level}</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-200">
+                          <p className="text-[8px] uppercase font-black text-indigo-800 tracking-wider">Total Score</p>
+                          <p className="text-base font-headline font-black text-[#1e3a8a] mt-0.5">{user.totalPoints} pts</p>
+                        </div>
+                      </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Name field */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                      <User className="w-3 h-3" /> Student Name
-                    </label>
-                    <input 
-                      type="text" 
-                      value={user.name}
-                      onChange={e => syncLocalUserProfile({ ...user, name: e.target.value })}
-                      className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      placeholder="Enter student initials or full username"
-                    />
-                  </div>
-
-                  {/* Syllabus / Board or Degree Major fields - Rendered Conditionally */}
-                  {(user.educationLevel || 'School') === 'School' && (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                        <ShieldCheck className="w-3 h-3" /> Curriculum Syllabus Board (K-12)
-                      </label>
-                      <select
-                        value={user.board || 'CBSE'}
-                        onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
-                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      >
-                        <option value="CBSE">CBSE Board (Academic Year 2026-2027)</option>
-                        <option value="ICSE">ICSE Board Standards</option>
-                        <option value="IGCSE">International IGCSE Syllabus</option>
-                        <option value="State Board">Indian State Board Curriculum</option>
-                      </select>
+                      {/* Diagnostic Run History Log */}
+                      <div className="space-y-2">
+                        <p className="text-[9px] uppercase font-headline font-extrabold text-[#7c755d] tracking-widest">Diagnostic logs ({user.testHistory?.length || 0})</p>
+                        <div className="space-y-2 max-h-[160px] overflow-y-auto pr-0.5 no-scrollbar">
+                          {user.testHistory && user.testHistory.length > 0 ? (
+                            user.testHistory.slice().reverse().map((record, i) => (
+                              <div key={i} className="p-2.5 rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] flex items-center justify-between transition-all hover:bg-[#f5efe0]">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[11px] font-headline font-extrabold text-[#1e3a8a] truncate uppercase tracking-tight">
+                                    {record.topic}
+                                  </p>
+                                  <p className="text-[8px] text-[#7c755d] mt-0.5 truncate font-bold uppercase tracking-wider">
+                                    {record.date} • {record.subject}
+                                  </p>
+                                </div>
+                                <div className="text-right flex-shrink-0 ml-2">
+                                  <span className="font-headline font-black text-xs text-[#047857]">{record.score}/5</span>
+                                  <p className="text-[7px] text-[#7c755d] font-bold uppercase tracking-tight">Score</p>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-[9px] text-[#7c755d]/80 italic text-center py-6 bg-[#f5efe0]/30 rounded-xl border border-dashed border-[#e4dcc4]">No milestone records. Launch a diagnostic test above to begin your ledger.</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
 
-                  {(user.educationLevel || 'School') === 'College' && (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                        <GraduationCap className="w-3 h-3" /> Degree major / Academic Stream
-                      </label>
-                      <input
-                        type="text"
-                        value={user.board || ''}
-                        onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
-                        placeholder="e.g. Computer Science, Medicine, MBA, Arts"
-                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      />
-                    </div>
-                  )}
-
-                  {(user.educationLevel || 'School') === 'Competitive' && (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                        <Trophy className="w-3 h-3" /> Target Exam / Board
-                      </label>
-                      <input
-                        type="text"
-                        value={user.board || ''}
-                        onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
-                        placeholder="e.g. UPSC CSE, IIT JEE, NEET, GATE, AWS"
-                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      />
-                    </div>
-                  )}
-
-                  {(user.educationLevel || 'School') === 'Personal' && (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                        <Sparkles className="w-3 h-3" /> Skill Focus Level
-                      </label>
-                      <select
-                        value={user.board || 'Advanced Masterclass'}
-                        onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
-                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      >
-                        <option value="Beginner Theory">Beginner Theory & Foundational</option>
-                        <option value="Intermediate Applied">Intermediate Applied Skills</option>
-                        <option value="Advanced Masterclass">Advanced Masterclass & Pro</option>
-                        <option value="Specialized Vocations">Specialized Practice / Vocation</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Year or Grade selection dropdowns - Rendered Conditionally */}
-                  {(user.educationLevel || 'School') === 'School' && (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                        <Trophy className="w-3 h-3" /> Class Grade Target
-                      </label>
-                      <select
-                        value={user.gradeLevel}
-                        onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
-                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      >
-                        {Array.from({ length: 12 }, (_, i) => (
-                          <option key={i+1} value={(i+1).toString()}>Grade {i+1} (National Standard)</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {(user.educationLevel || 'School') === 'College' && (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                        <Trophy className="w-3 h-3" /> Academic Year Stage
-                      </label>
-                      <select
-                        value={user.gradeLevel}
-                        onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
-                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      >
-                        <option value="First Year">First Year (UG Core)</option>
-                        <option value="Second Year">Second Year (Intermediate UG)</option>
-                        <option value="Third Year">Third Year (Pre-Final Core)</option>
-                        <option value="Fourth Year">Fourth Year (Final Capstone)</option>
-                        <option value="Postgraduate Year 1">Postgraduate Year 1 (Master's Focus)</option>
-                        <option value="Postgraduate Year 2">Postgraduate Year 2 (Advanced Master's)</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {(user.educationLevel || 'School') === 'Competitive' && (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                        <Shield className="w-3 h-3" /> Exam Tier Stage
-                      </label>
-                      <select
-                        value={user.gradeLevel}
-                        onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
-                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      >
-                        <option value="Prelims / Foundation">Prelims / Phase 1 Foundations</option>
-                        <option value="Mains / Advanced">Mains / Phase 2 Written Exams</option>
-                        <option value="All-In-One Mock Tier">All-In-One Full Blueprint Syllabus</option>
-                        <option value="Professional Credentials">Professional Credentials Assessment</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {(user.educationLevel || 'School') === 'Personal' && (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                        <ShieldCheck className="w-3 h-3" /> Study Rhythm
-                      </label>
-                      <select
-                        value={user.gradeLevel}
-                        onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
-                        className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      >
-                        <option value="Self-Paced Study">Self-Paced / Casual Learning</option>
-                        <option value="Professional Upskilling">Professional Fast-Track</option>
-                        <option value="Weekend Bootcamps">Weekend Focus Study</option>
-                        <option value="Daily Academic Habit">Daily Habit Reinforcement</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Academic focus dropdown */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                      <Lightbulb className="w-3 h-3" /> Academic Learning Focus
-                    </label>
-                    <select
-                      value={user.focus}
-                      onChange={e => syncLocalUserProfile({ ...user, focus: e.target.value as StudyFocus })}
-                      className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
+                    <button 
+                      onClick={() => setCurrentScreen(AppScreen.PROGRESS)}
+                      className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-[#1e293b] border border-slate-200 font-headline font-extrabold text-[9px] uppercase tracking-wider rounded-xl transition-all shadow-sm mt-4 flex items-center justify-center gap-1.5"
                     >
-                      <option value={StudyFocus.SYLLABUS}>Core Chapter Syllabus Coverage</option>
-                      <option value={StudyFocus.PATTERN}>Official Board Sample Blueprint Papers</option>
-                      <option value={StudyFocus.TOPICS}>Ground Custom Sub-Topics</option>
-                    </select>
+                      <FileText className="w-3.5 h-3.5 text-[#1e293b]" /> Full Score Ledger
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  {/* Target subject */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                      <HelpCircle className="w-3 h-3" /> Target Subject
-                    </label>
-                    <input 
-                      type="text" 
-                      value={user.subject}
-                      onChange={e => syncLocalUserProfile({ ...user, subject: e.target.value })}
-                      className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      placeholder="Science, Mathematics, Tamil, etc."
-                    />
-                  </div>
-
-                  {/* Dynamic subtopic */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                      <Sparkles className="w-3 h-3" /> Diagnostics Topic Focus
-                    </label>
-                    <input 
-                      type="text" 
-                      value={user.topic}
-                      onChange={e => syncLocalUserProfile({ ...user, topic: e.target.value })}
-                      className="w-full px-4 py-3 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold"
-                      placeholder="Type the focus topic"
-                    />
-                  </div>
-                </div>
-
-                {/* Grounding Materials Module triggers */}
-                <div className="flex gap-3 justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5 text-xs">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-secondary" />
-                    <div>
-                      <p className="font-headline font-bold text-on-surface">Selective Grounding Context</p>
-                      <p className="text-[10px] text-on-surface-variant mt-0.5">
-                        {selectedMaterialId 
-                          ? `Context set: ${materials.find(m => m.id === selectedMaterialId)?.title}` 
-                          : "Curriculum mode active without override texts."}
-                      </p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setIsMaterialManagerOpen(true)}
-                    className="px-4 py-2 rounded-xl text-[10px] uppercase font-headline font-extrabold tracking-wider bg-secondary/10 text-secondary hover:bg-secondary/20 transition-all border border-secondary/20"
-                  >
-                    Manage Library
-                  </button>
-                </div>
-              </div>
-
-              {/* Launcher Hub Buttons */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Button 
-                  onClick={initiateDiagnosis}
-                  className="h-16 rounded-2xl text-[11px] font-headline font-extrabold uppercase tracking-widest hover:scale-[1.01] transition-transform shadow-2xl shadow-primary/30 flex items-center justify-center gap-2 neon-glow-primary col-span-2"
-                >
-                  <Rocket className="w-4 h-4" /> Start Adaptive Diagnostic
-                </Button>
-                <Button 
-                  onClick={launchClassroomBattleSetup}
-                  variant="secondary"
-                  className="h-16 rounded-2xl text-[11px] font-headline font-extrabold uppercase tracking-widest flex items-center justify-center gap-2 overlay-dark col-span-1"
-                >
-                  <Users className="w-4 h-4" /> Classroom Battle
-                </Button>
-              </div>
-
-              {/* Records and achievements quick panels */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-                <button 
-                  onClick={() => setCurrentScreen(AppScreen.PROGRESS)}
-                  className="bg-surface-container-lowest/40 border border-white/5 p-4 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-primary/40 transition-all"
-                >
-                  <Trophy className="w-5 h-5 text-tertiary mb-1" />
-                  <span className="text-[9px] uppercase font-headline font-extrabold text-on-surface-variant">Level {user.level}</span>
-                  <span className="text-[8px] font-black uppercase text-tertiary tracking-wider mt-0.5">Diagnosed Rank</span>
-                </button>
-                <div className="bg-surface-container-lowest/40 border border-white/5 p-4 rounded-xl flex flex-col items-center justify-center">
-                  <Award className="w-5 h-5 text-primary mb-1" />
-                  <span className="text-[9px] uppercase font-headline font-extrabold text-on-surface-variant">{user.totalQuizzes}</span>
-                  <span className="text-[8px] font-black uppercase text-primary tracking-wider mt-0.5">Diagnose Runs</span>
-                </div>
-                <div className="bg-surface-container-lowest/40 border border-white/5 p-4 rounded-xl flex flex-col items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-secondary mb-1" />
-                  <span className="text-[9px] uppercase font-headline font-extrabold text-on-surface-variant">{user.totalPoints} pts</span>
-                  <span className="text-[8px] font-black uppercase text-secondary tracking-wider mt-0.5">Points Tallied</span>
-                </div>
-                <button 
-                  onClick={() => setCurrentScreen(AppScreen.PROGRESS)}
-                  className="bg-surface-container-lowest/40 border border-white/5 p-4 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-primary/40 transition-all"
-                >
-                  <FileText className="w-5 h-5 text-white mb-1" />
-                  <span className="text-[9px] uppercase font-headline font-extrabold text-on-surface-variant">View logs</span>
-                  <span className="text-[8px] font-black uppercase text-white tracking-wider mt-0.5">Diagnostic Records</span>
-                </button>
               </div>
             </motion.div>
           )}
