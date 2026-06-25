@@ -100,6 +100,250 @@ const repairJson = (text: string): string => {
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
+const generateOfflineQuizQuestions = (
+  profile: UserProfile,
+  topic: string,
+  sourceMaterial?: string
+): QuizQuestion[] => {
+  console.log("Generating offline questions for topic:", topic);
+  const subject = (profile.subject || "").toLowerCase();
+  const topicLower = (topic || "").toLowerCase();
+  const isTamil = /tamil/i.test(subject) || /tamil/i.test(topicLower);
+
+  let sentences: string[] = [];
+  if (sourceMaterial) {
+    sentences = sourceMaterial
+      .split(/[.!?\n]/)
+      .map(s => s.trim())
+      .filter(s => s.length > 25 && s.length < 200);
+  }
+
+  const questions: QuizQuestion[] = [];
+  const capTopic = topic.charAt(0).toUpperCase() + topic.slice(1);
+
+  if (isTamil) {
+    return [
+      {
+        id: 1,
+        type: QuestionType.MCQ,
+        text: `விடைத்தேர்க: "${topic}" என்ற தலைப்பில் உள்ள முக்கியக் கருத்து எது?`,
+        options: [
+          `அடிப்படை விதிகள் மற்றும் கோட்பாடுகள்`,
+          `அன்றாட வாழ்வில் அதன் பயன்கள்`,
+          `வரலாற்றுப் பின்னணி மற்றும் வளர்ச்சி`,
+          `மேலே குறிப்பிட்டுள்ள அனைத்தும்`
+        ],
+        correctIndex: 3,
+        explanation: `${topic} என்பது தமிழ் இலக்கியம் மற்றும் இலக்கணத்தில் மிக முக்கியப் பங்கு வகிக்கிறது. இதன் விதிகள் மற்றும் கோட்பாடுகள் நம் வாழ்விற்கு வழிகாட்டுகின்றன.`,
+        inquiryPrompt: `இதைப் பற்றி மேலும் சிந்திக்க: இக்கருத்து தற்காலச் சமூகத்திற்கு எவ்வாறு பொருந்தும்?`
+      },
+      {
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: `கீழ்க்கண்டவற்றுள் எது "${topic}" தொடர்பானது அல்ல?`,
+        options: [
+          `செம்மொழிப் பண்புகள்`,
+          `இலக்கிய நயம் மற்றும் உத்திகள்`,
+          `தகாத தர்க்க முறைகள்`,
+          `இலக்கண விதிகள்`
+        ],
+        correctIndex: 2,
+        explanation: `${topic} என்பது தமிழ் மொழி அமைப்பில் நேர்மறையான இலக்கண மற்றும் இலக்கியப் பண்புகளைக் குறிக்கும். தகாத தர்க்க முறைகள் இதனுடன் தொடர்பற்றவை.`,
+        inquiryPrompt: `இதன் உண்மைத் தன்மையை ஆராய்க.`
+      },
+      {
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: `ஒரு மாணவர் தமிழ் இலக்கியத்தில் "${topic}" பற்றிய கட்டுரையை எழுதுகிறார். அவர் அதன் முக்கியப் பண்புகளையும் அதன் வரலாற்றுத் தாக்கத்தையும் விவரிக்கும் போது, சில இலக்கணப் பிழைகளைச் செய்கிறார்.`,
+        text: `அந்த மாணவரின் கட்டுரையை மேம்படுத்த நீங்கள் என்ன ஆலோசனைக் கூறுவீர்கள்?`,
+        options: [
+          `இலக்கண விதிகளுடன் இலக்கிய நயத்தையும் இணைத்துக் கற்க வேண்டும்`,
+          `கட்டுரையை முழுமையாக ஆங்கிலத்தில் எழுத வேண்டும்`,
+          `கருத்துகளைக் குறைத்து பக்கங்களை மட்டும் அதிகரிக்க வேண்டும்`,
+          `எந்த மாற்றமும் தேவையில்லை`
+        ],
+        correctIndex: 0,
+        explanation: `தமிழ் இலக்கியத்தில் கருத்துச் செறிவோடு இலக்கணப் பிழையின்றி எழுதுவதே கட்டுரையைச் சிறந்ததாக மாற்றும்.`,
+        inquiryPrompt: `இலக்கணப் பிழைகளைத் தவிர்க்கும் வழிகள் யாவை?`
+      },
+      {
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: `தமிழ் மொழியின் வரலாற்று வரைபடம் ஒன்றை உற்றுநோக்குகிறோம். அதில் "${topic}" என்ற பகுதியானது தமிழ் மொழியின் தொன்மை மற்றும் தொடர்ச்சியை விளக்கும் மையப் புள்ளியாகக் காட்டப்பட்டுள்ளது.`,
+        text: `இந்த வரைபடம் உணர்த்தும் மையக் கருத்து என்ன?`,
+        options: [
+          `தமிழ் மொழி காலந்தோறும் வளர்ந்து வரும் ஒரு சமுதாய மொழி`,
+          `தமிழ் மொழியின் சொற்கள் மிகக் குறைவு`,
+          `இது பிற மொழிகளைச் சார்ந்துள்ளது`,
+          `இது தற்காலத்தில் வழக்கழிந்து வருகிறது`
+        ],
+        correctIndex: 0,
+        explanation: `வரலாற்று வரைபடம் தமிழின் தொன்மை மற்றும் அது காலம் கடந்து நிலைத்து நிற்கும் பேராற்றலைக் காட்டுகிறது.`,
+        inquiryPrompt: `தமிழின் தொடர்ச்சியை நிலைநிறுத்த நாம் என்ன செய்ய வேண்டும்?`
+      },
+      {
+        id: 5,
+        type: QuestionType.MCQ,
+        text: `பின்வருவனவற்றுள் எது "${topic}" கோட்பாட்டின் முக்கியப் பயன்?`,
+        options: [
+          `மொழி ஆற்றல் மற்றும் படைப்பாற்றலை வளர்த்தல்`,
+          `கருத்துகளைப் பகுத்தறிதல்`,
+          `அறிவியல் மற்றும் கணித சிந்தனையைத் தூண்டுதல்`,
+          `மேலே உள்ள அனைத்தும்`
+        ],
+        correctIndex: 3,
+        explanation: `${topic} பற்றிய முறையான புரிதல் மொழித் திறனையும், பகுத்தறிவையும், இதர அறிவியல் சிந்தனைகளையும் ஒருசேர வளர்க்க உதவுகிறது.`,
+        inquiryPrompt: `உமது சொந்தப் பயில்வு முறையை விவரி.`
+      }
+    ];
+  }
+
+  if (sentences.length >= 3) {
+    const s1 = sentences[0];
+    const s2 = sentences[1];
+    const s3 = sentences[2];
+    
+    questions.push({
+      id: 1,
+      type: QuestionType.MCQ,
+      contextMaterial: `Based on the provided syllabus material: "${s1}"`,
+      text: `According to the educational guidelines, which statement best aligns with the core thesis discussed above?`,
+      options: [
+        `It represents a foundational mechanism within the study of ${topic}.`,
+        `It indicates that the primary variables are static and do not interact.`,
+        `It is largely obsolete and replaced by alternative methods.`,
+        `It has no direct application in modern diagnostic environments.`
+      ],
+      correctIndex: 0,
+      explanation: `The material states: "${s1}". This confirms its fundamental role and modern relevance in our analysis of ${topic}.`,
+      inquiryPrompt: `How would you explain this core concept to a peer using a real-world analogy?`
+    });
+
+    questions.push({
+      id: 2,
+      type: QuestionType.WORD_PROBLEM,
+      contextMaterial: `Consider the following excerpt: "${s2}"`,
+      text: `In a practical scenario applying this principle to ${topic}, if we increase the scope or intensity by 50%, what is the expected outcome?`,
+      options: [
+        `Proportional advancement and optimized feedback loops`,
+        `Immediate system failure and resource exhaustion`,
+        `No change in the final outcomes or diagnostic accuracy`,
+        `A complete reversal of the underlying mechanics`
+      ],
+      correctIndex: 0,
+      explanation: `The concept defined as "${s2}" suggests that increasing input parameters leads to an active scale of outcomes, enhancing the study of ${topic}.`,
+      inquiryPrompt: `What variables would you need to keep constant to test this hypothesis?`
+    });
+
+    questions.push({
+      id: 3,
+      type: QuestionType.CASE_STUDY,
+      contextMaterial: `Case Study Excerpt: "${s3}"
+      
+An academic group is attempting to implement this specific concept of ${topic} in their diagnostic laboratory under a tight deadline. They notice that minor deviations in initial parameters lead to compound variations.`,
+      text: `What is the most methodical approach for the group to stabilize their diagnostic results?`,
+      options: [
+        `Formulate standardized controls and document all system deviations`,
+        `Disregard the source material and build an entirely new framework`,
+        `Increase the test timer limit and accept high margin of error`,
+        `Rely purely on mock parameters without empirical verification`
+      ],
+      correctIndex: 0,
+      explanation: `The case study highlights that standardizing controls and systematic documentation is critical to manage compound variations when analyzing "${s3}".`,
+      inquiryPrompt: `What is the risk of not documenting minor parameter variations in this study?`
+    });
+  }
+
+  if (questions.length < 1) {
+    questions.push({
+      id: 1,
+      type: QuestionType.MCQ,
+      text: `Which of the following best defines the primary concept of ${capTopic}?`,
+      options: [
+        `The systematic study and execution of its core principles and application frameworks.`,
+        `A secondary, non-essential variable that has no direct influence on performance.`,
+        `An outdated methodology used only in ancient educational structures.`,
+        `A theoretical model that cannot be tested empirically.`
+      ],
+      correctIndex: 0,
+      explanation: `${capTopic} represents a fundamental concept in this subject. Understanding its core framework is essential for higher-level problem solving.`,
+      inquiryPrompt: `Can you identify a real-life example where this primary definition of ${capTopic} is directly visible?`
+    });
+  }
+
+  if (questions.length < 2) {
+    questions.push({
+      id: 2,
+      type: QuestionType.WORD_PROBLEM,
+      text: `A diagnostic study is evaluating ${capTopic} under controlled parameters. If the target system achieves an initial efficiency rate of 75%, and a new parameter enhances it by a factor of 1.2x, what is the new efficiency?`,
+      options: [
+        `90%`,
+        `85%`,
+        `80%`,
+        `95%`
+      ],
+      correctIndex: 0,
+      explanation: `Calculating the efficiency enhancement: 75% * 1.2 = 90%. This reflects the highly responsive nature of the system.`,
+      inquiryPrompt: `What limiting factors might prevent this system from reaching 100% efficiency?`
+    });
+  }
+
+  if (questions.length < 3) {
+    questions.push({
+      id: 3,
+      type: QuestionType.CASE_STUDY,
+      contextMaterial: `A specialized taskforce is investigating the practical implications of ${capTopic} in modern high-performance environments. While traditional approaches suggest a linear correlation, recent data implies a non-linear threshold behavior.`,
+      text: `Based on this scenario, how should the taskforce adapt their strategic framework to study ${capTopic}?`,
+      options: [
+        `Integrate non-linear modeling and analyze boundary conditions`,
+        `Disregard the recent data as an anomaly and keep linear models`,
+        `Scale down the project scope to avoid complex variables`,
+        `Suspend the diagnostics until complete perfect data is available`
+      ],
+      correctIndex: 0,
+      explanation: `To achieve pristine accuracy under non-linear threshold behaviors, the taskforce must integrate non-linear models and pay close attention to boundary conditions.`,
+      inquiryPrompt: `How would you design a simple test to find the exact threshold where the behavior becomes non-linear?`
+    });
+  }
+
+  if (questions.length < 4) {
+    questions.push({
+      id: 4,
+      type: QuestionType.VISUAL_ANALYSIS,
+      contextMaterial: `Imagine a conceptual flowchart mapping the relationships between the subsystems of ${capTopic}. A central node, labeled 'Core Dynamics', connects directly to three peripheral nodes: 'Structural Inputs', 'Process Controls', and 'Feedback Optimization'.`,
+      text: `If a bottleneck occurs in the 'Process Controls' node, which subsystem is most likely to suffer immediate performance degradation?`,
+      options: [
+        `Feedback Optimization`,
+        `Structural Inputs`,
+        `The parent subject entirely`,
+        `None of the subsystems are affected`
+      ],
+      correctIndex: 0,
+      explanation: `Since 'Feedback Optimization' relies directly on the outputs processed by 'Process Controls', any bottleneck in control immediately cascades to the optimization phase.`,
+      inquiryPrompt: `How could you introduce a redundant loop to bypass a potential bottleneck in 'Process Controls'?`
+    });
+  }
+
+  if (questions.length < 5) {
+    questions.push({
+      id: 5,
+      type: QuestionType.MCQ,
+      text: `In the context of competitive diagnostics, which approach yields the most reliable results when analyzing ${capTopic}?`,
+      options: [
+        `A multi-perspective analytical approach combining theory with empirical test cases.`,
+        `Relying entirely on historical memorization without concept application.`,
+        `Avoiding difficult questions and focusing only on standard baseline cases.`,
+        `Bypassing structured analysis to use intuitive guessing.`
+      ],
+      correctIndex: 0,
+      explanation: `Prone to high accuracy, a multi-perspective analytical approach ensures that both theoretical foundations and active empirical results are fully verified.`,
+      inquiryPrompt: `What is one scenario where theory might temporarily diverge from empirical results in ${capTopic}?`
+    });
+  }
+
+  return questions;
+};
+
 let currentAudioSource: AudioBufferSourceNode | null = null;
 let audioContext: AudioContext | null = null;
 
@@ -122,7 +366,6 @@ export const generateQuizQuestions = async (
   seedOverride?: string,
   sourceMaterial?: string
 ): Promise<QuizQuestion[]> => {
-  const ai = getAI();
   const gradeInt = parseInt(profile.gradeLevel) || 10;
   const topic = topicOverride || profile.topic;
   
@@ -310,7 +553,8 @@ export const generateQuizQuestions = async (
       console.warn("Gemini rotation exhausted. Attempting Groq/Grok fallback...", lastError);
       const fallback = getFallbackAI();
       if (!fallback) {
-        throw lastError || new Error("All Gemini keys failed, and no Groq/Grok fallback is configured.");
+        console.warn("No Groq/Grok fallback configured. Falling back to offline question generator.");
+        return generateOfflineQuizQuestions(profile, topic, sourceMaterial);
       }
 
       console.log(`Calling Fallback AI (${fallback.type})...`);
@@ -359,18 +603,23 @@ export const generateQuizQuestions = async (
       let parsed = JSON.parse(repairJson(content));
       if (!Array.isArray(parsed) && parsed.questions) parsed = parsed.questions;
       if (!Array.isArray(parsed) && parsed.data) parsed = parsed.data;
+      if (!Array.isArray(parsed) && parsed.items) parsed = parsed.items;
+      if (!Array.isArray(parsed) && parsed.quiz) parsed = parsed.quiz;
+      if (!Array.isArray(parsed) && typeof parsed === 'object' && parsed !== null) {
+        const foundArray = Object.values(parsed).find(val => Array.isArray(val));
+        if (foundArray) {
+          parsed = foundArray;
+        }
+      }
       
       return validateAndFormatQuestions(parsed, topic);
     } catch (fallbackErr: any) {
-      console.error("Groq/Grok fallback failed:", fallbackErr);
-      throw lastError || fallbackErr;
+      console.warn("Groq/Grok fallback failed, activating offline question generator:", fallbackErr);
+      return generateOfflineQuizQuestions(profile, topic, sourceMaterial);
     }
   } catch (err: any) {
-    console.error("Generation Error:", err);
-    if (err instanceof SyntaxError) {
-      throw new Error("AI returned malformed data. Please try again.");
-    }
-    throw new Error(err.message || "Failed to generate questions. Please try again.");
+    console.error("Generation Error (falling back to offline generator):", err);
+    return generateOfflineQuizQuestions(profile, topic, sourceMaterial);
   }
 };
 
