@@ -1435,7 +1435,7 @@ export default function App() {
 
     // Dynamic positive words mapping
     if (correct) {
-      const niceWords = ['Outstanding!', 'Phenomenal!', 'Impeccable!', 'Strategic Mind!', 'Elite Master!'];
+      const niceWords = ['Excellent!', 'Outstanding!', 'Phenomenal!', 'Impeccable!', 'Strategic Mind!', 'Elite Master!', 'Brilliant!', 'Perfect!'];
       setMotivationText(niceWords[Math.floor(Math.random() * niceWords.length)]);
       setShowMotivationalPopup(true);
 
@@ -2692,13 +2692,25 @@ export default function App() {
                           <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
                             <Shield className="w-3 h-3" /> Target Stage
                           </label>
-                          <input 
-                            type="text"
-                            value={user.gradeLevel}
-                            onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
-                            className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
-                            placeholder="e.g. Grade 10, Final Year"
-                          />
+                          {(user.educationLevel || 'School') === 'School' ? (
+                            <select
+                              value={user.gradeLevel}
+                              onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
+                              className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                            >
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(g => (
+                                <option key={g} value={String(g)}>Grade {g}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input 
+                              type="text"
+                              value={user.gradeLevel}
+                              onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
+                              className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                              placeholder="e.g. Grade 10, Final Year"
+                            />
+                          )}
                         </div>
 
                         <div className="space-y-1">
@@ -3120,7 +3132,12 @@ export default function App() {
                           }`}>
                             {String.fromCharCode(65 + i)}
                           </span>
-                          <span className="font-body font-bold text-on-surface">{opt}</span>
+                          <span className="font-body font-bold text-on-surface flex-1">{opt}</span>
+                          {feedback && feedback.isCorrect && i === currentQuestions[currentQuestionIndex].correctIndex && (
+                            <span className="ml-auto bg-tertiary text-on-tertiary text-[10px] font-headline font-extrabold uppercase tracking-widest px-3 py-1 rounded-full animate-bounce shadow-md flex items-center gap-1.5 flex-none">
+                              <Check className="w-3.5 h-3.5 text-white" /> Excellent!
+                            </span>
+                          )}
                         </button>
                       );
                     })}

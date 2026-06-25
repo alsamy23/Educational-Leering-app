@@ -118,7 +118,6 @@ const generateOfflineQuizQuestions = (
       .filter(s => s.length > 25 && s.length < 200);
   }
 
-  const questions: QuizQuestion[] = [];
   const capTopic = topic.charAt(0).toUpperCase() + topic.slice(1);
 
   if (isTamil) {
@@ -198,6 +197,402 @@ const generateOfflineQuizQuestions = (
     ];
   }
 
+  const questions: QuizQuestion[] = [];
+
+  // --- Dynamic Local Database of Precise Subject-Specific Questions ---
+  const offlineDatabase: { [key: string]: QuizQuestion[] } = {
+    "light": [
+      {
+        id: 1,
+        type: QuestionType.MCQ,
+        text: "A convex lens has a focal length of 15 cm. If an object is placed at 30 cm in front of the lens, where is the image formed?",
+        options: [
+          "At 30 cm on the other side, real and inverted",
+          "At 15 cm on the same side, virtual and erect",
+          "At infinity on the other side, real and inverted",
+          "At 10 cm on the other side, virtual and erect"
+        ],
+        correctIndex: 0,
+        explanation: "Since the object is placed at 2F (30 cm, which is twice the focal length of 15 cm), the convex lens forms a real and inverted image of the same size at 2F on the other side of the lens.",
+        inquiryPrompt: "What would happen to the size and nature of the image if the object is moved closer to the lens, say at 10 cm?"
+      },
+      {
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: "If the magnification produced by a spherical mirror is -1, what does this indicate about the nature and size of the image?",
+        options: [
+          "The image is real, inverted, and of the same size as the object",
+          "The image is virtual, erect, and magnified",
+          "The image is real, inverted, and diminished",
+          "The image is virtual, erect, and of the same size as the object"
+        ],
+        correctIndex: 0,
+        explanation: "A negative sign in magnification indicates that the image is real and inverted. A magnitude of 1 indicates that the image is of the exact same size as the object.",
+        inquiryPrompt: "Can you name a specific mirror and position of the object that produces a magnification of -1?"
+      },
+      {
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: "A student named Rahul is conducting an experiment with a glass slab. He shines a ray of light from air into the glass slab at an angle of incidence of 45 degrees. He notices that the light bends towards the normal inside the glass, and when it exits, the emergent ray is parallel to the incident ray but slightly shifted sideways.",
+        text: "What causes the light to bend towards the normal when entering the glass slab, and what is the lateral displacement called?",
+        options: [
+          "The decrease in the speed of light in glass; lateral shift",
+          "The increase in the speed of light in glass; vertical shift",
+          "Total internal reflection inside the glass slab; normal shift",
+          "The gravitational pull of the glass slab; refractive shift"
+        ],
+        correctIndex: 0,
+        explanation: "When light travels from a rarer medium (air) to a denser medium (glass), its speed decreases, causing it to bend towards the normal. The sideways shift of the emergent ray is called lateral displacement.",
+        inquiryPrompt: "How would the lateral displacement change if we replaced the glass slab with a diamond slab of the same thickness?"
+      },
+      {
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: "A ray diagram shows a ray of light passing through a glass prism. The incident ray enters the prism, refracts inside, and then emerges on the other side. The angle between the incident ray produced forward and the emergent ray produced backward is labeled as 'D'.",
+        text: "What is the correct physical term for this angle 'D', and what factors does it depend on?",
+        options: [
+          "Angle of Deviation; depends on the angle of incidence, prism angle, and refractive index",
+          "Angle of Refraction; depends only on the color of light",
+          "Angle of Dispersion; depends only on the length of the prism",
+          "Angle of Incidence; depends on the speed of the prism rotation"
+        ],
+        correctIndex: 0,
+        explanation: "The angle between the incident ray and the emergent ray in a prism is called the angle of deviation (D). It depends on the angle of incidence, the angle of the prism, the refractive index of the prism material, and the wavelength of light used.",
+        inquiryPrompt: "Which color of white light deviates the most when passing through a glass prism, and why?"
+      },
+      {
+        id: 5,
+        type: QuestionType.MCQ,
+        text: "A person cannot see distant objects clearly but can see nearby objects distinctly. Which eye defect is this, and how can it be corrected?",
+        options: [
+          "Myopia (Short-sightedness); corrected using a concave lens",
+          "Hypermetropia (Long-sightedness); corrected using a convex lens",
+          "Presbyopia; corrected using a bifocal lens",
+          "Astigmatism; corrected using cylindrical lenses"
+        ],
+        correctIndex: 0,
+        explanation: "Myopia is a defect in which a person can see nearby objects clearly but cannot see distant objects distinctly. It occurs because the image of distant objects is formed in front of the retina. A concave lens of appropriate power diverges the incoming rays to focus them exactly on the retina.",
+        inquiryPrompt: "What are the two common causes of myopia in young students?"
+      }
+    ],
+    "photosynthesis": [
+      {
+        id: 1,
+        type: QuestionType.MCQ,
+        text: "Which of the following represents the correct balanced chemical equation for the overall process of photosynthesis?",
+        options: [
+          "6CO2 + 6H2O + Light energy -> C6H12O6 + 6O2",
+          "C6H12O6 + 6O2 -> 6CO2 + 6H2O + ATP",
+          "6CO2 + 6O2 + Chlorophyll -> C6H12O6 + 6H2O",
+          "CO2 + H2O + Chlorophyll -> C6H12O6 + O2"
+        ],
+        correctIndex: 0,
+        explanation: "Photosynthesis is the process by which green plants synthesize glucose from carbon dioxide and water in the presence of sunlight and chlorophyll, releasing oxygen as a byproduct. The balanced chemical equation is 6CO2 + 6H2O -> C6H12O6 + 6O2.",
+        inquiryPrompt: "What is the primary fate of the oxygen molecules released during this reaction?"
+      },
+      {
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: "In a laboratory experiment, a plant leaf is exposed to carbon dioxide containing a heavy isotope of oxygen (O-18), while the water supplied contains normal oxygen. After several hours, the oxygen gas released by the plant is analyzed. Which of the following will contain the O-18 isotope?",
+        options: [
+          "The synthesized glucose will contain O-18; the released oxygen gas will contain normal oxygen",
+          "The released oxygen gas will contain O-18; the glucose will contain normal oxygen",
+          "Both glucose and oxygen gas will contain O-18",
+          "Neither will contain O-18; this indicates carbon dioxide was not absorbed"
+        ],
+        correctIndex: 0,
+        explanation: "During light-dependent reactions, photolysis of water splits water molecules into hydrogen ions and oxygen gas. The oxygen gas released comes entirely from water (H2O), while the oxygen in CO2 is incorporated into the glucose (C6H12O6) molecule.",
+        inquiryPrompt: "How would the rate of oxygen release change if the plant is placed in a nitrogen-rich atmosphere under full sunlight?"
+      },
+      {
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: "An agricultural researcher is studying a group of tomato plants. She notices that during hot and dry summer days, the rate of photosynthesis in the afternoon drops significantly, a phenomenon known as the 'midday depression', despite there being plenty of sunlight.",
+        text: "What physiological response in the plants causes this drop in photosynthesis, and why is it beneficial for the plant's survival?",
+        options: [
+          "Closure of stomata to prevent water loss (transpiration), which limits CO2 intake; benefits survival by preventing dehydration",
+          "Degradation of chlorophyll due to excess heat; benefits survival by reducing metabolic stress",
+          "Rapid increase in respiration rate; benefits survival by producing ATP in the dark",
+          "Plasmolysis of root hair cells; benefits survival by halting nutrient absorption"
+        ],
+        correctIndex: 0,
+        explanation: "To prevent excessive water loss (transpiration) in dry, hot conditions, plants close their stomata. This closure restricts the entry of carbon dioxide (CO2), which is a crucial reactant for the Calvin Cycle, thereby reducing the rate of photosynthesis.",
+        inquiryPrompt: "How do desert plants (CAM plants) overcome this conflict between water conservation and photosynthesis?"
+      },
+      {
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: "Under a light microscope, a cross-section of a green leaf reveals several layers: the upper epidermis, the palisade mesophyll layer containing numerous tightly packed elongated cells with chloroplasts, the spongy mesophyll layer with large air spaces, and the lower epidermis with stomatal openings.",
+        text: "Based on this structural organization, why are palisade mesophyll cells located directly beneath the upper epidermis, and what is the function of the spongy mesophyll's air spaces?",
+        options: [
+          "Palisade cells are at the top to maximize light absorption; spongy mesophyll air spaces facilitate rapid gas diffusion of CO2 and O2",
+          "Palisade cells are at the top to absorb water directly from dew; spongy spaces store excess sugars",
+          "Palisade cells act as a protective barrier; spongy spaces insulate the leaf against freezing",
+          "Palisade cells absorb nitrogen; spongy spaces serve as structural floatation devices"
+        ],
+        correctIndex: 0,
+        explanation: "Palisade mesophyll cells contain the highest concentration of chloroplasts and are situated at the upper surface to capture maximum sunlight. Spongy mesophyll air spaces allow carbon dioxide to easily diffuse to the photosynthesizing cells and oxygen to diffuse out towards the stomata.",
+        inquiryPrompt: "How would you modify this leaf structure to design a plant optimized for extremely low-light undergrowth conditions?"
+      },
+      {
+        id: 5,
+        type: QuestionType.MCQ,
+        text: "In which specific areas of the chloroplast do the light-dependent reactions and the light-independent (dark) reactions take place?",
+        options: [
+          "Light reactions occur in the thylakoid membranes; dark reactions occur in the stroma",
+          "Light reactions occur in the stroma; dark reactions occur in the thylakoid membranes",
+          "Light reactions occur in the outer membrane; dark reactions occur in the cytoplasm",
+          "Both reactions occur completely within the thylakoid lumen"
+        ],
+        correctIndex: 0,
+        explanation: "Light-dependent reactions take place in the thylakoid membranes (grana) because that is where chlorophyll and photosystems are located. The light-independent reactions (Calvin Cycle) take place in the fluid stroma where the necessary enzymes (like RuBisCO) are suspended.",
+        inquiryPrompt: "Why is the term 'dark reactions' considered a misnomer in modern botany?"
+      }
+    ],
+    "quadratic": [
+      {
+        id: 1,
+        type: QuestionType.MCQ,
+        text: "What are the roots of the quadratic equation x^2 - 5x + 6 = 0, and what is the nature of these roots?",
+        options: [
+          "x = 2 and x = 3; real and distinct roots",
+          "x = -2 and x = -3; real and distinct roots",
+          "x = 1 and x = 6; imaginary roots",
+          "x = 2 and x = 3; real and equal roots"
+        ],
+        correctIndex: 0,
+        explanation: "Factoring the quadratic equation: x^2 - 5x + 6 = 0 gives (x - 2)(x - 3) = 0. Therefore, x = 2 and x = 3. Since the discriminant D = b^2 - 4ac = 25 - 24 = 1 > 0, the roots are real and distinct.",
+        inquiryPrompt: "What would the value of the constant term have to be for this equation to have real and equal roots?"
+      },
+      {
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: "For what values of 'k' will the quadratic equation 2x^2 + kx + 8 = 0 have equal and real roots?",
+        options: [
+          "k = 8 or k = -8",
+          "k = 4 or k = -4",
+          "k = 16 or k = -16",
+          "k = 0"
+        ],
+        correctIndex: 0,
+        explanation: "For equal roots, the discriminant D must be equal to 0. Here, D = b^2 - 4ac = k^2 - 4(2)(8) = k^2 - 64. Setting k^2 - 64 = 0 gives k^2 = 64, which means k = 8 or k = -8.",
+        inquiryPrompt: "If k is greater than 8, what can we say about the graph of this quadratic function in relation to the x-axis?"
+      },
+      {
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: "An aerospace engineer is designing a rocket launch path. The altitude 'h' (in meters) of the rocket 't' seconds after launch is modeled by the quadratic function: h(t) = -5t^2 + 40t + 10. The team needs to determine when the rocket reaches its maximum height and what that maximum height is.",
+        text: "At what time 't' does the rocket reach its maximum altitude, and what is this peak altitude?",
+        options: [
+          "t = 4 seconds; peak altitude is 90 meters",
+          "t = 8 seconds; peak altitude is 10 meters",
+          "t = 2 seconds; peak altitude is 70 meters",
+          "t = 5 seconds; peak altitude is 85 meters"
+        ],
+        correctIndex: 0,
+        explanation: "The vertex of a parabola y = at^2 + bt + c occurs at t = -b / (2a). For h(t) = -5t^2 + 40t + 10, the vertex is at t = -40 / (2 * -5) = 4 seconds. Substituting t = 4 into the function gives h(4) = -5(16) + 40(4) + 10 = -80 + 160 + 10 = 90 meters.",
+        inquiryPrompt: "At what time will the rocket impact the ground (h = 0)?"
+      },
+      {
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: "A graphing software displays a parabola that represents the quadratic equation y = ax^2 + bx + c. The parabola opens downwards, has its vertex in the second quadrant, and cuts the x-axis at two distinct points on the negative x-axis.",
+        text: "Based on this visual representation, what can you conclude about the signs of the coefficients 'a', 'b', and 'c', and the value of the discriminant 'D'?",
+        options: [
+          "a < 0 (opens down), D > 0 (two roots), c < 0 (y-intercept is negative), b < 0",
+          "a > 0 (opens up), D < 0 (no roots), c > 0, b > 0",
+          "a < 0, D = 0, c > 0, b = 0",
+          "a > 0, D > 0, c < 0, b < 0"
+        ],
+        correctIndex: 0,
+        explanation: "Since the parabola opens downwards, a < 0. Since it cuts the x-axis at two distinct points, D > 0. Since the vertex lies in the second quadrant (negative x, positive y) and it opens down, the y-intercept (when x=0) must be on the negative y-axis, meaning c < 0.",
+        inquiryPrompt: "How would the graph change if the value of coefficient 'a' is doubled while keeping 'b' and 'c' constant?"
+      },
+      {
+        id: 5,
+        type: QuestionType.MCQ,
+        text: "What is the relationship between the coefficients of a quadratic equation ax^2 + bx + c = 0 and the sum and product of its roots?",
+        options: [
+          "Sum of roots = -b/a; Product of roots = c/a",
+          "Sum of roots = b/a; Product of roots = -c/a",
+          "Sum of roots = c/a; Product of roots = b/a",
+          "Sum of roots = -c/a; Product of roots = -b/a"
+        ],
+        correctIndex: 0,
+        explanation: "According to Vieta's formulas, for any quadratic equation ax^2 + bx + c = 0 with roots alpha and beta, the sum of the roots is alpha + beta = -b/a, and the product of the roots is alpha * beta = c/a.",
+        inquiryPrompt: "If one root of a quadratic equation is the reciprocal of the other, what must be the relationship between 'a' and 'c'?"
+      }
+    ],
+    "force": [
+      {
+        id: 1,
+        type: QuestionType.MCQ,
+        text: "According to Newton's universal law of gravitation, how does the gravitational force (F) between two masses change if the distance (d) between their centers is doubled?",
+        options: [
+          "The force becomes 1/4th of the original force",
+          "The force is halved",
+          "The force is doubled",
+          "The force becomes 4 times the original force"
+        ],
+        correctIndex: 0,
+        explanation: "Newton's Universal Law of Gravitation states that F = G * (m1 * m2) / d^2. Since the force is inversely proportional to the square of the distance, doubling the distance (2d) results in a force of 1/(2^2) = 1/4th of the original force.",
+        inquiryPrompt: "What would happen to the force if the mass of both objects was also doubled simultaneously?"
+      },
+      {
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: "An object of mass 12 kg is taken to the surface of the Moon. What will be its mass and its weight on the Moon? (Take acceleration due to gravity on Earth g = 10 m/s^2, and on Moon g_m = 1.63 m/s^2)",
+        options: [
+          "Mass is 12 kg; Weight is approximately 19.6 N",
+          "Mass is 2 kg; Weight is approximately 120 N",
+          "Mass is 12 kg; Weight is approximately 120 N",
+          "Mass is 72 kg; Weight is approximately 19.6 N"
+        ],
+        correctIndex: 0,
+        explanation: "Mass is an intrinsic property of matter and remains constant everywhere (12 kg on Moon). Weight depends on the local gravity: W = m * g_m = 12 * 1.63 = 19.56 N (approximately 19.6 N).",
+        inquiryPrompt: "Why does weight change on different celestial bodies while mass remains identical?"
+      },
+      {
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: "During an educational space mission, astronauts drop a 5 kg steel ball and a 10 g feather inside a giant vacuum chamber on the surface of the Earth. In another test, they drop the same objects in a normal atmospheric classroom.",
+        text: "What will be observed in both test environments regarding the acceleration and time of fall?",
+        options: [
+          "In the vacuum chamber, both objects fall with the exact same acceleration and hit the ground together; in the classroom, the steel ball hits first due to air resistance on the feather",
+          "In both environments, the steel ball falls faster because it is heavier",
+          "In both environments, they hit the ground together because gravity is constant",
+          "In the vacuum chamber, the feather falls faster because it has less mass and less inertia"
+        ],
+        correctIndex: 0,
+        explanation: "In a vacuum, there is no air resistance (drag). According to Galileo's principle and Newton's laws, all objects accelerate at the same rate 'g' regardless of their mass. In air, the feather experiences a large upward drag compared to its tiny weight, reaching terminal velocity almost instantly.",
+        inquiryPrompt: "Can you explain why a heavier object does not fall faster than a lighter object in a vacuum, despite experiencing a larger gravitational pull?"
+      },
+      {
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: "A high-precision linear graph plots the velocity of a free-falling stone against elapsed time. The stone was released from rest at a great height with no air resistance. The plot is a straight line passing through the origin (0,0) and ascending steadily.",
+        text: "What does the slope of this line represent, and what is its value in standard SI units near the Earth's surface?",
+        options: [
+          "Acceleration due to gravity; approximately 9.8 m/s^2",
+          "The mass of the stone; approximately 10 kg",
+          "The height from which the stone was dropped; approximately 100 meters",
+          "The kinetic energy of the stone; approximately 98 Joules"
+        ],
+        correctIndex: 0,
+        explanation: "On a velocity-time graph, the slope represents acceleration. For a free-falling body with no air resistance, the acceleration is constant and equals the acceleration due to gravity (g), which is approximately 9.8 m/s^2.",
+        inquiryPrompt: "How would the velocity-time graph look if air resistance was taken into account?"
+      },
+      {
+        id: 5,
+        type: QuestionType.MCQ,
+        text: "Which of Newton's laws of motion provides a qualitative definition of force, and which provides a quantitative measurement of force?",
+        options: [
+          "Newton's First Law defines force qualitatively (inertia); Newton's Second Law measures force quantitatively (F=ma)",
+          "Newton's Second Law defines force qualitatively; Newton's Third Law measures force quantitatively",
+          "Newton's Third Law defines force qualitatively; Newton's First Law measures force quantitatively",
+          "Newton's First Law measures force; Newton's Third Law defines it qualitatively"
+        ],
+        correctIndex: 0,
+        explanation: "Newton's First Law states that a body remains at rest or in uniform motion unless acted upon by an external force, providing the qualitative concept of force. Newton's Second Law quantifies force by stating that the force is the rate of change of momentum, leading to the formula F = ma.",
+        inquiryPrompt: "State Newton's Third Law of Motion and give one example of it in jet propulsion."
+      }
+    ],
+    "rights": [
+      {
+        id: 1,
+        type: QuestionType.MCQ,
+        text: "Which article of the Constitution of India guarantees the Right to Equality, and what is its core legal tenet?",
+        options: [
+          "Article 14; State shall not deny to any person equality before the law or equal protection of laws within India",
+          "Article 21; Protection of life and personal liberty",
+          "Article 19; Protection of freedom of speech and expression",
+          "Article 32; Right to constitutional remedies"
+        ],
+        correctIndex: 0,
+        explanation: "Article 14 of the Indian Constitution guarantees equality before the law and equal protection of the laws to all persons within the territory of India, prohibiting discrimination on grounds of religion, race, caste, sex, or place of birth.",
+        inquiryPrompt: "What is the difference between 'Equality before Law' and 'Equal Protection of Laws'?"
+      },
+      {
+        id: 2,
+        type: QuestionType.MCQ,
+        text: "Which Fundamental Right, described by Dr. B.R. Ambedkar as the 'Heart and Soul' of the Constitution, allows citizens to approach the Supreme Court directly for the enforcement of their rights?",
+        options: [
+          "Right to Constitutional Remedies (Article 32)",
+          "Right to Freedom of Religion (Article 25)",
+          "Right to Freedom (Article 19)",
+          "Right against Exploitation (Article 23)"
+        ],
+        correctIndex: 0,
+        explanation: "Dr. B.R. Ambedkar called Article 32 (Right to Constitutional Remedies) the 'Heart and Soul' because it provides a mechanism for citizens to petition the Supreme Court directly to enforce their Fundamental Rights via writs like Habeas Corpus, Mandamus, Prohibition, Certiorari, and Quo Warranto.",
+        inquiryPrompt: "What is a writ of Habeas Corpus, and when is it issued?"
+      },
+      {
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: "A local municipality passes a regulation prohibiting street vendors from operating in any commercial zone. A group of affected vendors petitions the High Court, claiming that this regulation completely deprives them of their livelihood without reasonable justification, violating their constitutional rights.",
+        text: "Which article of the Constitution of India is most directly violated by the municipality's blanket ban, and what legal test must the regulation pass?",
+        options: [
+          "Article 19(1)(g) (Right to practice any profession or carry on any trade or business); must pass the test of 'reasonable restrictions' in public interest",
+          "Article 25 (Freedom of religion); must pass the secular test",
+          "Article 17 (Abolition of untouchability); must pass the social equality test",
+          "Article 30 (Right of minorities to establish educational institutions); must pass the autonomy test"
+        ],
+        correctIndex: 0,
+        explanation: "Article 19(1)(g) guarantees the right to practice any profession, trade, or business. However, the State can impose 'reasonable restrictions' in the interest of the general public under Article 19(6). A total, arbitrary ban without balancing public interest is usually held unconstitutional as an unreasonable restriction.",
+        inquiryPrompt: "How can a city balance the fundamental rights of street vendors with public safety and traffic management?"
+      },
+      {
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: "A public chart displays the Fundamental Rights guaranteed by the Constitution of India. It shows six main pillars: Right to Equality, Right to Freedom, Right against Exploitation, Right to Freedom of Religion, Cultural and Educational Rights, and Right to Constitutional Remedies. A historical note mentions that there were originally seven pillars.",
+        text: "Which fundamental right was removed from the list of Fundamental Rights, and by which amendment?",
+        options: [
+          "Right to Property; removed by the 44th Constitutional Amendment Act in 1978",
+          "Right to Education; removed by the 86th Constitutional Amendment",
+          "Right to Information; removed by the 42nd Constitutional Amendment",
+          "Right to Work; removed by the 24th Constitutional Amendment"
+        ],
+        correctIndex: 0,
+        explanation: "The Right to Property was originally a Fundamental Right under Article 19(1)(f) and Article 31. The 44th Amendment Act of 1978 deleted it from the list of Fundamental Rights and made it a simple legal right under Article 300A.",
+        inquiryPrompt: "What is the primary legal difference between a Fundamental Right and a Constitutional/Legal Right?"
+      },
+      {
+        id: 5,
+        type: QuestionType.MCQ,
+        text: "Which of the following statements correctly distinguishes between Fundamental Rights and Directive Principles of State Policy (DPSP) in the Indian Constitution?",
+        options: [
+          "Fundamental Rights are justiciable (enforceable in court); DPSPs are non-justiciable (moral guidelines for the State)",
+          "Fundamental Rights are non-justiciable; DPSPs are justiciable",
+          "Both are justiciable and can be enforced in court with equal authority",
+          "Neither can be enforced in court, they are merely symbolic preamble statements"
+        ],
+        correctIndex: 0,
+        explanation: "Fundamental Rights are justiciable, meaning a citizen can move courts if they are violated. DPSPs (Part IV) are non-justiciable; they are fundamental in the governance of the country and it is the duty of the State to apply them in making laws, but courts cannot force their implementation due to financial and resource constraints.",
+        inquiryPrompt: "Why did the makers of the Constitution make DPSPs non-justiciable while making Fundamental Rights justiciable?"
+      }
+    ]
+  };
+
+  // Check if topic is a pre-defined offline topic
+  let matchedKey = "";
+  if (topicLower.includes("light") || topicLower.includes("reflect") || topicLower.includes("refract") || topicLower.includes("lens")) {
+    matchedKey = "light";
+  } else if (topicLower.includes("photosynthesis") || topicLower.includes("plant") || topicLower.includes("chloroplast") || topicLower.includes("leaf") || topicLower.includes("biology") || topicLower.includes("life process")) {
+    matchedKey = "photosynthesis";
+  } else if (topicLower.includes("quadrat") || topicLower.includes("equation") || topicLower.includes("polynomial") || topicLower.includes("math")) {
+    matchedKey = "quadratic";
+  } else if (topicLower.includes("force") || topicLower.includes("gravit") || topicLower.includes("gravity") || topicLower.includes("physics") || topicLower.includes("weight")) {
+    matchedKey = "force";
+  } else if (topicLower.includes("right") || topicLower.includes("constitut") || topicLower.includes("polity") || topicLower.includes("fundamental") || topicLower.includes("civics") || topicLower.includes("social")) {
+    matchedKey = "rights";
+  }
+
+  if (matchedKey && offlineDatabase[matchedKey]) {
+    // Return copies of the pre-defined questions
+    return JSON.parse(JSON.stringify(offlineDatabase[matchedKey]));
+  }
+
+  // Fallback to sentence extraction if source material is supplied
   if (sentences.length >= 3) {
     const s1 = sentences[0];
     const s2 = sentences[1];
@@ -207,7 +602,7 @@ const generateOfflineQuizQuestions = (
       id: 1,
       type: QuestionType.MCQ,
       contextMaterial: `Based on the provided syllabus material: "${s1}"`,
-      text: `According to the educational guidelines, which statement best aligns with the core thesis discussed above?`,
+      text: `According to the educational guidelines, which statement best aligns with the core thesis of "${topic}" discussed above?`,
       options: [
         `It represents a foundational mechanism within the study of ${topic}.`,
         `It indicates that the primary variables are static and do not interact.`,
@@ -223,7 +618,7 @@ const generateOfflineQuizQuestions = (
       id: 2,
       type: QuestionType.WORD_PROBLEM,
       contextMaterial: `Consider the following excerpt: "${s2}"`,
-      text: `In a practical scenario applying this principle to ${topic}, if we increase the scope or intensity by 50%, what is the expected outcome?`,
+      text: `In a practical scenario applying this principle to "${topic}", if we increase the scope or intensity by 50%, what is the expected outcome?`,
       options: [
         `Proportional advancement and optimized feedback loops`,
         `Immediate system failure and resource exhaustion`,
@@ -254,20 +649,21 @@ An academic group is attempting to implement this specific concept of ${topic} i
     });
   }
 
+  // Standard Smart General Fallback Generator (Ensuring highly realistic & specific questions incorporating topic name)
   if (questions.length < 1) {
     questions.push({
       id: 1,
       type: QuestionType.MCQ,
-      text: `Which of the following best defines the primary concept of ${capTopic}?`,
+      text: `In the academic study of "${capTopic}", which of the following represents a major foundational challenge or primary principle?`,
       options: [
-        `The systematic study and execution of its core principles and application frameworks.`,
-        `A secondary, non-essential variable that has no direct influence on performance.`,
-        `An outdated methodology used only in ancient educational structures.`,
-        `A theoretical model that cannot be tested empirically.`
+        `Developing systematic empirical models to measure how ${topic} behaves under altered parameters.`,
+        `Disregarding experimental feedback loops entirely to focus on qualitative historical archives.`,
+        `Assuming all external environments remain static and have no influence on ${topic}.`,
+        `Limiting research to simplified ancient models that can no longer be verified.`
       ],
       correctIndex: 0,
-      explanation: `${capTopic} represents a fundamental concept in this subject. Understanding its core framework is essential for higher-level problem solving.`,
-      inquiryPrompt: `Can you identify a real-life example where this primary definition of ${capTopic} is directly visible?`
+      explanation: `Studying "${capTopic}" requires establishing methodical, empirical models to predict behavior when critical parameters are changed, which is essential for advanced concept application.`,
+      inquiryPrompt: `Can you identify a real-life situation where this foundational challenge of "${capTopic}" is directly observed?`
     });
   }
 
@@ -275,16 +671,16 @@ An academic group is attempting to implement this specific concept of ${topic} i
     questions.push({
       id: 2,
       type: QuestionType.WORD_PROBLEM,
-      text: `A diagnostic study is evaluating ${capTopic} under controlled parameters. If the target system achieves an initial efficiency rate of 75%, and a new parameter enhances it by a factor of 1.2x, what is the new efficiency?`,
+      text: `Consider a diagnostic test environment evaluating a "${capTopic}" system. If the baseline efficiency is 75%, and introducing a standardized catalyst parameter increases its performance by a factor of 1.2x, what is the new calculated system output?`,
       options: [
-        `90%`,
-        `85%`,
-        `80%`,
-        `95%`
+        `90% output (reflecting high responsive scaling)`,
+        `85% output`,
+        `80% output`,
+        `95% output`
       ],
       correctIndex: 0,
-      explanation: `Calculating the efficiency enhancement: 75% * 1.2 = 90%. This reflects the highly responsive nature of the system.`,
-      inquiryPrompt: `What limiting factors might prevent this system from reaching 100% efficiency?`
+      explanation: `Multiplying the baseline efficiency by the performance enhancement factor: 75% * 1.2 = 90%. This reflects a highly positive, scalable relationship.`,
+      inquiryPrompt: `What physical or structural limits might prevent this "${capTopic}" system from achieving a theoretical 100% efficiency?`
     });
   }
 
@@ -292,17 +688,17 @@ An academic group is attempting to implement this specific concept of ${topic} i
     questions.push({
       id: 3,
       type: QuestionType.CASE_STUDY,
-      contextMaterial: `A specialized taskforce is investigating the practical implications of ${capTopic} in modern high-performance environments. While traditional approaches suggest a linear correlation, recent data implies a non-linear threshold behavior.`,
-      text: `Based on this scenario, how should the taskforce adapt their strategic framework to study ${capTopic}?`,
+      contextMaterial: `A specialized research team is investigating the practical implications of "${capTopic}" in a high-performance environment. While traditional theories suggest a simple linear correlation between inputs and outputs, new experimental data strongly implies a non-linear threshold behavior where progress scales exponentially after a critical point.`,
+      text: `Based on this case study, how should the team adjust their analytical framework to model "${capTopic}" accurately?`,
       options: [
-        `Integrate non-linear modeling and analyze boundary conditions`,
-        `Disregard the recent data as an anomaly and keep linear models`,
-        `Scale down the project scope to avoid complex variables`,
-        `Suspend the diagnostics until complete perfect data is available`
+        `Adopt non-linear mathematical models and closely observe behavior near the critical threshold.`,
+        `Ignore the new data as a minor anomaly and maintain their simple linear models.`,
+        `Reduce the scope of the study to exclude complex variable interactions.`,
+        `Suspend the research project completely until ideal conditions are met.`
       ],
       correctIndex: 0,
-      explanation: `To achieve pristine accuracy under non-linear threshold behaviors, the taskforce must integrate non-linear models and pay close attention to boundary conditions.`,
-      inquiryPrompt: `How would you design a simple test to find the exact threshold where the behavior becomes non-linear?`
+      explanation: `Because "${capTopic}" exhibits non-linear threshold behavior in this scenario, the team must implement non-linear modeling and pay close attention to the boundary conditions near the critical point to ensure correct findings.`,
+      inquiryPrompt: `How would you design a simple, controlled experiment to identify the exact numerical threshold of "${capTopic}"?`
     });
   }
 
@@ -310,17 +706,17 @@ An academic group is attempting to implement this specific concept of ${topic} i
     questions.push({
       id: 4,
       type: QuestionType.VISUAL_ANALYSIS,
-      contextMaterial: `Imagine a conceptual flowchart mapping the relationships between the subsystems of ${capTopic}. A central node, labeled 'Core Dynamics', connects directly to three peripheral nodes: 'Structural Inputs', 'Process Controls', and 'Feedback Optimization'.`,
-      text: `If a bottleneck occurs in the 'Process Controls' node, which subsystem is most likely to suffer immediate performance degradation?`,
+      contextMaterial: `An academic flowchart maps the relationships between the components of "${capTopic}". A central coordinate, labeled 'Core Dynamics', connects directly to three adjacent nodes: 'Structural Inputs', 'Process Controls', and 'Feedback Optimization'.`,
+      text: `If an operational block or bottleneck occurs at the 'Process Controls' node, which connected component of "${capTopic}" is most likely to suffer immediate degradation?`,
       options: [
-        `Feedback Optimization`,
-        `Structural Inputs`,
+        `Feedback Optimization (which relies on processed inputs from controls)`,
+        `Structural Inputs (which acts as a preceding generator)`,
         `The parent subject entirely`,
-        `None of the subsystems are affected`
+        `None of the connected subsystems are affected`
       ],
       correctIndex: 0,
-      explanation: `Since 'Feedback Optimization' relies directly on the outputs processed by 'Process Controls', any bottleneck in control immediately cascades to the optimization phase.`,
-      inquiryPrompt: `How could you introduce a redundant loop to bypass a potential bottleneck in 'Process Controls'?`
+      explanation: `In the flow of "${capTopic}", Feedback Optimization is downstream of Process Controls, meaning any restriction in control immediately limits the optimization feedback cycle.`,
+      inquiryPrompt: `How could you introduce an alternative bypass loop to preserve system stability in "${capTopic}" if the primary controls fail?`
     });
   }
 
@@ -328,16 +724,16 @@ An academic group is attempting to implement this specific concept of ${topic} i
     questions.push({
       id: 5,
       type: QuestionType.MCQ,
-      text: `In the context of competitive diagnostics, which approach yields the most reliable results when analyzing ${capTopic}?`,
+      text: `In professional academic testing, which approach consistently yields the most reliable, long-term mastery of "${capTopic}"?`,
       options: [
-        `A multi-perspective analytical approach combining theory with empirical test cases.`,
-        `Relying entirely on historical memorization without concept application.`,
-        `Avoiding difficult questions and focusing only on standard baseline cases.`,
-        `Bypassing structured analysis to use intuitive guessing.`
+        `A balanced approach combining strong conceptual definitions with interactive, case-based problem solving.`,
+        `Memorizing key terms and standard answers without understanding the underlying mechanics.`,
+        `Focusing only on basic, low-difficulty questions to avoid challenging concepts.`,
+        `Bypassing systematic practice to rely on instinctual guessing during assessments.`
       ],
       correctIndex: 0,
-      explanation: `Prone to high accuracy, a multi-perspective analytical approach ensures that both theoretical foundations and active empirical results are fully verified.`,
-      inquiryPrompt: `What is one scenario where theory might temporarily diverge from empirical results in ${capTopic}?`
+      explanation: `Consistent mastery of "${capTopic}" is achieved by pairing solid theoretical foundation with contextual, applied problem-solving practice.`,
+      inquiryPrompt: `Give an example of how you can apply the theory of "${capTopic}" to solve a practical problem in your community.`
     });
   }
 
@@ -554,7 +950,7 @@ export const generateQuizQuestions = async (
       const fallback = getFallbackAI();
       if (!fallback) {
         console.warn("No Groq/Grok fallback configured. Falling back to offline question generator.");
-        return generateOfflineQuizQuestions(profile, topic, sourceMaterial);
+        return validateAndFormatQuestions(generateOfflineQuizQuestions(profile, topic, sourceMaterial), topic);
       }
 
       console.log(`Calling Fallback AI (${fallback.type})...`);
@@ -615,11 +1011,11 @@ export const generateQuizQuestions = async (
       return validateAndFormatQuestions(parsed, topic);
     } catch (fallbackErr: any) {
       console.warn("Groq/Grok fallback failed, activating offline question generator:", fallbackErr);
-      return generateOfflineQuizQuestions(profile, topic, sourceMaterial);
+      return validateAndFormatQuestions(generateOfflineQuizQuestions(profile, topic, sourceMaterial), topic);
     }
   } catch (err: any) {
     console.error("Generation Error (falling back to offline generator):", err);
-    return generateOfflineQuizQuestions(profile, topic, sourceMaterial);
+    return validateAndFormatQuestions(generateOfflineQuizQuestions(profile, topic, sourceMaterial), topic);
   }
 };
 
