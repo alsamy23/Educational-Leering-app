@@ -1309,7 +1309,7 @@ export default function App() {
         
         const testTimer = individualTimer; // selected individual countdown
         setTimeLeft(testTimer);
-        setIsTimerRunning(true);
+        setIsTimerRunning(testTimer > 0);
 
         setActiveQuiz({
           profile: user,

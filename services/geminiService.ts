@@ -17,8 +17,10 @@ const getAIKeys = () => {
     process.env.GEMINI_API_KEY_8,
     process.env.GEMINI_API_KEY_9,
     process.env.GEMINI_API_KEY_10
-  ].filter(Boolean) as string[];
-  return keys;
+  ].map(k => k?.trim()).filter(Boolean) as string[];
+  
+  // Deduplicate keys
+  return Array.from(new Set(keys));
 };
 
 const getAI = () => {
@@ -31,6 +33,55 @@ const getAI = () => {
 };
 
 const getAIWithKey = (key: string) => new GoogleGenAI({ apiKey: key });
+
+const isRateLimitError = (err: any): boolean => {
+  if (!err) return false;
+  const status = err.status || err.statusCode || err.code || (err.error && err.error.code);
+  const message = (err.message || "").toLowerCase();
+  const statusString = String(status);
+  
+  return (
+    status === 429 ||
+    statusString.includes("429") ||
+    status === 503 ||
+    statusString.includes("503") ||
+    message.includes("quota") ||
+    message.includes("limit exceeded") ||
+    message.includes("resource_exhausted") ||
+    message.includes("too many requests") ||
+    message.includes("429")
+  );
+};
+
+const getFallbackAI = () => {
+  const groqKey = (process.env.GROQ_API_KEY || "").trim();
+  const grokKey = (process.env.GROK_API_KEY || process.env.XAI_API_KEY || "").trim();
+
+  if (grokKey) {
+    return {
+      type: 'grok' as const,
+      apiKey: grokKey,
+      baseURL: "https://api.x.ai/v1",
+      model: 'grok-2-1212'
+    };
+  } else if (groqKey) {
+    // If they supplied an xAI key inside GROQ_API_KEY (users sometimes do this)
+    if (groqKey.startsWith("xai-")) {
+      return {
+        type: 'grok' as const,
+        apiKey: groqKey,
+        baseURL: "https://api.x.ai/v1",
+        model: 'grok-2-1212'
+      };
+    }
+    return {
+      type: 'groq' as const,
+      client: new Groq({ apiKey: groqKey, dangerouslyAllowBrowser: true }),
+      model: 'llama-3.3-70b-versatile'
+    };
+  }
+  return null;
+};
 
 const getGroq = () => {
   const apiKey = process.env.GROQ_API_KEY;
@@ -205,6 +256,7 @@ export const generateQuizQuestions = async (
 
     for (const key of geminiKeys) {
       try {
+        console.log(`Attempting question generation with Gemini key ending in ...${key.slice(-5)}`);
         const ai = getAIWithKey(key);
         const response = await ai.models.generateContent({
           model: 'gemini-3.5-flash',
@@ -212,7 +264,6 @@ export const generateQuizQuestions = async (
           config: {
             systemInstruction: `You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades. ${groupName ? `This batch is specifically for Group ${groupName}. Ensure uniqueness.` : ''}`,
             responseMimeType: "application/json",
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
             responseSchema: {
               type: Type.ARRAY,
               items: {
@@ -243,47 +294,75 @@ export const generateQuizQuestions = async (
         return validateAndFormatQuestions(parsed, topic);
       } catch (geminiErr: any) {
         lastError = geminiErr;
-        // If it's a rate limit or overload, try the next key
-        if (geminiErr.status === 429 || geminiErr.status === 503) {
-          console.warn(`Key rate limited or overloaded. Trying next key...`);
-          continue;
-        }
-        // For other errors, break and try fallback
-        break;
+        console.warn(`Gemini key failed: ${geminiErr.message || geminiErr}. Trying next key...`);
+        continue;
       }
     }
 
-    // If all Gemini keys failed or we hit a non-retryable error
+    // If all Gemini keys failed or we hit a rate limit
     try {
-      if (lastError && (lastError.status === 429 || lastError.status === 503) && retryCount < 2) {
+      if (lastError && isRateLimitError(lastError) && retryCount < 2) {
         console.warn(`All Gemini keys rate limited. Retrying in ${2000 * (retryCount + 1)}ms...`);
         await sleep(2000 * (retryCount + 1));
         return generateQuizQuestions(profile, isMockMode, groupName, topicOverride, difficulty, retryCount + 1, seed, sourceMaterial);
       }
 
-      console.warn("Gemini rotation failed, trying Groq fallback...", lastError);
-      const groq = getGroq();
-      if (!groq) throw lastError || new Error("All AI models failed");
+      console.warn("Gemini rotation exhausted. Attempting Groq/Grok fallback...", lastError);
+      const fallback = getFallbackAI();
+      if (!fallback) {
+        throw lastError || new Error("All Gemini keys failed, and no Groq/Grok fallback is configured.");
+      }
 
-      const groqResponse = await groq.chat.completions.create({
-        messages: [
-          { role: "system", content: `You are an AI Tutor. Output valid JSON only. Return a JSON array of 5 questions. ${groupName ? `This batch is for Group ${groupName}.` : ''}` },
-          { role: "user", content: prompt + "\n\nIMPORTANT: Return ONLY a raw JSON array. No markdown, no explanations outside JSON." }
-        ],
-        model: "llama-3.3-70b-versatile",
-        response_format: { type: "json_object" }
-      });
+      console.log(`Calling Fallback AI (${fallback.type})...`);
+      const systemPrompt = `You are an AI Tutor. Output valid JSON only. Return a JSON array of 5 questions. ${groupName ? `This batch is for Group ${groupName}.` : ''}`;
+      const userPrompt = prompt + "\n\nIMPORTANT: Return ONLY a raw JSON array of 5 items. No markdown wrapper, no extra explanations.";
+      
+      let content = "[]";
+      if (fallback.type === 'groq') {
+        const groqResponse = await fallback.client.chat.completions.create({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          model: fallback.model,
+          response_format: { type: "json_object" }
+        });
+        content = groqResponse.choices[0]?.message?.content || "[]";
+      } else {
+        // xAI Grok (direct API call via fetch)
+        const response = await fetch(`${fallback.baseURL}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${fallback.apiKey}`
+          },
+          body: JSON.stringify({
+            model: fallback.model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.2
+          })
+        });
 
-      const content = groqResponse.choices[0]?.message?.content || "[]";
-      // Groq json_object mode might return { "questions": [...] } or just the array if we are lucky
-      // but usually it wants an object. Let's try to parse it.
-      let parsed = JSON.parse(content);
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Grok API Error: ${response.status} - ${errText}`);
+        }
+
+        const data = await response.json();
+        content = data.choices[0]?.message?.content || "[]";
+      }
+
+      let parsed = JSON.parse(repairJson(content));
       if (!Array.isArray(parsed) && parsed.questions) parsed = parsed.questions;
       if (!Array.isArray(parsed) && parsed.data) parsed = parsed.data;
       
       return validateAndFormatQuestions(parsed, topic);
     } catch (fallbackErr: any) {
-      console.error("Groq fallback failed:", fallbackErr);
+      console.error("Groq/Grok fallback failed:", fallbackErr);
       throw lastError || fallbackErr;
     }
   } catch (err: any) {
@@ -335,26 +414,29 @@ const validateAndFormatQuestions = (parsed: any[], topic: string = "this topic")
 
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   if (!text.trim()) return new ArrayBuffer(0);
-  const ai = getAI();
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-tts-preview",
-      contents: [{ parts: [{ text: `Read this academic content clearly and encouragingly: ${text}` }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-      },
-    });
-    const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64) throw new Error("TTS Failed");
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes.buffer;
-  } catch (e) {
-    console.error("TTS Error", e);
-    return new ArrayBuffer(0); // Fail silently for audio
+  const geminiKeys = getAIKeys();
+  for (const key of geminiKeys) {
+    try {
+      const ai = getAIWithKey(key);
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-flash-tts-preview",
+        contents: [{ parts: [{ text: `Read this academic content clearly and encouragingly: ${text}` }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+        },
+      });
+      const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!base64) throw new Error("TTS Failed");
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes.buffer;
+    } catch (e: any) {
+      console.warn("TTS generation failed with key:", e.message || e);
+    }
   }
+  return new ArrayBuffer(0); // Fail silently for audio
 };
 
 let currentUtterance: SpeechSynthesisUtterance | null = null;
