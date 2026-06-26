@@ -45,6 +45,7 @@ export interface UserProfile {
   role?: 'admin' | 'user';
   isGuest?: boolean;
   educationLevel?: 'School' | 'College' | 'Competitive' | 'Personal';
+  difficulty?: DifficultyLevel;
 }
 
 export interface QuizQuestion {
@@ -106,3 +107,10 @@ export enum AppScreen {
   ADMIN_DASHBOARD = 'ADMIN_DASHBOARD',
   PROGRESS = 'PROGRESS'
 }
+
+export interface SuggestedTopic {
+  topic: string;
+  difficulty: 'Prerequisite' | 'Standard Extension' | 'Elite Mastery';
+  rationale: string;
+}
+

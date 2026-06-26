@@ -1,6 +1,6 @@
 import { GoogleGenAI, Modality, Type, ThinkingLevel } from "@google/genai";
 import Groq from "groq-sdk";
-import { QuizQuestion, UserProfile, QuestionType, StudyFocus, DifficultyLevel } from '../types';
+import { QuizQuestion, UserProfile, QuestionType, StudyFocus, DifficultyLevel, SuggestedTopic } from '../types';
 
 let currentKeyIndex = Math.floor(Math.random() * 10); // Start at random to spread initial load
 
@@ -777,9 +777,18 @@ export const generateQuizQuestions = async (
   }
 
   const groupContext = groupName ? `This is for Group: ${groupName} in a Classroom Battle.` : "";
-  const difficultyContext = difficulty && difficulty !== DifficultyLevel.DEFAULT 
-    ? `The difficulty level for this group is: ${difficulty}. Adjust question complexity accordingly.` 
-    : "";
+  let difficultyContext = "";
+  if (difficulty && difficulty !== DifficultyLevel.DEFAULT) {
+    if (difficulty === DifficultyLevel.LOW) {
+      difficultyContext = "CRITICAL DIFFICULTY LEVEL: Beginner. The questions MUST be suitable for a beginner/introductory level. Focus on foundational concepts, fundamental recall, direct textbook definitions, and basic conceptual application. Avoid tricky multi-step logic, complex mathematical derivations, or highly technical scenarios. Provide clear, straightforward distractor choices.";
+    } else if (difficulty === DifficultyLevel.MEDIUM) {
+      difficultyContext = "CRITICAL DIFFICULTY LEVEL: Intermediate. The questions MUST be of standard/moderate difficulty. Focus on standard syllabus applications, moderate multi-step reasoning, analytical understanding, and standard problem solving. Distractors should be realistic and require solid concept comprehension to rule out.";
+    } else if (difficulty === DifficultyLevel.HIGH) {
+      difficultyContext = "CRITICAL DIFFICULTY LEVEL: Advanced. The questions MUST be highly challenging and advanced. Focus on elite cognitive demands, deep synthesis, tricky or subtle scenarios, multi-layered problem-solving, and critical thinking. Distractors must be highly plausible and require precise mastery to differentiate.";
+    } else {
+      difficultyContext = `The difficulty level is: ${difficulty}. Adjust question complexity and cognitive depth accordingly.`;
+    }
+  }
   const eduLevel = profile.educationLevel || 'School';
   let educationalSettingPrompt = "";
   
@@ -1206,4 +1215,175 @@ export const playAudio = async (buffer: ArrayBuffer) => {
   } catch (e) {
     console.error("Audio Playback Error", e);
   }
+};
+
+/**
+ * Calls Gemini to analyze student diagnostics and test history,
+ * and outputs a structured Markdown roadmap.
+ */
+export const generateRoadmapText = async (profile: UserProfile): Promise<string> => {
+  const geminiKeys = getAIKeys();
+  const history = profile.testHistory || [];
+  
+  const testHistoryStr = history.length > 0
+    ? history.map(t => `- Subject: ${t.subject}, Topic: "${t.topic}", Score: ${t.score}/${t.total} (${Math.round((t.score / t.total) * 100)}%) on ${t.date}`).join('\n')
+    : "No test records found yet. Suggest starting their first diagnostic quiz or uploading source readings.";
+
+  const prompt = `You are an elite, highly precise Academic Mentor and Study Planner at ScholarEarn. Your objective is to design a highly personalized, structured study roadmap for a student.
+
+Analyze the student's academic profile below:
+- Name: ${profile.name || 'Scholar Student'}
+- Grade / Education Level: ${profile.gradeLevel || 'Not configured'}
+- Syllabus Board: ${profile.board || 'Not configured'}
+- Target Subject: ${profile.subject || 'All subjects'}
+- Current Active Topic: ${profile.topic || 'General study'}
+- Focus Theme: ${profile.focus || 'General Studies'}
+- Current Level: Level ${profile.level || 1}
+- Total Points: ${profile.totalPoints || 0}
+- Current General Study Difficulty Level: ${profile.difficulty || 'Beginner'}
+
+Student Test History:
+${testHistoryStr}
+
+STYLING & COMPOSITION RULES:
+1. Do not use complex raw HTML. Rely on standard clean Markdown formatting.
+2. Use markdown titles ("# Heading", "## Subheading", "### Smaller Heading") and standard list items ("- Item").
+3. DO NOT output code blocks or JSON. Output plain text with Markdown headers only.
+
+Structure your response using these exact sections:
+
+# Core Diagnostics & Academic Strengths
+Assess their mastery levels. Mention their strengths (based on test history with high scores) and highlight structural gaps (topics with low scores, i.e., score/total ratio < 70%, or topics they haven't practiced enough yet).
+
+# Targeted Topics to Master Next
+List 3 to 4 specific learning topics or sub-topics they must study next to overcome their weaknesses or progress within their syllabus focus (${profile.focus}). For each recommended topic, provide a 1-sentence rationale explaining why it is critical.
+
+# Actionable 4-Week Study Plan
+Provide a clear, week-by-week timeline:
+- Week 1: High-priority foundations (addressing immediate gaps)
+- Week 2: Concept consolidation and practice drills
+- Week 3: Active recall challenges and advanced application
+- Week 4: Multi-team battles and mock evaluation
+
+# Pro-Level Study Techniques
+Suggest 2 targeted pedagogical methods (e.g., Feynman Technique, Pomodoro variation, Spaced Repetition) customized to their focus (${profile.focus}) and current difficulty setting (${profile.difficulty || 'Beginner'}).
+
+Be extremely professional, encouraging, and academically precise. Avoid generic fluff.`;
+
+  for (const key of geminiKeys) {
+    try {
+      const ai = getAIWithKey(key);
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [{ parts: [{ text: prompt }] }],
+      });
+      const responseText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (responseText) {
+        return responseText;
+      }
+    } catch (e: any) {
+      console.warn("Roadmap text generation failed with key, trying fallback:", e.message || e);
+    }
+  }
+
+  // Fallback if all keys fail or no keys
+  return `# Core Diagnostics & Academic Strengths
+Based on your current profile settings and level ${profile.level}, you are building foundations in ${profile.subject || 'General Topics'}.
+
+# Targeted Topics to Master Next
+- Deep review of "${profile.topic || 'current topics'}": Essential for mastering core curriculum standards.
+- Active recall exercises on weak test areas: Builds robust retrieval capability.
+
+# Actionable 4-Week Study Plan
+- Week 1: Concept mapping & definitions.
+- Week 2: Ingest study textbooks in your ScholarEarn library and attempt 5 single quizzes.
+- Week 3: Expand difficulties to Intermediate to build confidence.
+- Week 4: Challenge top scores in Multi-Team Arena mode.
+
+# Pro-Level Study Techniques
+- Spaced Retrieval Practice: Test yourself 1 day, 3 days, and 7 days after reading.
+- Feynman Technique: Explain a challenging topic in your own words to verify absolute comprehension.`;
+};
+
+/**
+ * Generates AI-driven study topic suggestions based on the student's active Focus Topic.
+ */
+export const generateSuggestedTopics = async (
+  userTopic: string,
+  subject: string,
+  gradeLevel: string,
+  board?: string
+): Promise<SuggestedTopic[]> => {
+  const geminiKeys = getAIKeys();
+  const prompt = `You are an elite academic curriculum architect. 
+Given the student's current details:
+- Subject: ${subject}
+- Education Level/Grade: ${gradeLevel}
+- Board/Syllabus: ${board || 'Standard Curriculum'}
+- Current Focus Topic: "${userTopic}"
+
+Recommend 3 logically consecutive next-step study topics or advanced sub-topics that the student should study next.
+Categorize each into one of the following difficulties exactly:
+1. 'Prerequisite' (if it's a foundational gap they must cover first to master the current topic)
+2. 'Standard Extension' (the logical next topic in standard curriculum order)
+3. 'Elite Mastery' (an advanced application or higher-tier topic to truly challenge them)
+
+You must output a JSON array of exactly 3 suggested topics matching the following schema. Use standard, highly compelling academic phrasing.`;
+
+  for (const key of geminiKeys) {
+    try {
+      const ai = getAIWithKey(key);
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: {
+          systemInstruction: 'You are an AI Curriculum Advisor. Output valid JSON array only.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                topic: { type: Type.STRING, description: "Highly precise study topic name, e.g., 'Thin Lens Formula & Linear Magnification'" },
+                difficulty: { type: Type.STRING, description: "Must be exactly one of: 'Prerequisite', 'Standard Extension', 'Elite Mastery'" },
+                rationale: { type: Type.STRING, description: "A high-quality 1-sentence explanation of why they should learn this next relative to their focus topic." }
+              },
+              required: ["topic", "difficulty", "rationale"]
+            }
+          },
+          temperature: 0.3
+        }
+      });
+
+      const responseText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (responseText) {
+        const cleaned = repairJson(responseText);
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed)) {
+          return parsed as SuggestedTopic[];
+        }
+      }
+    } catch (e: any) {
+      console.warn("Suggested topics generation failed with key, trying fallback:", e.message || e);
+    }
+  }
+
+  // Robust Fallback suggestions based on current Focus Topic
+  return [
+    {
+      topic: `${userTopic} - Core Foundations`,
+      difficulty: 'Prerequisite',
+      rationale: 'Solidifies fundamental theorems and prerequisite terminology required to master the active topic.'
+    },
+    {
+      topic: `${userTopic} - Practical Applications`,
+      difficulty: 'Standard Extension',
+      rationale: 'Builds directly on your current syllabus focus with standard analytical problems and exam patterns.'
+    },
+    {
+      topic: `${userTopic} - Advanced Scenarios`,
+      difficulty: 'Elite Mastery',
+      rationale: 'Connects this topic to higher-level concepts and experimental real-world problem sets.'
+    }
+  ];
 };

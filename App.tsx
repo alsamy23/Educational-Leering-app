@@ -11,15 +11,28 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   QuestionType, StudyFocus, TestRecord, StudyMaterial,
   UserProfile, QuizQuestion, QuizSession, DifficultyLevel,
-  Group, ClassroomSession, AppScreen
+  Group, ClassroomSession, AppScreen, SuggestedTopic
 } from './types';
 import { Button } from './components/Button';
 import { db, auth, loginWithGoogle, loginAnonymously, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { generateQuizQuestions, speakTextLocal } from './services/geminiService';
+import { generateQuizQuestions, speakTextLocal, generateRoadmapText, generateSuggestedTopics } from './services/geminiService';
+import { generateAndDownloadRoadmapPDF } from './services/pdfService';
+import { shareBadgeImage } from './services/badgeShareService';
 import * as pdfjsLib from 'pdfjs-dist';
 import { get as get_idb, set as set_idb } from 'idb-keyval';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend as RechartsLegend
+} from 'recharts';
+
 
 // Configure pdfjs worker source via jsDelivr CDN
 const pdfjsVersion = pdfjsLib.version || '5.6.205';
@@ -784,6 +797,84 @@ const StudyLibraryInlinePanel: React.FC<{
 // --- Sub-Component: ProgressScreen ---
 const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ user, onBack }) => {
   const history = user.testHistory || [];
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [generationStep, setGenerationStep] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string>('');
+
+  const chartData = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const dateStr = d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit' });
+      const label = `${dayName} (${dateStr})`;
+
+      return {
+        label,
+        dayName,
+        dateStr,
+        dateObj: new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+        quizzes: 0,
+        points: 0
+      };
+    });
+
+    history.forEach(record => {
+      if (!record.date) return;
+      
+      const datePart = record.date.split(',')[0].trim();
+      const parts = datePart.split('/');
+      if (parts.length === 3) {
+        const rDay = parseInt(parts[0], 10);
+        const rMonth = parseInt(parts[1], 10) - 1;
+        const rYear = parseInt(parts[2], 10);
+        const rDate = new Date(rYear, rMonth, rDay);
+
+        const matchingDay = days.find(day => {
+          return (
+            day.dateObj.getFullYear() === rDate.getFullYear() &&
+            day.dateObj.getMonth() === rDate.getMonth() &&
+            day.dateObj.getDate() === rDate.getDate()
+          );
+        });
+
+        if (matchingDay) {
+          matchingDay.quizzes += 1;
+          matchingDay.points += (record.score * 10);
+        }
+      }
+    });
+
+    return days;
+  }, [history]);
+
+  const handleGenerateRoadmap = async () => {
+    setIsGenerating(true);
+    setErrorMsg('');
+    setGenerationStep('Analyzing test metrics and level history...');
+    try {
+      // Step progressions for immersive feel
+      await new Promise(r => setTimeout(r, 700));
+      setGenerationStep('Assembling syllabus focus and difficulty parameters...');
+      await new Promise(r => setTimeout(r, 600));
+      setGenerationStep('Querying ScholarEarn AI learning model...');
+      
+      const roadmapText = await generateRoadmapText(user);
+      
+      setGenerationStep('Compiling high-craft PDF documentation...');
+      await new Promise(r => setTimeout(r, 600));
+      
+      generateAndDownloadRoadmapPDF(user, roadmapText);
+      setGenerationStep('');
+    } catch (err: any) {
+      console.error('Roadmap PDF generation failed:', err);
+      setErrorMsg('Failed to generate study roadmap. Please try again.');
+      setGenerationStep('');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
@@ -839,6 +930,147 @@ const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ u
                </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Beautiful AI Academic Roadmap Card */}
+      <div className="bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-amber-600/15 border border-amber-500/25 p-5 rounded-[2rem] space-y-4 shadow-lg relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+          <Sparkles className="w-24 h-24 text-amber-500 animate-pulse" />
+        </div>
+        
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-amber-500/20 text-amber-600 rounded-2xl flex items-center justify-center flex-shrink-0">
+            <FileText className="w-6 h-6 text-amber-700" />
+          </div>
+          <div className="space-y-1.5 min-w-0">
+            <h3 className="text-sm font-headline font-black text-on-surface flex items-center gap-2 tracking-tight">
+              AI Academic Roadmap
+              <span className="bg-amber-500/20 text-amber-800 text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full tracking-wider border border-amber-500/30">
+                AI Enabled
+              </span>
+            </h3>
+            <p className="text-[11px] text-on-surface-variant font-medium leading-relaxed">
+              Analyze your Level {user.level} study profile, focus topics, difficulty levels, and full history of {history.length} active diagnostic battle records. Our mentor engine generates a comprehensive, styled academic roadmap.
+            </p>
+          </div>
+        </div>
+
+        <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+          <button
+            onClick={handleGenerateRoadmap}
+            disabled={isGenerating}
+            type="button"
+            className="w-full sm:w-auto h-11 px-6 rounded-xl text-[10px] uppercase font-headline font-black flex items-center justify-center gap-2 transition-all cursor-pointer bg-[#b45309] hover:bg-[#92400e] text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+          >
+            {isGenerating ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>{generationStep}</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                <span>Generate study roadmap (PDF)</span>
+              </>
+            )}
+          </button>
+          
+          {isGenerating && (
+            <p className="text-[8px] font-headline font-black uppercase text-amber-800/80 tracking-widest animate-pulse">
+              Running deep evaluation...
+            </p>
+          )}
+
+          {errorMsg && (
+            <p className="text-[10px] font-body font-bold text-red-500">
+              {errorMsg}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Weekly Activity Bar Chart Panel */}
+      <div className="bg-surface-container-lowest border border-white/10 p-5 rounded-2xl space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div>
+            <h3 className="text-sm font-headline font-black text-on-surface flex items-center gap-1.5 uppercase tracking-wide">
+              Weekly Activity
+            </h3>
+            <p className="text-[10px] text-on-surface-variant">Quizzes and mastery points earned over the last 7 days</p>
+          </div>
+          <div className="flex gap-4 text-[10px]">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded bg-[#1e3a8a]" />
+              <span className="text-on-surface-variant font-bold">Quizzes Taken</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded bg-[#b45309]" />
+              <span className="text-on-surface-variant font-bold">Mastery Points</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-64 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" vertical={false} />
+              <XAxis 
+                dataKey="label" 
+                stroke="#94a3b8" 
+                fontSize={9} 
+                tickLine={false} 
+                axisLine={false} 
+              />
+              <YAxis 
+                yAxisId="left"
+                stroke="#1e3a8a" 
+                fontSize={9} 
+                tickLine={false} 
+                axisLine={false} 
+                allowDecimals={false}
+                label={{ value: 'Quizzes', angle: -90, position: 'insideLeft', fill: '#1e3a8a', fontSize: 9, offset: 5, style: { fontWeight: 'bold' } }}
+              />
+              <YAxis 
+                yAxisId="right"
+                orientation="right"
+                stroke="#b45309" 
+                fontSize={9} 
+                tickLine={false} 
+                axisLine={false} 
+                label={{ value: 'Points', angle: 90, position: 'insideRight', fill: '#b45309', fontSize: 9, offset: 5, style: { fontWeight: 'bold' } }}
+              />
+              <RechartsTooltip
+                contentStyle={{
+                  backgroundColor: '#131c31',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  color: '#f8fafc'
+                }}
+                labelStyle={{ fontWeight: 'bold', color: '#f8fafc', fontSize: 10 }}
+                itemStyle={{ fontSize: 9 }}
+              />
+              <Bar 
+                yAxisId="left"
+                dataKey="quizzes" 
+                name="Quizzes Taken"
+                fill="#1e3a8a" 
+                radius={[4, 4, 0, 0]} 
+                maxBarSize={30}
+              />
+              <Bar 
+                yAxisId="right"
+                dataKey="points" 
+                name="Points Earned"
+                fill="#b45309" 
+                radius={[4, 4, 0, 0]} 
+                maxBarSize={30}
+              />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
@@ -918,7 +1150,8 @@ export default function App() {
     totalQuizzes: 0,
     totalPoints: 0,
     testHistory: [],
-    educationLevel: 'School'
+    educationLevel: 'School',
+    difficulty: DifficultyLevel.LOW
   });
 
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.ENTRY);
@@ -928,6 +1161,39 @@ export default function App() {
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<QuizSession | null>(null);
   const [feedback, setFeedback] = useState<{ selected: number; isCorrect: boolean } | null>(null);
+
+  // --- Suggested Topics AI HUD States & Handlers ---
+  const [suggestedTopics, setSuggestedTopics] = useState<SuggestedTopic[]>([]);
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState<boolean>(false);
+  const [suggestionError, setSuggestionError] = useState<string>('');
+
+  const fetchSuggestedTopics = async (
+    topicVal: string = user.topic, 
+    subjectVal: string = user.subject, 
+    gradeVal: string = user.gradeLevel, 
+    boardVal?: string
+  ) => {
+    if (!topicVal) return;
+    setIsFetchingSuggestions(true);
+    setSuggestionError('');
+    try {
+      const suggestions = await generateSuggestedTopics(topicVal, subjectVal, gradeVal, boardVal);
+      setSuggestedTopics(suggestions);
+    } catch (err: any) {
+      console.error("Failed to fetch suggested topics:", err);
+      setSuggestionError("Failed to fetch suggested topics.");
+    } finally {
+      setIsFetchingSuggestions(false);
+    }
+  };
+
+  const hasLoadedInitialSuggestions = useRef(false);
+  useEffect(() => {
+    if (user.topic && !hasLoadedInitialSuggestions.current) {
+      hasLoadedInitialSuggestions.current = true;
+      fetchSuggestedTopics(user.topic, user.subject, user.gradeLevel, user.board);
+    }
+  }, [user.topic]);
 
   const tipOfTheDay = useMemo(() => {
     const tips = [
@@ -957,6 +1223,73 @@ export default function App() {
   // --- Reading Aloud Audio state ---
   const [isReadingAloud, setIsReadingAloud] = useState<boolean>(false);
   const [soundEffectsEnabled, setSoundEffectsEnabled] = useState<boolean>(true);
+
+  // --- Badge Session Tracking & Pop-up States ---
+  const [unlockedBadgesInSession, setUnlockedBadgesInSession] = useState<string[]>([]);
+  const [activeUnlockedBadgeNotification, setActiveUnlockedBadgeNotification] = useState<{ id: string; name: string; desc: string; icon: any } | null>(null);
+  const previousBadgesRef = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const badges = [
+      { id: 'first-quiz', name: 'First Steps', desc: '1 Quiz Completed', unlocked: user.totalQuizzes >= 1, icon: Play },
+      { id: '10-quizzes', name: 'Quiz Master', desc: '10 Quizzes Completed', unlocked: user.totalQuizzes >= 10, icon: BookOpen },
+      { id: '100-points', name: 'Centurion', desc: '100 Mastery Points', unlocked: user.totalPoints >= 100, icon: Sparkles },
+      { id: 'level-5', name: 'Scholar', desc: 'Reached Level 5', unlocked: user.level >= 5, icon: GraduationCap },
+      { id: 'level-10', name: 'Elite', desc: 'Reached Level 10', unlocked: user.level >= 10, icon: Trophy }
+    ];
+
+    const currentUnlocked = new Set(
+      badges.filter(b => b.unlocked).map(b => b.id)
+    );
+
+    if (previousBadgesRef.current === null) {
+      previousBadgesRef.current = currentUnlocked;
+      return;
+    }
+
+    const newlyUnlocked = badges.find(
+      b => b.unlocked && !previousBadgesRef.current!.has(b.id)
+    );
+
+    if (newlyUnlocked) {
+      setActiveUnlockedBadgeNotification({
+        id: newlyUnlocked.id,
+        name: newlyUnlocked.name,
+        desc: newlyUnlocked.desc,
+        icon: newlyUnlocked.icon
+      });
+      setUnlockedBadgesInSession(prev => [...prev, newlyUnlocked.id]);
+      
+      if (soundEffectsEnabled) {
+        try {
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const playNote = (freq: number, start: number, duration: number) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(0.15, start);
+            gain.gain.exponentialRampToValueAtTime(0.01, start + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(start);
+            osc.stop(start + duration);
+          };
+          
+          const now = audioCtx.currentTime;
+          playNote(523.25, now, 0.15); // C5
+          playNote(659.25, now + 0.12, 0.15); // E5
+          playNote(783.99, now + 0.24, 0.15); // G5
+          playNote(1046.50, now + 0.36, 0.4); // C6
+        } catch (err) {
+          console.warn("Audio context celebration play failed:", err);
+        }
+      }
+    }
+
+    previousBadgesRef.current = currentUnlocked;
+  }, [user.totalQuizzes, user.totalPoints, user.level, soundEffectsEnabled]);
 
   // --- Voice Answer Recorder Web Speech API states ---
   const [isRecordingAnswer, setIsRecordingAnswer] = useState<boolean>(false);
@@ -1207,7 +1540,8 @@ export default function App() {
               totalQuizzes: 0,
               totalPoints: 0,
               testHistory: [],
-              educationLevel: 'School'
+              educationLevel: 'School',
+              difficulty: DifficultyLevel.LOW
             };
             await setDoc(userDocRef, initialUser);
             setUser(initialUser);
@@ -1339,7 +1673,7 @@ export default function App() {
         false, 
         undefined, 
         user.topic, 
-        DifficultyLevel.DEFAULT, 
+        user.difficulty || DifficultyLevel.DEFAULT, 
         0, 
         undefined, 
         activeMaterial?.content
@@ -1417,7 +1751,7 @@ export default function App() {
         false, 
         'Multi-Team Arena', 
         user.topic, 
-        DifficultyLevel.DEFAULT, 
+        user.difficulty || DifficultyLevel.DEFAULT, 
         0, 
         undefined, 
         activeMaterial?.content
@@ -2526,7 +2860,7 @@ export default function App() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
-              className="w-full space-y-6 flex flex-col items-center"
+              className="w-full space-y-6 flex flex-col items-center pb-28 md:pb-6"
             >
               {/* Tip of the Day Banner */}
               <div className="w-full max-w-2xl bg-amber-50/10 border border-amber-500/20 rounded-2xl p-3 flex items-start gap-3 shadow-lg">
@@ -2539,43 +2873,43 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Primary Navigation Tab Bar */}
-              <div className={`flex gap-1 p-1 bg-white/5 border border-white/10 rounded-2xl w-full max-w-2xl backdrop-blur-md`}>
+              {/* Primary Navigation Tab Bar - Bottom Docked on Mobile, Inline on Desktop */}
+              <div className="fixed bottom-5 left-4 right-4 md:relative md:bottom-auto md:left-auto md:right-auto z-40 bg-[#0e1322]/95 backdrop-blur-xl border border-white/10 p-1.5 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.5)] flex gap-1 w-auto md:w-full md:max-w-2xl md:bg-white/5 md:border-white/10 md:p-1 md:shadow-none md:mx-auto">
                 <button
                   onClick={() => setEntryMobileTab('library')}
                   type="button"
-                  className={`flex-1 py-2.5 rounded-xl text-[10px] uppercase font-headline font-black flex items-center justify-center gap-1.5 transition-all ${
+                  className={`flex-1 py-2.5 md:py-2.5 rounded-xl text-[10px] uppercase font-headline font-black flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 transition-all min-h-[44px] md:min-h-0 ${
                     entryMobileTab === 'library' 
                       ? 'bg-[#b45309] text-white shadow-md' 
                       : 'text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>Library</span>
+                  <BookOpen className="w-4 h-4 md:w-3.5 md:h-3.5" />
+                  <span className="text-[8px] md:text-[10px] tracking-wide md:tracking-normal font-bold md:font-black">Library</span>
                 </button>
                 <button
                   onClick={() => setEntryMobileTab('profile')}
                   type="button"
-                  className={`flex-1 py-2.5 rounded-xl text-[10px] uppercase font-headline font-black flex items-center justify-center gap-1.5 transition-all ${
+                  className={`flex-1 py-2.5 md:py-2.5 rounded-xl text-[10px] uppercase font-headline font-black flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 transition-all min-h-[44px] md:min-h-0 ${
                     entryMobileTab === 'profile' 
                       ? 'bg-[#1e3a8a] text-white shadow-md' 
                       : 'text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
-                  <Rocket className="w-3.5 h-3.5 animate-pulse" />
-                  <span>Entrance</span>
+                  <Rocket className="w-4 h-4 md:w-3.5 md:h-3.5 animate-pulse" />
+                  <span className="text-[8px] md:text-[10px] tracking-wide md:tracking-normal font-bold md:font-black">Entrance</span>
                 </button>
                 <button
                   onClick={() => setEntryMobileTab('records')}
                   type="button"
-                  className={`flex-1 py-2.5 rounded-xl text-[10px] uppercase font-headline font-black flex items-center justify-center gap-1.5 transition-all ${
+                  className={`flex-1 py-2.5 md:py-2.5 rounded-xl text-[10px] uppercase font-headline font-black flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 transition-all min-h-[44px] md:min-h-0 ${
                     entryMobileTab === 'records' 
                       ? 'bg-[#047857] text-white shadow-md' 
                       : 'text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
-                  <Trophy className="w-3.5 h-3.5" />
-                  <span>History</span>
+                  <Trophy className="w-4 h-4 md:w-3.5 md:h-3.5" />
+                  <span className="text-[8px] md:text-[10px] tracking-wide md:tracking-normal font-bold md:font-black">History</span>
                 </button>
               </div>
 
@@ -2660,6 +2994,7 @@ export default function App() {
                                   subject: defaultSubject,
                                   topic: defaultTopic
                                 });
+                                fetchSuggestedTopics(defaultTopic, defaultSubject, defaultGrade, defaultBoard);
                               }}
                               className={`flex items-center gap-1.5 p-2 rounded-xl border text-left transition-all ${
                                 isSelected 
@@ -2829,6 +3164,103 @@ export default function App() {
                         </div>
                       </div>
 
+                      {/* AI-driven Suggested Topics section */}
+                      <div className="p-3.5 bg-[#f5efe0] border border-[#e4dcc4] rounded-2xl space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-[#1e3a8a] animate-pulse" />
+                            <h4 className="text-[10px] font-headline font-black text-[#1e3a8a] uppercase tracking-widest">
+                              AI Suggested Next Topics
+                            </h4>
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => fetchSuggestedTopics(user.topic, user.subject, user.gradeLevel, user.board)}
+                            disabled={isFetchingSuggestions}
+                            className="p-1 rounded-lg hover:bg-black/5 text-[#7c755d] hover:text-[#1e3a8a] transition-all disabled:opacity-50 cursor-pointer"
+                            title="Regenerate suggestions"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isFetchingSuggestions ? 'animate-spin' : ''}`} />
+                          </button>
+                        </div>
+
+                        {isFetchingSuggestions ? (
+                          <div className="space-y-2 py-1">
+                            {[1, 2, 3].map(i => (
+                              <div key={i} className="animate-pulse bg-white/40 h-10 rounded-xl" />
+                            ))}
+                          </div>
+                        ) : suggestionError ? (
+                          <div className="text-center py-2">
+                            <p className="text-[9px] font-body font-bold text-red-500 mb-1">{suggestionError}</p>
+                            <button
+                              type="button"
+                              onClick={() => fetchSuggestedTopics(user.topic, user.subject, user.gradeLevel, user.board)}
+                              className="text-[9px] font-headline font-black uppercase text-[#1e3a8a] hover:underline cursor-pointer"
+                            >
+                              Retry Fetching
+                            </button>
+                          </div>
+                        ) : suggestedTopics.length > 0 ? (
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {suggestedTopics.map((item, idx) => {
+                              const isCurrent = user.topic.toLowerCase().trim() === item.topic.toLowerCase().trim();
+                              
+                              // Stylized difficulty pills
+                              let diffBadgeColor = 'bg-[#1e3a8a]/10 text-[#1e3a8a] border-[#1e3a8a]/20';
+                              if (item.difficulty === 'Standard Extension') {
+                                diffBadgeColor = 'bg-amber-600/10 text-amber-800 border-amber-600/20';
+                              } else if (item.difficulty === 'Elite Mastery') {
+                                diffBadgeColor = 'bg-rose-600/10 text-rose-800 border-rose-600/20';
+                              }
+
+                              return (
+                                <motion.button
+                                  key={idx}
+                                  type="button"
+                                  whileHover={{ scale: 1.01 }}
+                                  whileTap={{ scale: 0.99 }}
+                                  onClick={() => {
+                                    syncLocalUserProfile({ ...user, topic: item.topic });
+                                    fetchSuggestedTopics(item.topic, user.subject, user.gradeLevel, user.board);
+                                  }}
+                                  className={`w-full p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                    isCurrent
+                                      ? 'bg-amber-50 border-amber-500 ring-1 ring-amber-500/50'
+                                      : 'bg-white/80 hover:bg-white border-[#e4dcc4] hover:border-[#1e3a8a]/40 shadow-sm'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-1.5">
+                                    <span className="text-[9px] font-headline font-black text-[#1e293b] leading-tight truncate">
+                                      {item.topic}
+                                    </span>
+                                    <span className={`text-[7px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${diffBadgeColor} flex-shrink-0`}>
+                                      {item.difficulty}
+                                    </span>
+                                  </div>
+                                  <p className="text-[8px] text-[#7c755d] font-medium leading-normal mt-1">
+                                    {item.rationale}
+                                  </p>
+                                  {isCurrent && (
+                                    <div className="mt-1 flex items-center gap-1">
+                                      <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                      <span className="text-[7px] font-headline font-black uppercase text-emerald-600 tracking-wider">
+                                        Active Study Focus
+                                      </span>
+                                    </div>
+                                  )}
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-[9px] text-[#7c755d] italic text-center py-1">
+                            No study suggestions generated. Adjust your Focus Topic above to evaluate next steps.
+                          </p>
+                        )}
+                      </div>
+
                       {/* Diagnostic Timer Selection */}
                       <div className="space-y-1">
                         <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
@@ -2857,44 +3289,97 @@ export default function App() {
                           ))}
                         </div>
                       </div>
-                    </div>
 
-                    {/* Badges & Milestones */}
-                    <div className="space-y-2 pt-2 border-t border-[#e4dcc4]">
-                      <div className="flex items-center gap-1.5">
-                        <Award className="w-4 h-4 text-[#b45309]" />
-                        <h4 className="text-[10px] font-headline font-black text-[#b45309] uppercase tracking-widest">Milestones & Badges</h4>
+                      {/* AI Difficulty Level Selector */}
+                      <div className="space-y-1.5 pt-1">
+                        <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                          <SignalMedium className="w-3.5 h-3.5 text-[#1e3a8a]" /> AI Generation Difficulty
+                        </label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            { id: DifficultyLevel.LOW, label: 'Beginner', desc: 'Foundational concepts & recall', colorClass: 'hover:bg-emerald-50 text-emerald-800 border-emerald-200', activeClass: 'bg-emerald-600 border-emerald-600 text-white shadow-md' },
+                            { id: DifficultyLevel.MEDIUM, label: 'Intermediate', desc: 'Moderate analysis & application', colorClass: 'hover:bg-amber-50 text-amber-800 border-amber-200', activeClass: 'bg-amber-600 border-amber-600 text-white shadow-md' },
+                            { id: DifficultyLevel.HIGH, label: 'Advanced', desc: 'Elite challenges & synthesis', colorClass: 'hover:bg-rose-50 text-rose-800 border-rose-200', activeClass: 'bg-rose-600 border-rose-600 text-white shadow-md' }
+                          ].map((opt) => {
+                            const isSelected = (user.difficulty || DifficultyLevel.LOW) === opt.id;
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => syncLocalUserProfile({ ...user, difficulty: opt.id })}
+                                className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all ${
+                                  isSelected
+                                    ? opt.activeClass
+                                    : `bg-[#fcfaf4] border-[#e4dcc4] ${opt.colorClass}`
+                                }`}
+                              >
+                                <span className="text-[10px] font-headline font-extrabold">{opt.label}</span>
+                                <span className={`text-[7px] font-body mt-0.5 leading-tight ${isSelected ? 'text-white/80' : 'text-[#7c755d]'}`}>
+                                  {opt.desc}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-5 gap-1.5">
-                        {[
-                          { id: 'first-quiz', name: 'First Steps', desc: '1 Quiz', unlocked: user.totalQuizzes >= 1, icon: Play },
-                          { id: '10-quizzes', name: 'Quiz Master', desc: '10 Quizzes', unlocked: user.totalQuizzes >= 10, icon: BookOpen },
-                          { id: '100-points', name: 'Centurion', desc: '100 Mastery Pts', unlocked: user.totalPoints >= 100, icon: Sparkles },
-                          { id: 'level-5', name: 'Scholar', desc: 'Level 5', unlocked: user.level >= 5, icon: GraduationCap },
-                          { id: 'level-10', name: 'Elite', desc: 'Level 10', unlocked: user.level >= 10, icon: Trophy }
-                        ].map(b => {
-                          const Icon = b.icon;
-                          return (
-                            <div 
-                              key={b.id} 
-                              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-center transition-all ${
-                                b.unlocked 
-                                  ? 'bg-amber-50 border-amber-200 shadow-sm' 
-                                  : 'bg-slate-50/50 border-slate-200/50 opacity-60 grayscale'
-                              }`}
-                              title={b.desc}
-                            >
-                              <div className={`p-1 rounded-full mb-1 flex items-center justify-center ${b.unlocked ? 'bg-amber-100' : 'bg-slate-200'}`}>
-                                <Icon className={`w-3.5 h-3.5 ${b.unlocked ? 'text-amber-600' : 'text-slate-400'}`} />
-                              </div>
-                              <span className={`text-[7px] font-headline font-black leading-tight truncate w-full px-0.5 ${b.unlocked ? 'text-amber-900' : 'text-slate-500'}`}>
-                                {b.name}
-                              </span>
-                            </div>
-                          )
-                        })}
+                             {/* Badges & Milestones - only visible after they complete one or two tests */}
+                    {((user.totalQuizzes || 0) >= 1) && (
+                      <div className="space-y-2 pt-2 border-t border-[#e4dcc4]">
+                        <div className="flex items-center gap-1.5">
+                          <Award className="w-4 h-4 text-[#b45309]" />
+                          <h4 className="text-[10px] font-headline font-black text-[#b45309] uppercase tracking-widest">Milestones & Badges</h4>
+                        </div>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {[
+                            { id: 'first-quiz', name: 'First Steps', desc: '1 Quiz', unlocked: user.totalQuizzes >= 1, icon: Play },
+                            { id: '10-quizzes', name: 'Quiz Master', desc: '10 Quizzes', unlocked: user.totalQuizzes >= 10, icon: BookOpen },
+                            { id: '100-points', name: 'Centurion', desc: '100 Mastery Pts', unlocked: user.totalPoints >= 100, icon: Sparkles },
+                            { id: 'level-5', name: 'Scholar', desc: 'Level 5', unlocked: user.level >= 5, icon: GraduationCap },
+                            { id: 'level-10', name: 'Elite', desc: 'Level 10', unlocked: user.level >= 10, icon: Trophy }
+                          ].map(b => {
+                            const Icon = b.icon;
+                            const isNewUnlock = unlockedBadgesInSession.includes(b.id);
+                            return (
+                              <motion.div 
+                                key={b.id} 
+                                initial={isNewUnlock ? { scale: 0.8, rotate: -10 } : false}
+                                animate={isNewUnlock ? { 
+                                  scale: [1, 1.15, 1], 
+                                  rotate: [0, -5, 5, 0],
+                                  boxShadow: ["0px 0px 0px rgba(245, 158, 11, 0)", "0px 0px 15px rgba(245, 158, 11, 0.6)", "0px 0px 0px rgba(245, 158, 11, 0)"]
+                                } : false}
+                                transition={isNewUnlock ? { 
+                                  duration: 2.5, 
+                                  repeat: Infinity, 
+                                  ease: "easeInOut" 
+                                } : undefined}
+                                className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-center transition-all relative ${
+                                  b.unlocked 
+                                    ? isNewUnlock
+                                      ? 'bg-gradient-to-b from-amber-50 to-amber-100 border-amber-400 shadow-md ring-2 ring-amber-400/50'
+                                      : 'bg-amber-50 border-amber-200 shadow-sm hover:scale-105 hover:border-amber-300' 
+                                    : 'bg-slate-50/50 border-slate-200/50 opacity-60 grayscale'
+                                }`}
+                                title={`${b.name}: ${b.desc}${isNewUnlock ? ' (Newly Unlocked!)' : ''}`}
+                              >
+                                {isNewUnlock && (
+                                  <span className="absolute -top-1.5 -right-1 flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                  </span>
+                                )}
+                                <div className={`p-1 rounded-full mb-1 flex items-center justify-center ${b.unlocked ? 'bg-amber-100' : 'bg-slate-200'}`}>
+                                  <Icon className={`w-3.5 h-3.5 ${b.unlocked ? 'text-amber-600' : 'text-slate-400'}`} />
+                                </div>
+                                <span className={`text-[7px] font-headline font-black leading-tight truncate w-full px-0.5 ${b.unlocked ? 'text-amber-900' : 'text-slate-500'}`}>
+                                  {b.name}
+                                </span>
+                              </motion.div>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}             </div>
 
                     {/* Integrated Launch buttons */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2">
@@ -3469,6 +3954,114 @@ export default function App() {
         label={motivationText}
         onClose={() => setShowMotivationalPopup(false)}
       />
+
+      {/* Badge Unlock Celebration Overlay Popup */}
+      <AnimatePresence>
+        {activeUnlockedBadgeNotification && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-[#070a13]/85 backdrop-blur-xl z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, y: 50, rotate: -5 }}
+              animate={{ 
+                scale: 1, 
+                y: 0, 
+                rotate: 0,
+                transition: { type: "spring", damping: 15, stiffness: 100 }
+              }}
+              exit={{ scale: 0.8, y: 50, opacity: 0 }}
+              className="bg-[#faf6eb] text-slate-900 rounded-[2.5rem] p-8 max-w-sm w-full border border-amber-300 shadow-[0_0_50px_rgba(245,158,11,0.3)] text-center relative overflow-hidden"
+            >
+              {/* Confetti-like sparkle particles behind the badge */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
+                <div className="absolute top-10 left-10 w-2 h-2 bg-amber-500 rounded-full animate-ping" />
+                <div className="absolute bottom-10 right-10 w-3 h-3 bg-yellow-500 rounded-full animate-bounce" />
+                <div className="absolute top-24 right-12 w-2 h-2 bg-amber-600 rounded-full animate-pulse" />
+              </div>
+
+              {/* Header Title */}
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0, transition: { delay: 0.2 } }}
+                className="space-y-1"
+              >
+                <div className="bg-amber-500/10 text-amber-700 font-headline font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-full inline-block border border-amber-500/20">
+                  Milestone Achieved
+                </div>
+                <h3 className="text-2xl font-headline font-black text-slate-900 tracking-tight mt-2">
+                  Badge Unlocked!
+                </h3>
+              </motion.div>
+
+              {/* Floating Badge Visualizer */}
+              <div className="relative my-8 flex items-center justify-center">
+                <motion.div
+                  animate={{ 
+                    rotate: 360,
+                    transition: { duration: 15, repeat: Infinity, ease: "linear" }
+                  }}
+                  className="absolute w-32 h-32 rounded-full border border-dashed border-amber-400/60"
+                />
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.05, 1],
+                    transition: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                  }}
+                  className="relative w-24 h-24 bg-gradient-to-br from-amber-400 via-yellow-300 to-amber-500 rounded-full flex items-center justify-center shadow-[0_10px_30px_rgba(245,158,11,0.4)] border-4 border-white"
+                >
+                  {(() => {
+                    const Icon = activeUnlockedBadgeNotification.icon;
+                    return <Icon className="w-10 h-10 text-amber-900 stroke-[2.5]" />;
+                  })()}
+                </motion.div>
+              </div>
+
+              {/* Badge Details */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1, transition: { delay: 0.4 } }}
+                className="space-y-2 mb-6"
+              >
+                <h4 className="text-xl font-headline font-black text-amber-950">
+                  {activeUnlockedBadgeNotification.name}
+                </h4>
+                <p className="text-sm font-body text-slate-700 font-medium leading-relaxed">
+                  {activeUnlockedBadgeNotification.desc}
+                </p>
+              </motion.div>
+
+              {/* Actions Section */}
+              <div className="space-y-2.5">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    if (user && activeUnlockedBadgeNotification) {
+                      shareBadgeImage(user, activeUnlockedBadgeNotification);
+                    }
+                  }}
+                  className="w-full py-3.5 px-6 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-headline font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-white animate-bounce" />
+                  <span>Share Achievement</span>
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setActiveUnlockedBadgeNotification(null)}
+                  className="w-full py-3 px-6 bg-transparent hover:bg-amber-100/50 text-amber-900 hover:text-amber-950 border border-amber-200/80 font-headline font-black text-xs uppercase tracking-widest rounded-2xl transition-all cursor-pointer"
+                >
+                  Close Window
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
