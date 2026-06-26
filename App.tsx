@@ -803,6 +803,42 @@ const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ u
         <div className="bg-secondary/10 border border-secondary/20 p-5 rounded-2xl text-on-surface shadow-md">
           <p className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-secondary italic">Current Mastery Level</p>
           <p className="text-2xl font-headline font-extrabold tracking-tighter mt-1">Level {user.level}</p>
+          
+          {/* Rank Progress Bar */}
+          <div className="mt-4 pt-3 border-t border-secondary/20">
+            {user.level < 5 ? (
+              <>
+                <div className="flex justify-between items-center text-[9px] font-bold text-secondary uppercase tracking-wider mb-1.5">
+                  <span>Next: Scholar</span>
+                  <span>{Math.max(0, 5 - user.level)} levels to go</span>
+                </div>
+                <div className="h-2 w-full bg-secondary/20 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-secondary transition-all duration-1000 ease-out"
+                    style={{ width: `${(user.level / 5) * 100}%` }}
+                  />
+                </div>
+              </>
+            ) : user.level < 10 ? (
+              <>
+                <div className="flex justify-between items-center text-[9px] font-bold text-secondary uppercase tracking-wider mb-1.5">
+                  <span>Next: Elite</span>
+                  <span>{Math.max(0, 10 - user.level)} levels to go</span>
+                </div>
+                <div className="h-2 w-full bg-secondary/20 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-secondary transition-all duration-1000 ease-out"
+                    style={{ width: `${((user.level - 5) / 5) * 100}%` }}
+                  />
+                </div>
+              </>
+            ) : (
+               <div className="flex justify-between items-center text-[9px] font-bold text-secondary uppercase tracking-wider">
+                  <span>Rank: Elite</span>
+                  <span>Max Level Reached!</span>
+               </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -2387,6 +2423,17 @@ export default function App() {
             </button>
           </div>
 
+          {/* Master Sound Effects Toggle */}
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1">
+            <button 
+              onClick={() => setSoundEffectsEnabled(!soundEffectsEnabled)}
+              className={`p-1.5 rounded-lg transition-all flex items-center gap-1.5 ${soundEffectsEnabled ? 'bg-[#b45309] text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+              title={soundEffectsEnabled ? "Mute all interactive sound effects" : "Unmute all interactive sound effects"}
+            >
+              {soundEffectsEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+          </div>
+
           {/* Firebase Authentication HUD Button */}
           {authLoading ? (
             <RefreshCw className="w-5 h-5 text-on-surface-variant animate-spin" />
@@ -2809,6 +2856,43 @@ export default function App() {
                             </button>
                           ))}
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Badges & Milestones */}
+                    <div className="space-y-2 pt-2 border-t border-[#e4dcc4]">
+                      <div className="flex items-center gap-1.5">
+                        <Award className="w-4 h-4 text-[#b45309]" />
+                        <h4 className="text-[10px] font-headline font-black text-[#b45309] uppercase tracking-widest">Milestones & Badges</h4>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[
+                          { id: 'first-quiz', name: 'First Steps', desc: '1 Quiz', unlocked: user.totalQuizzes >= 1, icon: Play },
+                          { id: '10-quizzes', name: 'Quiz Master', desc: '10 Quizzes', unlocked: user.totalQuizzes >= 10, icon: BookOpen },
+                          { id: '100-points', name: 'Centurion', desc: '100 Mastery Pts', unlocked: user.totalPoints >= 100, icon: Sparkles },
+                          { id: 'level-5', name: 'Scholar', desc: 'Level 5', unlocked: user.level >= 5, icon: GraduationCap },
+                          { id: 'level-10', name: 'Elite', desc: 'Level 10', unlocked: user.level >= 10, icon: Trophy }
+                        ].map(b => {
+                          const Icon = b.icon;
+                          return (
+                            <div 
+                              key={b.id} 
+                              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-center transition-all ${
+                                b.unlocked 
+                                  ? 'bg-amber-50 border-amber-200 shadow-sm' 
+                                  : 'bg-slate-50/50 border-slate-200/50 opacity-60 grayscale'
+                              }`}
+                              title={b.desc}
+                            >
+                              <div className={`p-1 rounded-full mb-1 flex items-center justify-center ${b.unlocked ? 'bg-amber-100' : 'bg-slate-200'}`}>
+                                <Icon className={`w-3.5 h-3.5 ${b.unlocked ? 'text-amber-600' : 'text-slate-400'}`} />
+                              </div>
+                              <span className={`text-[7px] font-headline font-black leading-tight truncate w-full px-0.5 ${b.unlocked ? 'text-amber-900' : 'text-slate-500'}`}>
+                                {b.name}
+                              </span>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
 
