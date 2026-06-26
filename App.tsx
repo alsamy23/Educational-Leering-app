@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   BookOpen, Sparkles, Rocket, Trophy, Play, CheckCircle, 
   ChevronRight, Volume2, VolumeX, Shield, ArrowLeft, Plus, 
@@ -892,6 +892,19 @@ export default function App() {
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<QuizSession | null>(null);
   const [feedback, setFeedback] = useState<{ selected: number; isCorrect: boolean } | null>(null);
+
+  const tipOfTheDay = useMemo(() => {
+    const tips = [
+      "Active recall is more effective than passive reading. Test yourself!",
+      "Break your study sessions into 25-minute intervals (Pomodoro technique).",
+      "Teach what you've learned to someone else to solidify your understanding.",
+      "Get enough sleep before exams; consolidation of memory happens during sleep.",
+      "Hydration is key. Drink water while studying to keep your brain focused.",
+      "Use mnemonic devices to remember complex lists or sequences.",
+      "Review your notes within 24 hours of taking them to retain more information."
+    ];
+    return tips[new Date().getDay() % tips.length];
+  }, []);
 
   // --- Adaptive Visuals HUD Modes ---
   const [fontSizeMode, setFontSizeMode] = useState<'normal' | 'large' | 'tv'>('normal');
@@ -2468,6 +2481,17 @@ export default function App() {
               exit={{ opacity: 0, y: -15 }}
               className="w-full space-y-6 flex flex-col items-center"
             >
+              {/* Tip of the Day Banner */}
+              <div className="w-full max-w-2xl bg-amber-50/10 border border-amber-500/20 rounded-2xl p-3 flex items-start gap-3 shadow-lg">
+                <div className="bg-amber-500/20 p-2 rounded-xl flex-none">
+                  <Lightbulb className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h4 className="text-[10px] uppercase font-headline font-black text-amber-400 tracking-widest mb-0.5">Tip of the Day</h4>
+                  <p className="text-sm font-body text-amber-100/90 leading-snug">{tipOfTheDay}</p>
+                </div>
+              </div>
+
               {/* Primary Navigation Tab Bar */}
               <div className={`flex gap-1 p-1 bg-white/5 border border-white/10 rounded-2xl w-full max-w-2xl backdrop-blur-md`}>
                 <button
@@ -2872,9 +2896,9 @@ export default function App() {
               {/* Support & Contact Footer */}
               <div className="pt-4 text-center pb-8">
                 <p className="text-[10px] text-on-surface-variant font-headline uppercase tracking-widest font-bold">
-                  Facing any problems? <a href="mailto:support@scholarearn.com" className="text-primary hover:underline hover:text-primary/80 transition-colors inline-flex items-center gap-1"><Info className="w-3 h-3" /> Contact Us</a>
+                  Facing any issues or have an appreciation? <a href="mailto:alsamy36@gmail.com" className="text-primary hover:underline hover:text-primary/80 transition-colors inline-flex items-center gap-1"><Info className="w-3 h-3" /> Contact Us</a>
                 </p>
-                <p className="text-[8px] text-on-surface-variant/60 mt-1">support@scholarearn.com</p>
+                <p className="text-[8px] text-on-surface-variant/60 mt-1">alsamy36@gmail.com</p>
               </div>
             </motion.div>
           )}
