@@ -2466,10 +2466,10 @@ export default function App() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
-              className="w-full space-y-4"
+              className="w-full space-y-6 flex flex-col items-center"
             >
-              {/* Responsive Navigation Tab Bar (visible ONLY on mobile or simulated mobile view) */}
-              <div className={`${screenViewMode === 'mobile' ? 'flex' : 'lg:hidden flex'} gap-1 p-1 bg-white/5 border border-white/10 rounded-2xl w-full backdrop-blur-md`}>
+              {/* Primary Navigation Tab Bar */}
+              <div className={`flex gap-1 p-1 bg-white/5 border border-white/10 rounded-2xl w-full max-w-2xl backdrop-blur-md`}>
                 <button
                   onClick={() => setEntryMobileTab('library')}
                   type="button"
@@ -2508,11 +2508,11 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Majestic 3-Column Layout: Library, Config, Records */}
-              <div className={`grid gap-5 items-start w-full ${screenViewMode === 'mobile' ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-12'}`}>
+              {/* Focused Main Content Container */}
+              <div className={`w-full max-w-2xl`}>
                 
                 {/* Column 1: Study Material Library (Left) */}
-                <div className={`${entryMobileTab === 'library' ? 'block' : 'hidden'} ${screenViewMode === 'mobile' ? '' : 'lg:block lg:col-span-4'} h-full`}>
+                <div className={`${entryMobileTab === 'library' ? 'block' : 'hidden'} h-full w-full`}>
                   <StudyLibraryInlinePanel 
                     materials={materials}
                     selectedId={selectedMaterialId}
@@ -2523,7 +2523,7 @@ export default function App() {
                 </div>
 
                 {/* Column 2: Mastery Settings (Center) */}
-                <div className={`${entryMobileTab === 'profile' ? 'block' : 'hidden'} ${screenViewMode === 'mobile' ? '' : 'lg:block lg:col-span-5'}`}>
+                <div className={`${entryMobileTab === 'profile' ? 'block' : 'hidden'} w-full`}>
                   <div className="bg-[#faf6eb] text-[#1e293b] border border-[#e4dcc4] shadow-xl rounded-[2rem] p-5 md:p-6 space-y-4 relative overflow-hidden border-t-[10px] border-[#1e3a8a]">
                     <div className="absolute top-0 right-0 w-20 h-20 bg-[#1e3a8a]/5 rounded-bl-[3rem] flex items-center justify-center border-l border-b border-[#e4dcc4]">
                       <Sparkles className="w-6 h-6 text-[#1e3a8a] animate-pulse" />
@@ -2807,7 +2807,7 @@ export default function App() {
                 </div>
 
                 {/* Column 3: Performance, Stats & History Logs (Right) */}
-                <div className={`${entryMobileTab === 'records' ? 'block' : 'hidden'} ${screenViewMode === 'mobile' ? '' : 'lg:block lg:col-span-3'} h-full`}>
+                <div className={`${entryMobileTab === 'records' ? 'block' : 'hidden'} h-full w-full`}>
                   <div className="bg-[#faf6eb] text-[#1e293b] border border-[#e4dcc4] shadow-xl rounded-[2rem] p-5 space-y-4 relative overflow-hidden border-t-[10px] border-[#047857] h-full flex flex-col justify-between">
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 border-b border-[#e4dcc4] pb-2">
@@ -2867,6 +2867,14 @@ export default function App() {
                   </div>
                 </div>
 
+              </div>
+
+              {/* Support & Contact Footer */}
+              <div className="pt-4 text-center pb-8">
+                <p className="text-[10px] text-on-surface-variant font-headline uppercase tracking-widest font-bold">
+                  Facing any problems? <a href="mailto:support@scholarearn.com" className="text-primary hover:underline hover:text-primary/80 transition-colors inline-flex items-center gap-1"><Info className="w-3 h-3" /> Contact Us</a>
+                </p>
+                <p className="text-[8px] text-on-surface-variant/60 mt-1">support@scholarearn.com</p>
               </div>
             </motion.div>
           )}
