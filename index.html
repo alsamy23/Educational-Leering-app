@@ -56,6 +56,7 @@
 
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
+          window.gtag = gtag; // Expose globally to the application
           gtag('js', new Date());
           gtag('config', gaId);
         }

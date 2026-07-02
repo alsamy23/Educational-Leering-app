@@ -824,6 +824,90 @@ export const generateQuizQuestions = async (
     `;
   }
 
+  // Speed & Grade Level customization
+  let speedAndGradePrompt = "";
+  let allowedQuestionTypes = "MCQ, WORD_PROBLEM";
+  
+  if (eduLevel === 'School') {
+    if (gradeInt <= 5) {
+      allowedQuestionTypes = "MCQ"; // Keep it ultra fast and basic
+      speedAndGradePrompt = `
+        TARGET LEVEL: PRIMARY SCHOOL (Grade ${gradeInt}).
+        CRITICAL ACCESSIBILITY & COMPLEXITY RULE:
+        1. Keep everything exceptionally simple, enjoyable, and clear.
+        2. Use vocabulary appropriate for a young learner (7-10 years old).
+        3. Do NOT make the questions difficult, subtle, or complex. Focus on straightforward definitions and fundamental recall.
+        4. Absolutely NO Case Studies or Visual Analyses. Keep questions strictly as single-question MCQs.
+      `;
+    } else if (gradeInt <= 9) {
+      allowedQuestionTypes = "MCQ, WORD_PROBLEM";
+      speedAndGradePrompt = `
+        TARGET LEVEL: MIDDLE SCHOOL / LOWER SECONDARY (Grade ${gradeInt}).
+        CRITICAL ACCESSIBILITY & COMPLEXITY RULE:
+        1. Keep questions straightforward, clear, and focused on core textbook facts.
+        2. Do NOT use complicated reasoning or trick options. Make them approachable and encouraging.
+        3. Only generate basic MCQs and very simple WORD_PROBLEMs. Do NOT generate CASE_STUDYs or VISUAL_ANALYSISs as they slow down the generation.
+      `;
+    } else if (gradeInt === 10 || gradeInt === 12) {
+      allowedQuestionTypes = "MCQ, WORD_PROBLEM, CASE_STUDY, VISUAL_ANALYSIS";
+      speedAndGradePrompt = `
+        TARGET LEVEL: BOARD CLASS (Grade ${gradeInt}).
+        CRITICAL ACCESSIBILITY & COMPLEXITY RULE:
+        1. Align strictly with the official national/state Board Examination Blueprint (e.g., CBSE/ICSE Board papers).
+        2. Maintain standard board-level rigor and structure.
+        3. Include standard questions matching the official alignment paper format.
+      `;
+    } else {
+      allowedQuestionTypes = "MCQ, WORD_PROBLEM, CASE_STUDY, VISUAL_ANALYSIS";
+      speedAndGradePrompt = `
+        TARGET LEVEL: HIGH SCHOOL (Grade ${gradeInt}).
+        CRITICAL ACCESSIBILITY & COMPLEXITY RULE:
+        1. Align with secondary school textbook curriculum and level-appropriate questions.
+      `;
+    }
+  } else {
+    allowedQuestionTypes = "MCQ, WORD_PROBLEM, CASE_STUDY, VISUAL_ANALYSIS";
+  }
+
+  // Simple-to-complex progressive round logic (Round 1 attraction)
+  const activeLevel = profile.level || 1;
+  let roundProgressivePrompt = "";
+  if (activeLevel === 1) {
+    roundProgressivePrompt = `
+      CURRENT ROUND: Round 1 (Confidence Builder & Topic Attraction).
+      CRITICAL RULE:
+      1. This is the student's very first contact with this topic in this session.
+      2. You MUST make the questions extremely encouraging, clear, and simple to "attract" and motivate the student.
+      3. Focus on highly attractive, fundamental core facts or interesting everyday applications of "${topic}".
+      4. Avoid high complexity, fine details, or confusing distractors. Build confidence first!
+    `;
+  } else if (activeLevel === 2) {
+    roundProgressivePrompt = `
+      CURRENT ROUND: Round 2 (Syllabus Application).
+      CRITICAL RULE:
+      1. Introduce standard textbook difficulty and core curriculum applications of "${topic}".
+      2. Questions should transition from simple to moderate, testing active recall and standard usage of terminology.
+    `;
+  } else {
+    roundProgressivePrompt = `
+      CURRENT ROUND: Round ${activeLevel} (Advanced Integration).
+      CRITICAL RULE:
+      1. Step-by-step progression from simple to complex. Focus on multi-step analytical thinking, integration, and thorough mastery of "${topic}".
+    `;
+  }
+
+  // Strict Token Optimization Instructions to fix "taking too long"
+  const latencyOptimizationPrompt = `
+    LATENCY/SPEED OPTIMIZATION (MANDATORY):
+    To ensure extremely fast question generation and low API latency, you MUST keep the output highly compressed, compact, and concise:
+    1. Keep 'text' (question body) clear but short (maximum 15-20 words).
+    2. Keep each of the 4 'options' concise and direct (maximum 5-8 words).
+    3. Keep the 'explanation' clear and brief (maximum 15-20 words). Avoid long paragraphs.
+    4. Keep 'inquiryPrompt' brief and punchy (maximum 10 words).
+    5. For MCQ and WORD_PROBLEM types, leave 'contextMaterial' as an empty string "".
+    By strictly limiting output length, response generation will complete 3x faster.
+  `;
+
   // Check for non-English subject/topic (e.g. Tamil)
   const isTargetLanguageOtherThanEnglish = /tamil|hindi|telugu|kannada|malayalam|french|spanish|german/i.test(profile.subject) || /tamil|hindi|telugu|kannada|malayalam|french|spanish|german/i.test(topic);
   const languageInstruction = isTargetLanguageOtherThanEnglish 
@@ -866,15 +950,16 @@ export const generateQuizQuestions = async (
   
   ${groundedInstruction}
   
+  ${speedAndGradePrompt}
+  ${roundProgressivePrompt}
+  ${latencyOptimizationPrompt}
+
   TASK: Generate exactly 5 questions for this Batch. 
   
   PEDAGOGICAL GOAL (EXAM EXCELLENCE):
   - PRIMARY OBJECTIVE: ${sourceMaterial ? "Synthesize the source material into high-quality assessments aligned with exam patterns." : "Strictly follow curriculum and textbook standards to ensure exam readiness."}
   - Test foundational understanding, conceptual clarity, and the ability to apply the specific topic.
   - Questions must mirror the complexity (MCQs, Case Studies, etc.) of actual board or exam patterns.
-  - ${eduLevel === 'School' && gradeInt < 6 
-      ? "For PRIMARY SCHOOL: Focus on simplified core curriculum pillars. Ensure questions reflect standard educational early-years patterns." 
-      : "Focus on analytical rigor. Every question must evaluate syllabus-specific mastery."}
   - Provide an 'inquiryPrompt' as a "Diagnostic Challenge" to help students identify areas for further study.
   
   MODE-SPECIFIC GUIDANCE:
@@ -887,13 +972,13 @@ export const generateQuizQuestions = async (
   - Group ${groupName || "N/A"} must receive an entirely distinct set of 5 questions than any other group. DO NOT recycle common starter questions.
   
   QUESTION TYPES DISTRIBUTION:
-  - Match question complexity and types with the target educational tier (${eduLevel}). For advanced levels (College, Competitive), include Case Studies and complex situations.
-  - Include at least 1 'CASE_STUDY' and 1 'VISUAL_ANALYSIS' if possible.
+  - Allowed types for this level are: ${allowedQuestionTypes}.
+  - Only use CASE_STUDY or VISUAL_ANALYSIS if permitted by the allowed types, otherwise strictly generate high quality MCQ and WORD_PROBLEM.
   
   GUIDELINES:
   - CASE_STUDY: Provide a short paragraph (50-100 words) in 'contextMaterial' that the student must analyze to answer the question.
   - VISUAL_ANALYSIS: Describe a diagram, graph, or physical setup in 'contextMaterial' (e.g., "A circuit diagram shows two resistors in parallel...") and ask a question based on it. (Do NOT provide images, purely textual visual descriptions).
-  - The 'explanation' must be detailed.
+  - The 'explanation' must be detailed but highly concise.
   - The 'text' field MUST contain the actual question and MUST NOT be empty.`;
 
   try {
@@ -1386,4 +1471,136 @@ You must output a JSON array of exactly 3 suggested topics matching the followin
       rationale: 'Connects this topic to higher-level concepts and experimental real-world problem sets.'
     }
   ];
+};
+
+export interface KeyDiagnosticResult {
+  name: string;
+  hasValue: boolean;
+  status: 'SUCCESS' | 'FAILED' | 'NOT_CONFIGURED';
+  latencyMs?: number;
+  errorMessage?: string;
+  maskedValue?: string;
+}
+
+export interface DiagnosticSummary {
+  geminiKeys: KeyDiagnosticResult[];
+  fallbackConfigured: boolean;
+  fallbackType?: 'groq' | 'grok' | 'none';
+  fallbackModel?: string;
+  overallStatus: 'ALL_OK' | 'PARTIAL_OK' | 'ALL_FAILED';
+  advice: string;
+}
+
+export const runAPIKeyDiagnostics = async (): Promise<DiagnosticSummary> => {
+  const envKeys = [
+    { envVar: 'GEMINI_API_KEY', value: process.env.GEMINI_API_KEY },
+    { envVar: 'API_KEY', value: process.env.API_KEY },
+    { envVar: 'GEMINI_API_KEY_SECONDARY', value: process.env.GEMINI_API_KEY_SECONDARY },
+    { envVar: 'GEMINI_API_KEY_TERTIARY', value: process.env.GEMINI_API_KEY_TERTIARY },
+    { envVar: 'GEMINI_API_KEY_4', value: process.env.GEMINI_API_KEY_4 },
+    { envVar: 'GEMINI_API_KEY_5', value: process.env.GEMINI_API_KEY_5 },
+    { envVar: 'GEMINI_API_KEY_6', value: process.env.GEMINI_API_KEY_6 },
+    { envVar: 'GEMINI_API_KEY_7', value: process.env.GEMINI_API_KEY_7 },
+    { envVar: 'GEMINI_API_KEY_8', value: process.env.GEMINI_API_KEY_8 },
+    { envVar: 'GEMINI_API_KEY_9', value: process.env.GEMINI_API_KEY_9 },
+    { envVar: 'GEMINI_API_KEY_10', value: process.env.GEMINI_API_KEY_10 },
+  ];
+
+  const results: KeyDiagnosticResult[] = [];
+  const valueToStatus = new Map<string, { status: 'SUCCESS' | 'FAILED'; latency?: number; error?: string }>();
+
+  for (const item of envKeys) {
+    const val = (item.value || "").trim();
+    if (!val) {
+      results.push({
+        name: item.envVar,
+        hasValue: false,
+        status: 'NOT_CONFIGURED',
+        maskedValue: 'Not defined in environment'
+      });
+      continue;
+    }
+
+    const masked = val.length > 8 ? `${val.slice(0, 4)}...${val.slice(-4)}` : '••••••••';
+    
+    if (valueToStatus.has(val)) {
+      const cached = valueToStatus.get(val)!;
+      results.push({
+        name: item.envVar,
+        hasValue: true,
+        status: cached.status,
+        latencyMs: cached.latency,
+        errorMessage: cached.error,
+        maskedValue: masked
+      });
+      continue;
+    }
+
+    const start = Date.now();
+    try {
+      const ai = getAIWithKey(val);
+      await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: 'Hi',
+        config: { maxOutputTokens: 2 }
+      });
+      const latency = Date.now() - start;
+      valueToStatus.set(val, { status: 'SUCCESS', latency });
+      results.push({
+        name: item.envVar,
+        hasValue: true,
+        status: 'SUCCESS',
+        latencyMs: latency,
+        maskedValue: masked
+      });
+    } catch (err: any) {
+      const errMsg = err.message || String(err);
+      valueToStatus.set(val, { status: 'FAILED', error: errMsg });
+      results.push({
+        name: item.envVar,
+        hasValue: true,
+        status: 'FAILED',
+        errorMessage: errMsg,
+        maskedValue: masked
+      });
+    }
+  }
+
+  const fallback = getFallbackAI();
+  const fallbackConfigured = !!fallback;
+  const fallbackType = fallback ? fallback.type : 'none';
+  const fallbackModel = fallback ? fallback.model : undefined;
+
+  const successCount = results.filter(r => r.status === 'SUCCESS').length;
+  const configuredCount = results.filter(r => r.hasValue).length;
+
+  let overallStatus: 'ALL_OK' | 'PARTIAL_OK' | 'ALL_FAILED' = 'ALL_FAILED';
+  if (successCount === configuredCount && configuredCount > 0) {
+    overallStatus = 'ALL_OK';
+  } else if (successCount > 0) {
+    overallStatus = 'PARTIAL_OK';
+  }
+
+  let advice = '';
+  if (overallStatus === 'ALL_OK') {
+    advice = 'All configured Gemini API keys are fully functional and ready to deliver ultra-fast learning diagnostics!';
+  } else if (overallStatus === 'PARTIAL_OK') {
+    advice = 'Some Gemini API keys failed or are rate limited. The system will automatically rotate past them to active ones, but you should update/remove the failing keys in your Settings.';
+  } else {
+    advice = 'All configured Gemini keys are failing. ';
+    if (fallbackConfigured) {
+      advice += `We found a preconfigured fallback API (${fallbackType === 'groq' ? 'Groq/Llama' : 'xAI/Grok'}) in your environment! The system will automatically reroute synthesis tasks to keep ScholarEarn fully online.`;
+    } else {
+      advice += 'No active fallbacks are configured. Please check your GEMINI_API_KEY or provide a high-speed GROQ_API_KEY (with model llama-3.3-70b-versatile) or GROK_API_KEY / XAI_API_KEY in your App Settings.';
+    }
+  }
+
+  return {
+    geminiKeys: results,
+    fallbackConfigured,
+    fallbackType,
+    fallbackModel,
+    overallStatus,
+    advice
+  };
 };

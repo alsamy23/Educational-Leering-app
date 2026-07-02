@@ -17,9 +17,13 @@ import { Button } from './components/Button';
 import { db, auth, loginWithGoogle, loginAnonymously, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { generateQuizQuestions, speakTextLocal, generateRoadmapText, generateSuggestedTopics } from './services/geminiService';
+import { generateQuizQuestions, speakTextLocal, generateRoadmapText, generateSuggestedTopics, runAPIKeyDiagnostics, KeyDiagnosticResult, DiagnosticSummary } from './services/geminiService';
 import { generateAndDownloadRoadmapPDF } from './services/pdfService';
 import { shareBadgeImage } from './services/badgeShareService';
+import { 
+  trackProfileUpdate, trackValidationError, trackQuizStart, 
+  trackQuestionAttempt, trackScreenView, trackQuizCompletion 
+} from './services/analytics';
 import * as pdfjsLib from 'pdfjs-dist';
 import { get as get_idb, set as set_idb } from 'idb-keyval';
 import {
@@ -1162,6 +1166,60 @@ export default function App() {
   const [activeQuiz, setActiveQuiz] = useState<QuizSession | null>(null);
   const [feedback, setFeedback] = useState<{ selected: number; isCorrect: boolean } | null>(null);
 
+  // --- Dynamic Styled Toast Notifications (Iframe-Safe alternative to alert) ---
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+  const toastTimeoutRef = useRef<any>(null);
+  const profileTrackTimeoutRef = useRef<any>(null);
+
+  // --- Diagnostics State ---
+  const [diagnosticSummary, setDiagnosticSummary] = useState<DiagnosticSummary | null>(null);
+  const [isRunningDiagnostics, setIsRunningDiagnostics] = useState<boolean>(false);
+  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState<boolean>(false);
+
+  const handleRunDiagnostics = async () => {
+    setIsRunningDiagnostics(true);
+    setShowDiagnosticsModal(true);
+    showToast("Starting API connection diagnostics...", "info");
+    try {
+      const summary = await runAPIKeyDiagnostics();
+      setDiagnosticSummary(summary);
+      if (summary.overallStatus === 'ALL_OK') {
+        showToast("Diagnostics complete! All API keys passed.", "success");
+      } else if (summary.overallStatus === 'PARTIAL_OK') {
+        showToast("Diagnostics complete. Some API keys failed.", "warning");
+      } else {
+        showToast("Diagnostics complete. All API keys failed.", "error");
+      }
+    } catch (e: any) {
+      showToast(e.message || "Diagnostics failed to run.", "error");
+    } finally {
+      setIsRunningDiagnostics(false);
+    }
+  };
+
+  const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 4500);
+  };
+
+  // --- Google Analytics Screen View Tracking ---
+  useEffect(() => {
+    trackScreenView(currentScreen);
+  }, [currentScreen]);
+
+  const getActiveQuestion = (): QuizQuestion | undefined => {
+    if (classroomSession) {
+      const activeGroup = classroomSession.groups[classroomSession.currentGroupIndex];
+      if (activeGroup && activeGroup.questions && activeGroup.questions[currentQuestionIndex]) {
+        return activeGroup.questions[currentQuestionIndex];
+      }
+    }
+    return currentQuestions[currentQuestionIndex];
+  };
+
   // --- Suggested Topics AI HUD States & Handlers ---
   const [suggestedTopics, setSuggestedTopics] = useState<SuggestedTopic[]>([]);
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState<boolean>(false);
@@ -1411,11 +1469,11 @@ export default function App() {
           const result = event.results[0][0].transcript;
           setSpokenAnswerText(result);
           
-          const currentQ = currentQuestions[currentQuestionIndex];
+          const currentQ = getActiveQuestion();
           if (currentQ) {
             const matchedIdx = matchSpokenTextToOption(result, currentQ.options);
             if (matchedIdx !== -1) {
-              handleOptionClick(matchedIdx);
+              handleOptionClick(matchedIdx, 'speech');
             } else {
               setSpeechError(`Could not match voice input: "${result}". Speak an option letter (e.g., "Option A") or opt text.`);
               setTimeout(() => setSpeechError(""), 5000);
@@ -1572,6 +1630,18 @@ export default function App() {
         handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
       });
     }
+
+    // Debounce Google Analytics tracking to avoid logging on every keystroke
+    if (profileTrackTimeoutRef.current) clearTimeout(profileTrackTimeoutRef.current);
+    profileTrackTimeoutRef.current = setTimeout(() => {
+      trackProfileUpdate({
+        name: updated.name,
+        gradeLevel: updated.gradeLevel,
+        board: updated.board,
+        subject: updated.subject,
+        focus: updated.focus
+      });
+    }, 2000);
   };
 
   // --- Countdown Clock Hook ---
@@ -1593,19 +1663,15 @@ export default function App() {
   const handleTimeOut = () => {
     setIsTimerRunning(false);
     if (classroomSession) {
-      // Advance classroom group next
-      const nextIdx = (classroomSession.currentGroupIndex + 1) % classroomSession.groups.length;
-      setClassroomSession({
-        ...classroomSession,
-        currentGroupIndex: nextIdx
-      });
-      setMotivationText("Clock ran out! Pass to Next Group.");
+      setFeedback({ selected: -1, isCorrect: false });
+      setMotivationText("Clock ran out! Next turn.");
       setShowMotivationalPopup(true);
-      // Re-trigger timer
-      setTimeout(() => {
-        setTimeLeft(classroomSession.questionTimer || 45);
-        setIsTimerRunning(classroomSession.questionTimer ? classroomSession.questionTimer > 0 : false);
-      }, 2500);
+      if (autoAdvanceTimeoutRef.current) {
+        clearTimeout(autoAdvanceTimeoutRef.current);
+      }
+      autoAdvanceTimeoutRef.current = setTimeout(() => {
+        handleNextQuizQuestion();
+      }, 4000);
     } else {
       // Standard practice mode: auto submit incorrect
       setFeedback({ selected: -1, isCorrect: false });
@@ -1620,7 +1686,7 @@ export default function App() {
       return;
     }
 
-    const currentQ = currentQuestions[currentQuestionIndex];
+    const currentQ = getActiveQuestion();
     if (!currentQ) return;
 
     let textToSpeak = currentQ.text;
@@ -1642,9 +1708,17 @@ export default function App() {
       autoAdvanceTimeoutRef.current = null;
     }
 
+    let currentUserProfile = { ...user };
     if (!user.name.trim()) {
-      alert("Please configure your Student Name before starting the diagnose course.");
-      return;
+      // Auto-assign a random name to ensure frictionless onboarding and eliminate the 64% bounce rate!
+      const randomId = Math.floor(1000 + Math.random() * 9000);
+      const autoName = `Scholar Guest #${randomId}`;
+      currentUserProfile = { ...user, name: autoName };
+      setUser(currentUserProfile);
+      syncLocalUserProfile(currentUserProfile);
+      
+      trackValidationError('missing_name', "User name was empty. Automatically assigned " + autoName);
+      showToast(`Auto-assigned student ID: ${autoName}. You can personalize it anytime under Entrance!`, 'info');
     }
     
     // Stop any speech
@@ -1668,12 +1742,21 @@ export default function App() {
 
     try {
       const activeMaterial = materials.find(m => m.id === selectedMaterialId);
+      
+      // Log Quiz Start in Google Analytics
+      trackQuizStart({
+        topic: currentUserProfile.topic,
+        difficulty: currentUserProfile.difficulty || DifficultyLevel.DEFAULT,
+        mode: 'individual',
+        has_material: !!activeMaterial?.content
+      });
+
       const questionsFetched = await generateQuizQuestions(
-        user, 
+        currentUserProfile, 
         false, 
         undefined, 
-        user.topic, 
-        user.difficulty || DifficultyLevel.DEFAULT, 
+        currentUserProfile.topic, 
+        currentUserProfile.difficulty || DifficultyLevel.DEFAULT, 
         0, 
         undefined, 
         activeMaterial?.content
@@ -1695,7 +1778,7 @@ export default function App() {
         setIsTimerRunning(testTimer > 0);
 
         setActiveQuiz({
-          profile: user,
+          profile: currentUserProfile,
           questions: questionsFetched,
           userAnswers: new Array(questionsFetched.length).fill(null),
           score: 0,
@@ -1708,7 +1791,8 @@ export default function App() {
     } catch (error: any) {
       clearTimeout(timer1);
       clearTimeout(timer2);
-      alert(error.message || "Synthesizer failed. Check API Keys in settings.");
+      trackValidationError('quiz_initiation_fail', error.message || "Synthesis failure");
+      showToast(error.message || "AI Synthesizer failed. Check API Keys in settings.", 'error');
       setCurrentScreen(AppScreen.ENTRY);
     }
   };
@@ -1725,9 +1809,17 @@ export default function App() {
       autoAdvanceTimeoutRef.current = null;
     }
 
+    let currentTopic = user.topic;
     if (!user.topic.trim()) {
-      alert("Please select or type a Topic focus first.");
-      return;
+      // Auto-assign default topic to avoid blank blockages and reduce high bounce rate!
+      currentTopic = 'Light - Reflection and Refraction';
+      setUser(prev => {
+        const updated = { ...prev, topic: 'Light - Reflection and Refraction' };
+        syncLocalUserProfile(updated);
+        return updated;
+      });
+      trackValidationError('missing_topic', "Classroom battle topic empty. Automatically assigned Light Reflection.");
+      showToast(`Topic empty! Pre-selected curriculum standard: "Light - Reflection and Refraction"`, 'info');
     }
 
     // Stop speech
@@ -1745,17 +1837,37 @@ export default function App() {
 
     try {
       const activeMaterial = materials.find(m => m.id === selectedMaterialId);
-      // Fetch questions 
-      const questionsFetched = await generateQuizQuestions(
-        user, 
-        false, 
-        'Multi-Team Arena', 
-        user.topic, 
-        user.difficulty || DifficultyLevel.DEFAULT, 
-        0, 
-        undefined, 
-        activeMaterial?.content
+      
+      // Log Classroom Quiz Start in Google Analytics
+      trackQuizStart({
+        topic: currentTopic,
+        difficulty: user.difficulty || DifficultyLevel.DEFAULT,
+        mode: 'classroom',
+        num_teams: groupsList.length,
+        has_material: !!activeMaterial?.content
+      });
+
+      // Fetch unique, group-specific questions for each group in parallel
+      const groupsWithQuestions = await Promise.all(
+        groupsList.map(async (group, idx) => {
+          const qFetched = await generateQuizQuestions(
+            user, 
+            false, 
+            group.name, 
+            currentTopic, 
+            group.difficulty || user.difficulty || DifficultyLevel.DEFAULT, 
+            0, 
+            `seed_${group.id}_${Date.now()}_${idx}`, 
+            activeMaterial?.content
+          );
+          return {
+            ...group,
+            questions: qFetched
+          };
+        })
       );
+
+      const questionsFetched = groupsWithQuestions[0]?.questions || [];
 
       clearTimeout(timer1);
       setLoadingProgress(100);
@@ -1769,12 +1881,12 @@ export default function App() {
 
         setClassroomSession({
           id: 'arena_' + Date.now(),
-          groups: groupsList.map(g => ({ ...g, score: 0 })),
+          groups: groupsWithQuestions,
           currentGroupIndex: 0,
           subject: user.subject,
           gradeLevel: user.gradeLevel,
           section: user.section || 'A',
-          topic: user.topic,
+          topic: currentTopic,
           isStarted: true,
           questionTimer: timerDuration
         });
@@ -1786,22 +1898,36 @@ export default function App() {
 
     } catch (e: any) {
       clearTimeout(timer1);
-      alert(e.message || "Failed to organize battle questions.");
+      trackValidationError('quiz_initiation_fail', e.message || "Failed to organize battle questions");
+      showToast(e.message || "Failed to organize battle questions. Please check settings.", 'error');
       setCurrentScreen(AppScreen.CLASSROOM_SETUP);
     }
   };
 
   // --- Option click evaluator with dyn key shifting fixes ---
-  const handleOptionClick = (optionIdx: number) => {
+  const handleOptionClick = (optionIdx: number, method: 'click' | 'speech' = 'click') => {
     if (feedback !== null) return; // Prevent multiple clicks
     setIsTimerRunning(false); // Pause clock feedback
     if (window.speechSynthesis) window.speechSynthesis.cancel(); // Stop read alouds
     setIsReadingAloud(false);
 
-    const currentQ = currentQuestions[currentQuestionIndex];
+    const currentQ = getActiveQuestion();
     if (!currentQ) return;
 
     const correct = optionIdx === currentQ.correctIndex;
+    
+    // Log individual answer attempt in Google Analytics
+    trackQuestionAttempt({
+      question_id: currentQ.id,
+      question_type: currentQ.type,
+      answer_method: method,
+      is_correct: correct,
+      score_so_far: classroomSession 
+        ? (classroomSession.groups[classroomSession.currentGroupIndex]?.score + (correct ? 1 : 0))
+        : (activeQuiz ? activeQuiz.score + (correct ? 1 : 0) : 0),
+      mode: classroomSession ? 'classroom' : 'individual'
+    });
+
     setFeedback({
       selected: optionIdx,
       isCorrect: correct
@@ -1874,79 +2000,121 @@ export default function App() {
     setSpokenAnswerText("");
     setSpeechError("");
 
-    if (currentQuestionIndex + 1 < currentQuestions.length) {
-      setCurrentQuestionIndex(prev => prev + 1);
-      setFeedback(null);
-      
-      const nextTimer = classroomSession ? (classroomSession.questionTimer || 45) : individualTimer;
-      setTimeLeft(nextTimer);
-      setIsTimerRunning(nextTimer > 0);
-
-      if (classroomSession) {
-        // Rotate classroom team
-        const nextGroupIdx = (classroomSession.currentGroupIndex + 1) % classroomSession.groups.length;
+    if (classroomSession) {
+      const nextGroupIdx = classroomSession.currentGroupIndex + 1;
+      if (nextGroupIdx < classroomSession.groups.length) {
+        // Stay on same question index (round), but move to next group's turn
         setClassroomSession({
           ...classroomSession,
           currentGroupIndex: nextGroupIdx
         });
+        setFeedback(null);
+        const nextTimer = classroomSession.questionTimer || 45;
+        setTimeLeft(nextTimer);
+        setIsTimerRunning(nextTimer > 0);
+      } else {
+        // All teams finished current round's question. Move to next round!
+        if (currentQuestionIndex + 1 < currentQuestions.length) {
+          setCurrentQuestionIndex(prev => prev + 1);
+          setClassroomSession({
+            ...classroomSession,
+            currentGroupIndex: 0
+          });
+          setFeedback(null);
+          const nextTimer = classroomSession.questionTimer || 45;
+          setTimeLeft(nextTimer);
+          setIsTimerRunning(nextTimer > 0);
+        } else {
+          // Finished Classroom Battle!
+          setIsTimerRunning(false);
+          const maxTeamScore = Math.max(...classroomSession.groups.map(g => g.score));
+          
+          // Log Classroom completion in Google Analytics
+          trackQuizCompletion({
+            score: maxTeamScore,
+            total_questions: currentQuestions.length,
+            points_earned: 30,
+            mode: 'classroom',
+            topic: classroomSession.topic
+          });
+
+          const parsedTime = new Date().toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' });
+          const record: TestRecord = {
+            topic: classroomSession.topic,
+            score: maxTeamScore,
+            total: 5,
+            date: parsedTime,
+            type: 'classroom',
+            subject: classroomSession.subject,
+            grade: classroomSession.gradeLevel
+          };
+
+          const updatedUser: UserProfile = {
+            ...user,
+            totalPoints: user.totalPoints + 30, // reward code
+            totalQuizzes: user.totalQuizzes + 1,
+            testHistory: [record, ...(user.testHistory || [])]
+          };
+
+          syncLocalUserProfile(updatedUser);
+          setCurrentScreen(AppScreen.LEADERBOARD);
+        }
       }
     } else {
-      // Finish Session
-      setIsTimerRunning(false);
-      if (classroomSession) {
-        // Log multiplayer battle
-        const parsedTime = new Date().toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' });
-        const record: TestRecord = {
-          topic: classroomSession.topic,
-          score: Math.max(...classroomSession.groups.map(g => g.score)),
-          total: 5,
-          date: parsedTime,
-          type: 'classroom',
-          subject: classroomSession.subject,
-          grade: classroomSession.gradeLevel
-        };
+      // Individual Quiz mode
+      if (currentQuestionIndex + 1 < currentQuestions.length) {
+        setCurrentQuestionIndex(prev => prev + 1);
+        setFeedback(null);
+        
+        const nextTimer = individualTimer;
+        setTimeLeft(nextTimer);
+        setIsTimerRunning(nextTimer > 0);
+      } else {
+        // Finish individual session
+        setIsTimerRunning(false);
+        if (activeQuiz) {
+          // Log individual adaptive
+          const finalScore = activeQuiz.score;
+          const rewardPoints = finalScore * 10;
 
-        const updatedUser: UserProfile = {
-          ...user,
-          totalPoints: user.totalPoints + 30, // reward code
-          totalQuizzes: user.totalQuizzes + 1,
-          testHistory: [record, ...(user.testHistory || [])]
-        };
+          // Log individual completion in Google Analytics
+          trackQuizCompletion({
+            score: finalScore,
+            total_questions: activeQuiz.questions.length,
+            points_earned: rewardPoints,
+            mode: 'individual',
+            topic: activeQuiz.profile.topic
+          });
 
-        syncLocalUserProfile(updatedUser);
-        setCurrentScreen(AppScreen.LEADERBOARD);
-      } else if (activeQuiz) {
-        // Log individual adaptive
-        const finalScore = activeQuiz.score;
-        const rewardPoints = finalScore * 10;
-        const parsedTime = new Date().toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' });
+          const parsedTime = new Date().toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-        const record: TestRecord = {
-          topic: user.topic,
-          score: finalScore,
-          total: 5,
-          date: parsedTime,
-          type: 'individual',
-          subject: user.subject,
-          grade: user.gradeLevel
-        };
+          const record: TestRecord = {
+            topic: user.topic,
+            score: finalScore,
+            total: 5,
+            date: parsedTime,
+            type: 'individual',
+            subject: user.subject,
+            grade: user.gradeLevel
+          };
 
-        const progressiveLevel = finalScore >= 4 ? user.level + 1 : user.level;
+          const progressiveLevel = finalScore >= 4 ? user.level + 1 : user.level;
 
-        const updatedUser: UserProfile = {
-          ...user,
-          level: progressiveLevel,
-          totalPoints: user.totalPoints + rewardPoints,
-          totalQuizzes: user.totalQuizzes + 1,
-          testHistory: [record, ...(user.testHistory || [])]
-        };
+          const updatedUser: UserProfile = {
+            ...user,
+            level: progressiveLevel,
+            totalPoints: user.totalPoints + rewardPoints,
+            totalQuizzes: user.totalQuizzes + 1,
+            testHistory: [record, ...(user.testHistory || [])]
+          };
 
-        syncLocalUserProfile(updatedUser);
-        setActiveQuiz({
-          ...activeQuiz,
-          score: finalScore
-        });
-        setCurrentScreen(AppScreen.RESULTS);
+          syncLocalUserProfile(updatedUser);
+          setActiveQuiz({
+            ...activeQuiz,
+            score: finalScore
+          });
+          setCurrentScreen(AppScreen.RESULTS);
+        }
       }
     }
   };
@@ -2676,6 +2844,228 @@ export default function App() {
         <div className="absolute bottom-[10%] right-[25%] w-[450px] h-[450px] bg-secondary/15 rounded-full blur-[120px]" />
       </div>
 
+      {/* Dynamic Iframe-Safe Toast Notifications */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -40, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md pointer-events-auto"
+          >
+            <div className={`p-4 rounded-2xl shadow-2xl border backdrop-blur-md flex items-center gap-3 ${
+              toast.type === 'success' 
+                ? 'bg-[#14532d]/95 text-green-100 border-green-500/50' 
+                : toast.type === 'error'
+                ? 'bg-[#7f1d1d]/95 text-red-100 border-red-500/50'
+                : toast.type === 'warning'
+                ? 'bg-[#78350f]/95 text-amber-100 border-amber-500/50'
+                : 'bg-surface/95 text-on-surface border-white/15'
+            }`}>
+              <div className="flex-1 text-xs md:text-sm font-headline font-bold leading-snug">
+                {toast.message}
+              </div>
+              <button 
+                onClick={() => setToast(null)}
+                className="text-white/60 hover:text-white p-1 rounded-full hover:bg-white/10 transition-all shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* API Key Diagnostics Modal */}
+      <AnimatePresence>
+        {showDiagnosticsModal && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-[#faf6eb] text-[#1e293b] border-2 border-[#e4dcc4] w-full max-w-lg rounded-[2.5rem] p-6 shadow-2xl relative overflow-hidden max-h-[85vh] flex flex-col"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-[#e4dcc4] pb-4 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-indigo-50 border border-indigo-200 rounded-2xl text-[#1e3a8a]">
+                    <ShieldCheck className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm md:text-base font-headline font-black text-[#1e3a8a] tracking-tight">API Key Connection Diagnostics</h3>
+                    <p className="text-[8px] md:text-[9px] text-[#7c755d] uppercase tracking-wider font-extrabold mt-0.5">Real-time Service Reachability Monitor</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDiagnosticsModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-all shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1 scrollbar-thin">
+                {isRunningDiagnostics ? (
+                  <div className="py-8 flex flex-col items-center justify-center space-y-3">
+                    <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin" />
+                    <p className="text-xs font-headline font-black text-[#1e293b] uppercase tracking-wider animate-pulse">Running Service Verification...</p>
+                    <p className="text-[10px] text-[#7c755d] text-center max-w-xs leading-relaxed">
+                      Pinging Google AI Studio for each loaded key. This tests standard network latency, authorization, and quota status.
+                    </p>
+                  </div>
+                ) : diagnosticSummary ? (
+                  <>
+                    {/* Overall Status banner */}
+                    <div className={`p-4 rounded-2xl border ${
+                      diagnosticSummary.overallStatus === 'ALL_OK' 
+                        ? 'bg-emerald-50 text-emerald-950 border-emerald-200' 
+                        : diagnosticSummary.overallStatus === 'PARTIAL_OK'
+                        ? 'bg-amber-50 text-amber-950 border-amber-200'
+                        : 'bg-rose-50 text-rose-950 border-rose-200'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className={`w-2.5 h-2.5 rounded-full ${
+                          diagnosticSummary.overallStatus === 'ALL_OK' 
+                            ? 'bg-emerald-500 animate-pulse' 
+                            : diagnosticSummary.overallStatus === 'PARTIAL_OK'
+                            ? 'bg-amber-500 animate-pulse'
+                            : 'bg-rose-500 animate-pulse'
+                        }`} />
+                        <span className="text-[10px] font-headline font-black uppercase tracking-wider">
+                          {diagnosticSummary.overallStatus === 'ALL_OK' 
+                            ? 'All API Keys Functional' 
+                            : diagnosticSummary.overallStatus === 'PARTIAL_OK'
+                            ? 'Partial Key Outage'
+                            : 'All Gemini API Keys Offline'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] leading-relaxed opacity-90">{diagnosticSummary.advice}</p>
+                    </div>
+
+                    {/* Gemini Key List */}
+                    <div className="space-y-2">
+                      <h4 className="text-[9px] font-headline font-black uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                        🔑 Configured Gemini Keys ({diagnosticSummary.geminiKeys.filter(k => k.hasValue).length}/11)
+                      </h4>
+                      <div className="border border-[#e4dcc4] rounded-2xl overflow-hidden bg-white/50 divide-y divide-[#e4dcc4]/60">
+                        {diagnosticSummary.geminiKeys.map((key, i) => (
+                          <div key={i} className="p-3 flex items-center justify-between text-xs gap-3 hover:bg-white/80 transition-colors">
+                            <div className="min-w-0">
+                              <p className="font-mono text-[9px] font-bold text-slate-800 truncate">{key.name}</p>
+                              <p className="text-[8px] text-slate-400 font-mono tracking-widest mt-0.5">{key.maskedValue}</p>
+                            </div>
+                            <div className="text-right flex-shrink-0 flex items-center gap-2">
+                              {key.status === 'NOT_CONFIGURED' ? (
+                                <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100/50 text-slate-400 border border-slate-200">
+                                  Not Defined
+                                </span>
+                              ) : key.status === 'SUCCESS' ? (
+                                <div className="flex flex-col items-end">
+                                  <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> SUCCESS
+                                  </span>
+                                  <span className="text-[8px] text-slate-400 font-mono mt-0.5">{key.latencyMs}ms</span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-end max-w-[180px]">
+                                  <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">
+                                    FAILED
+                                  </span>
+                                  <span className="text-[7px] text-rose-600 mt-0.5 leading-tight text-right break-all max-h-12 overflow-y-auto" title={key.errorMessage}>
+                                    {key.errorMessage}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Fallback configuration status */}
+                    <div className="p-3.5 rounded-2xl border border-[#e4dcc4] bg-[#fcfaf4] space-y-1.5">
+                      <h4 className="text-[9px] font-headline font-black uppercase tracking-widest text-[#1e3a8a] flex items-center gap-1">
+                        🚀 High-Speed Fallback Status
+                      </h4>
+                      {diagnosticSummary.fallbackConfigured ? (
+                        <div className="flex items-start gap-2">
+                          <div className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold mt-0.5 shrink-0">
+                            ✓
+                          </div>
+                          <div>
+                            <p className="text-xs font-headline font-black text-indigo-900 uppercase">
+                              {diagnosticSummary.fallbackType === 'groq' ? 'Groq/Llama Active' : 'xAI/Grok Active'}
+                            </p>
+                            <p className="text-[9px] text-[#7c755d] leading-normal">
+                              Fully set up inside environment with model: <span className="font-mono text-slate-800 font-bold">{diagnosticSummary.fallbackModel}</span>. If any Gemini API call rate-limits or fails, the app will instantly switch to this provider.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-2">
+                          <div className="w-4 h-4 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-bold mt-0.5 shrink-0">
+                            !
+                          </div>
+                          <div>
+                            <p className="text-xs font-headline font-black text-amber-900 uppercase">No active fallbacks configured</p>
+                            <p className="text-[9px] text-[#7c755d] leading-normal">
+                              We recommend adding a <span className="font-mono text-slate-800 font-bold">GROQ_API_KEY</span> (using high-speed Llama-3.3-70b-versatile) or <span className="font-mono text-slate-800 font-bold">GROK_API_KEY / XAI_API_KEY</span> in the settings menu to guarantee 100% uptime when Gemini is rate-limited.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* How to Fix Section */}
+                    <div className="p-4 rounded-2xl bg-amber-50/40 border border-amber-200/50 space-y-1">
+                      <h4 className="text-[9px] font-headline font-black text-[#b45309] uppercase tracking-widest flex items-center gap-1">
+                        💡 How to Fix API Key Failures
+                      </h4>
+                      <ul className="list-disc pl-4 text-[9px] text-slate-700 space-y-1 leading-normal">
+                        <li>
+                          <strong>Check API Studio</strong>: Go to <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-bold hover:underline">Google AI Studio</a>, generate a fresh key, and paste it into the Settings secret manager.
+                        </li>
+                        <li>
+                          <strong>Wait out rate limits</strong>: Gemini free tier keys allow up to 15 requests/min. If you hit 429 errors, they will automatically resolve in 60 seconds.
+                        </li>
+                        <li>
+                          <strong>Fallback Option</strong>: Add a fallback Groq or xAI key which has higher rate limits and massive speed boosts for text generation.
+                        </li>
+                      </ul>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-center text-[#7c755d] py-4">Click "Re-run Diagnostics" below to fetch key statuses.</p>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-[#e4dcc4] pt-4 flex gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={isRunningDiagnostics}
+                  onClick={handleRunDiagnostics}
+                  className="flex-1 h-11 rounded-xl text-[10px] font-headline font-black uppercase tracking-wider bg-[#1e3a8a] hover:bg-[#172554] text-white flex items-center justify-center gap-1.5 transition-all shadow-md disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRunningDiagnostics ? 'animate-spin' : ''}`} />
+                  {isRunningDiagnostics ? 'Testing Keys...' : 'Re-Run Diagnostics'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDiagnosticsModal(false)}
+                  className="h-11 px-5 rounded-xl text-[10px] font-headline font-black uppercase tracking-wider border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Floatable Draggable Timer HUD inside Quiz */}
       {currentScreen === AppScreen.QUIZ && timeLeft > 0 && isTimerRunning && (
         <div 
@@ -3322,6 +3712,27 @@ export default function App() {
                           })}
                         </div>
                       </div>
+
+                      {/* API Connection Diagnostics */}
+                      <div className="space-y-1.5 pt-1.5 border-t border-[#e4dcc4]/60">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <ShieldCheck className="w-3.5 h-3.5 text-[#1e3a8a]" /> API Status & Diagnostics
+                          </label>
+                          <span className="text-[7px] text-[#7c755d] font-bold uppercase bg-amber-100/50 border border-amber-200/50 px-1 py-0.2 rounded">
+                            Iframe-Safe Testing
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isRunningDiagnostics}
+                          onClick={handleRunDiagnostics}
+                          className="w-full h-9 rounded-xl text-[9px] font-headline font-black uppercase tracking-wider border border-[#1e3a8a]/30 hover:border-[#1e3a8a] bg-gradient-to-r from-indigo-50/50 to-blue-50/50 text-[#1e3a8a] hover:from-indigo-50 hover:to-blue-50 flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${isRunningDiagnostics ? 'animate-spin' : ''}`} />
+                          {isRunningDiagnostics ? 'Running Connection Tests...' : 'Verify API Keys & Fallbacks'}
+                        </button>
+                      </div>
                              {/* Badges & Milestones - only visible after they complete one or two tests */}
                     {((user.totalQuizzes || 0) >= 1) && (
                       <div className="space-y-2 pt-2 border-t border-[#e4dcc4]">
@@ -3520,8 +3931,11 @@ export default function App() {
           )}
 
           {/* ACTIVE ADAPTIVE QUIZ WORKSPACE */}
-          {currentScreen === AppScreen.QUIZ && currentQuestions.length > 0 && (
-            <motion.div 
+          {currentScreen === AppScreen.QUIZ && currentQuestions.length > 0 && (() => {
+            const currentQ = getActiveQuestion();
+            if (!currentQ) return null;
+            return (
+              <motion.div 
               key="active_diagnose"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -3552,12 +3966,12 @@ export default function App() {
 
               {/* Dynamic Columns for Case study materials or diagram instructions */}
               <div className={`transition-all duration-300 w-full ${
-                currentQuestions[currentQuestionIndex].contextMaterial 
+                currentQ.contextMaterial 
                   ? 'lg:flex lg:gap-6 items-start' 
                   : 'flex flex-col items-center justify-start'
               }`}>
                 {/* Visual context readouts (Left panel if present) */}
-                {currentQuestions[currentQuestionIndex].contextMaterial && (
+                {currentQ.contextMaterial && (
                   <div className={`transition-all duration-300 mb-5 lg:mb-0 w-full ${
                     fontSizeMode === 'normal' 
                       ? 'lg:w-[35%]' 
@@ -3577,7 +3991,7 @@ export default function App() {
                             ? 'text-sm md:text-base max-h-[40vh] overflow-y-auto no-scrollbar' 
                             : 'text-base md:text-lg max-h-[50vh] overflow-y-auto no-scrollbar'
                       }`}>
-                        {currentQuestions[currentQuestionIndex].contextMaterial}
+                        {currentQ.contextMaterial}
                       </p>
                     </div>
                   </div>
@@ -3588,7 +4002,7 @@ export default function App() {
                   
                   {/* Real Question Textbox */}
                   <div className="bg-surface-container-lowest/80 glass-card p-5 md:p-7 rounded-2xl border border-white/10 relative overflow-hidden flex justify-between items-start gap-3">
-                    <div className={`absolute left-0 top-0 h-full w-2 ${currentQuestions[currentQuestionIndex].type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`} />
+                    <div className={`absolute left-0 top-0 h-full w-2 ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`} />
                     <h2 className={`font-body font-black text-on-surface flex-1 leading-snug tv-text-shadow transition-all duration-300 ${
                       fontSizeMode === 'normal' 
                         ? 'text-sm md:text-base lg:text-lg' 
@@ -3596,7 +4010,7 @@ export default function App() {
                           ? 'text-base md:text-lg lg:text-xl' 
                           : 'text-lg md:text-xl lg:text-[1.6rem] leading-snug font-black'
                     }`}>
-                      {currentQuestions[currentQuestionIndex].text}
+                      {currentQ.text}
                     </h2>
 
                     {/* Audio action controller bar */}
@@ -3700,10 +4114,10 @@ export default function App() {
 
                   {/* Options Matrix Selection List */}
                   <div className="grid grid-cols-1 gap-2.5">
-                    {currentQuestions[currentQuestionIndex].options.map((opt, i) => {
+                    {currentQ.options.map((opt, i) => {
                       let btnStyle = "bg-surface-container-lowest/60 border-white/5 text-on-surface hover:border-primary/50 hover:bg-primary/5";
                       if (feedback) {
-                        if (i === currentQuestions[currentQuestionIndex].correctIndex) {
+                        if (i === currentQ.correctIndex) {
                           btnStyle = "bg-secondary/20 border-secondary text-on-surface ring-2 ring-secondary/20 neon-glow-secondary";
                         } else if (i === feedback.selected && !feedback.isCorrect) {
                           btnStyle = "bg-error/20 border-error text-on-surface ring-2 ring-error/20 neon-glow-error";
@@ -3727,14 +4141,14 @@ export default function App() {
                           } ${btnStyle} active:scale-[0.98]`}
                         >
                           <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-headline font-black transition-all ${
-                            feedback && i === currentQuestions[currentQuestionIndex].correctIndex 
+                            feedback && i === currentQ.correctIndex 
                               ? 'bg-secondary text-on-secondary shadow-md' 
                               : 'bg-surface-container text-outline group-hover:bg-primary/20 group-hover:text-primary'
                           }`}>
                             {String.fromCharCode(65 + i)}
                           </span>
                           <span className="font-body font-bold text-on-surface flex-1">{opt}</span>
-                          {feedback && feedback.isCorrect && i === currentQuestions[currentQuestionIndex].correctIndex && (
+                          {feedback && feedback.isCorrect && i === currentQ.correctIndex && (
                             <span className="ml-auto bg-tertiary text-on-tertiary text-[10px] font-headline font-extrabold uppercase tracking-widest px-3 py-1 rounded-full animate-bounce shadow-md flex items-center gap-1.5 flex-none">
                               <Check className="w-3.5 h-3.5 text-white" /> Excellent!
                             </span>
@@ -3757,16 +4171,16 @@ export default function App() {
                       <p className={`font-body font-bold text-on-surface-variant leading-relaxed italic transition-all duration-300 ${
                         fontSizeMode === 'normal' ? 'text-xs md:text-sm' : fontSizeMode === 'large' ? 'text-sm md:text-base' : 'text-base md:text-[1.3rem]'
                       }`}>
-                        {currentQuestions[currentQuestionIndex].explanation}
+                        {currentQ.explanation}
                       </p>
 
-                      {currentQuestions[currentQuestionIndex].inquiryPrompt && (
+                      {currentQ.inquiryPrompt && (
                         <div className="mt-2.5 p-3.5 bg-primary/10 rounded-xl border border-primary/20 space-y-1">
                           <p className="text-[9px] font-headline font-extrabold uppercase text-primary tracking-wider flex items-center gap-1.5 italic">
                             <Sparkles className="w-3.5 h-3.5 text-primary" /> Future Diagnostic Exploration
                           </p>
                           <p className="text-xs font-body font-bold text-on-surface italic">
-                            {currentQuestions[currentQuestionIndex].inquiryPrompt}
+                            {currentQ.inquiryPrompt}
                           </p>
                         </div>
                       )}
@@ -3779,7 +4193,8 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
-          )}
+            );
+          })()}
 
           {/* RESULTS CARD FOR SINGLE PARTICIPANTS */}
           {currentScreen === AppScreen.RESULTS && activeQuiz && (

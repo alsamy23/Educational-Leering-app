@@ -80,6 +80,7 @@ export interface Group {
   score: number;
   members: string[];
   difficulty?: DifficultyLevel;
+  questions?: QuizQuestion[];
 }
 
 export interface ClassroomSession {
