@@ -23,13 +23,96 @@ const getAIKeys = () => {
   return Array.from(new Set(keys));
 };
 
-const getAI = () => {
+interface KeyHealth {
+  key: string;
+  isBlacklisted: boolean;
+  blacklistReason?: 'permission_denied' | 'rate_limit';
+  consecutiveFailures: number;
+  lastFailureTime?: number;
+}
+
+const keyHealthMap = new Map<string, KeyHealth>();
+
+export const getHealthyAIKeys = (): string[] => {
   const keys = getAIKeys();
+  const now = Date.now();
+
+  for (const key of keys) {
+    if (!keyHealthMap.has(key)) {
+      keyHealthMap.set(key, {
+        key,
+        isBlacklisted: false,
+        consecutiveFailures: 0,
+      });
+    }
+  }
+
+  const healthyKeys = keys.filter(key => {
+    const health = keyHealthMap.get(key);
+    if (!health) return true;
+    if (health.isBlacklisted) {
+      if (health.blacklistReason === 'permission_denied') {
+        return false;
+      }
+      if (health.lastFailureTime && now - health.lastFailureTime < 3 * 60 * 1000) {
+        return false;
+      }
+      // Re-evaluate after 3 mins
+      health.isBlacklisted = false;
+      health.consecutiveFailures = 0;
+    }
+    return true;
+  });
+
+  if (healthyKeys.length === 0) {
+    return keys;
+  }
+
+  // Rotate starting from currentKeyIndex
+  const startIndex = currentKeyIndex % healthyKeys.length;
+  const rotated = [
+    ...healthyKeys.slice(startIndex),
+    ...healthyKeys.slice(0, startIndex)
+  ];
+
+  return rotated;
+};
+
+const reportKeySuccess = (key: string) => {
+  const health = keyHealthMap.get(key);
+  if (health) {
+    health.consecutiveFailures = 0;
+    health.isBlacklisted = false;
+    delete health.blacklistReason;
+  }
+  currentKeyIndex = (currentKeyIndex + 1) % 1000;
+};
+
+const reportKeyFailure = (key: string, error: any) => {
+  const health = keyHealthMap.get(key);
+  if (health) {
+    health.consecutiveFailures += 1;
+    health.lastFailureTime = Date.now();
+    
+    const message = (error?.message || String(error)).toLowerCase();
+    if (message.includes("permission") || message.includes("403") || message.includes("not valid") || message.includes("invalid key") || message.includes("unauthorized")) {
+      health.isBlacklisted = true;
+      health.blacklistReason = 'permission_denied';
+      console.error(`Gemini key permanently blacklisted due to permission denied: ...${key.slice(-5)}`);
+    } else {
+      health.isBlacklisted = true;
+      health.blacklistReason = 'rate_limit';
+      console.warn(`Gemini key temporarily blacklisted due to rate limit/failure: ...${key.slice(-5)}`);
+    }
+  }
+};
+
+const getAI = () => {
+  const keys = getHealthyAIKeys();
   if (keys.length === 0) throw new Error("API_KEY missing. Please ensure GEMINI_API_KEY is set in the environment.");
   
-  // Round-robin rotation
-  currentKeyIndex = (currentKeyIndex + 1) % keys.length;
-  return new GoogleGenAI({ apiKey: keys[currentKeyIndex] });
+  // Use first healthy rotated key
+  return new GoogleGenAI({ apiKey: keys[0] });
 };
 
 const getAIWithKey = (key: string) => new GoogleGenAI({ apiKey: key });
@@ -983,7 +1066,7 @@ export const generateQuizQuestions = async (
 
   try {
     // Try Gemini first with rotation
-    const geminiKeys = getAIKeys();
+    const geminiKeys = getHealthyAIKeys();
 
     let lastError: any = null;
 
@@ -1024,10 +1107,18 @@ export const generateQuizQuestions = async (
 
         const cleaned = repairJson(response.text || "[]");
         const parsed = JSON.parse(cleaned);
+        
+        // Report success so this key is prioritized as healthy
+        reportKeySuccess(key);
+        
         return validateAndFormatQuestions(parsed, topic);
       } catch (geminiErr: any) {
         lastError = geminiErr;
         console.warn(`Gemini key failed: ${geminiErr.message || geminiErr}. Trying next key...`);
+        
+        // Report failure to blacklist this key instantly
+        reportKeyFailure(key, geminiErr);
+        
         continue;
       }
     }
@@ -1153,7 +1244,7 @@ const validateAndFormatQuestions = (parsed: any[], topic: string = "this topic")
 
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
   if (!text.trim()) return new ArrayBuffer(0);
-  const geminiKeys = getAIKeys();
+  const geminiKeys = getHealthyAIKeys();
   for (const key of geminiKeys) {
     try {
       const ai = getAIWithKey(key);
@@ -1170,9 +1261,12 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
       const binary = atob(base64);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      
+      reportKeySuccess(key);
       return bytes.buffer;
     } catch (e: any) {
       console.warn("TTS generation failed with key:", e.message || e);
+      reportKeyFailure(key, e);
     }
   }
   return new ArrayBuffer(0); // Fail silently for audio
@@ -1187,7 +1281,11 @@ export const speakTextLocal = (text: string, onStart?: () => void, onEnd?: () =>
       return;
     }
     
-    window.speechSynthesis.cancel(); // Stop any pending reading
+    try {
+      window.speechSynthesis.cancel(); // Stop any pending reading
+    } catch (cancelErr) {
+      console.warn("speechSynthesis.cancel failed: ", cancelErr);
+    }
     
     // Clean text of markdown characters
     const cleanedText = text.replace(/[*_`#]/g, '').trim();
@@ -1253,7 +1351,7 @@ export const speakTextLocal = (text: string, onStart?: () => void, onEnd?: () =>
       };
       
       utterance.onerror = (err) => {
-        console.error("SpeechSynthesis error:", err);
+        console.warn("SpeechSynthesis status (non-critical):", err.error || err);
         if (currentUtterance === utterance) {
           currentUtterance = null;
         }
@@ -1261,7 +1359,16 @@ export const speakTextLocal = (text: string, onStart?: () => void, onEnd?: () =>
         resolve();
       };
       
-      window.speechSynthesis.speak(utterance);
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch (speakErr) {
+        console.warn("speechSynthesis.speak failed synchronously (iframe security restriction):", speakErr);
+        if (currentUtterance === utterance) {
+          currentUtterance = null;
+        }
+        if (onEnd) onEnd();
+        resolve();
+      }
     };
 
     const initialVoices = window.speechSynthesis.getVoices();
@@ -1307,7 +1414,7 @@ export const playAudio = async (buffer: ArrayBuffer) => {
  * and outputs a structured Markdown roadmap.
  */
 export const generateRoadmapText = async (profile: UserProfile): Promise<string> => {
-  const geminiKeys = getAIKeys();
+  const geminiKeys = getHealthyAIKeys();
   const history = profile.testHistory || [];
   
   const testHistoryStr = history.length > 0
@@ -1364,10 +1471,12 @@ Be extremely professional, encouraging, and academically precise. Avoid generic 
       });
       const responseText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
       if (responseText) {
+        reportKeySuccess(key);
         return responseText;
       }
     } catch (e: any) {
       console.warn("Roadmap text generation failed with key, trying fallback:", e.message || e);
+      reportKeyFailure(key, e);
     }
   }
 
@@ -1399,7 +1508,7 @@ export const generateSuggestedTopics = async (
   gradeLevel: string,
   board?: string
 ): Promise<SuggestedTopic[]> => {
-  const geminiKeys = getAIKeys();
+  const geminiKeys = getHealthyAIKeys();
   const prompt = `You are an elite academic curriculum architect. 
 Given the student's current details:
 - Subject: ${subject}
@@ -1445,11 +1554,13 @@ You must output a JSON array of exactly 3 suggested topics matching the followin
         const cleaned = repairJson(responseText);
         const parsed = JSON.parse(cleaned);
         if (Array.isArray(parsed)) {
+          reportKeySuccess(key);
           return parsed as SuggestedTopic[];
         }
       }
     } catch (e: any) {
       console.warn("Suggested topics generation failed with key, trying fallback:", e.message || e);
+      reportKeyFailure(key, e);
     }
   }
 
