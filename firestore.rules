@@ -80,11 +80,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow read/write if authenticated (Google Login) OR if it's the user's own email-based profile
-      // For email-only login, we allow access if the document ID matches the identifier used.
-      // Note: This is inherently less secure as it relies on knowing the email, but it matches the user's explicit request.
       allow read: if true;
-      allow create, update: if isValidUser(request.resource.data);
+      allow create, update: if isOwner(userId) && isValidUser(request.resource.data);
       allow delete: if isAdmin();
     }
   }

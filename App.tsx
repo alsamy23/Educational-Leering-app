@@ -5,7 +5,8 @@ import {
   Trash2, Eye, Award, Clock, GraduationCap, Monitor, FileText,
   User, ShieldCheck, HelpCircle, Laptop, Smartphone, Lightbulb, Users,
   ListRestart, Check, X, SignalLow, SignalMedium, SignalHigh,
-  Settings, LogOut, Info, RefreshCw, Mic, MicOff, Download, Printer
+  Settings, LogOut, Info, RefreshCw, Mic, MicOff, Download, Printer,
+  Flame, Coins, Lock, ShoppingBag, Calendar, Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -13,6 +14,7 @@ import {
   UserProfile, QuizQuestion, QuizSession, DifficultyLevel,
   Group, ClassroomSession, AppScreen, SuggestedTopic
 } from './types';
+import { GamifiedLanding } from './components/GamifiedLanding';
 import { Button } from './components/Button';
 import { db, auth, loginWithGoogle, loginAnonymously, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
@@ -438,103 +440,106 @@ interface ClassroomSetupViewProps {
   onStart: (groups: Group[], timer: number) => void;
   onCancel: () => void;
   initialTimer?: number;
+  user: UserProfile;
 }
-const ClassroomSetupView: React.FC<ClassroomSetupViewProps> = ({ onStart, onCancel, initialTimer = 45 }) => {
-  const [groups, setGroups] = useState<Group[]>([
-    { id: '1', name: 'Alpha Squad', score: 0, members: [] },
-    { id: '2', name: 'Beta Brains', score: 0, members: [] },
-    { id: '3', name: 'Gamma Giants', score: 0, members: [] },
-    { id: '4', name: 'Delta Dynamos', score: 0, members: [] },
-  ]);
+const ClassroomSetupView: React.FC<ClassroomSetupViewProps> = ({ onStart, onCancel, initialTimer = 45, user }) => {
+  const [friendName, setFriendName] = useState('Siddharth');
+  const [friendDifficulty, setFriendDifficulty] = useState<DifficultyLevel>(DifficultyLevel.MEDIUM);
   const [timer, setTimer] = useState<number>(initialTimer);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const addGroup = () => {
-    if (groups.length >= 5) return;
-    const newId = Math.max(...groups.map(g => parseInt(g.id) || 0), 0) + 1;
-    const idStr = newId.toString();
-    setGroups([...groups, { id: idStr, name: `Group ${idStr}`, score: 0, members: [] }]);
-  };
-
-  const removeGroup = (id: string) => {
-    if (groups.length <= 2) return;
-    setGroups(groups.filter(g => g.id !== id));
-  };
-
-  const updateGroupName = (id: string, name: string) => {
-    setGroups(groups.map(g => g.id === id ? { ...g, name } : g));
-  };
-
-  const updateGroupDifficulty = (id: string, difficulty: DifficultyLevel) => {
-    setGroups(groups.map(g => g.id === id ? { ...g, difficulty } : g));
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const names = text.split(/[\n,]/).map(n => n.trim()).filter(n => n !== "");
-      const newGroups: Group[] = names.slice(0, 5).map((name, idx) => ({
-        id: (idx + 1).toString(),
-        name: name,
-        score: 0,
-        members: []
-      }));
-      if (newGroups.length >= 2) {
-        setGroups(newGroups);
-      }
+  const handleLaunchDuel = () => {
+    const challengerGroup: Group = {
+      id: '1',
+      name: user.name || 'You',
+      score: 0,
+      members: [],
+      difficulty: user.difficulty || DifficultyLevel.MEDIUM
     };
-    reader.readAsText(file);
+    const opponentGroup: Group = {
+      id: '2',
+      name: friendName.trim() || 'Siddharth',
+      score: 0,
+      members: [],
+      difficulty: friendDifficulty
+    };
+    onStart([challengerGroup, opponentGroup], timer);
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 space-y-6 animate-fade-in pb-10 max-w-2xl mx-auto text-left">
       <div className="bg-surface-container-lowest/80 glass-card p-6 md:p-10 rounded-[2rem] shadow-2xl border border-white/10 space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl md:text-4xl font-headline font-extrabold text-on-surface tracking-tighter italic tv-text-shadow">Battle Setup</h2>
+        
+        {/* Header */}
+        <div className="flex justify-between items-start border-b border-white/5 pb-4">
+          <div>
+            <h2 className="text-xl md:text-3xl font-headline font-extrabold text-on-surface tracking-tighter italic tv-text-shadow">
+              Challenge a Friend
+            </h2>
+            <p className="text-[10px] text-on-surface-variant font-medium mt-1 uppercase tracking-wide">
+              Friendly turn-based 1v1 academic showdown
+            </p>
+          </div>
           <Button onClick={onCancel} variant="outline" className="rounded-full w-10 h-10 min-h-0 flex items-center justify-center border-white/10 p-0">
             <X className="w-5 h-5" />
           </Button>
         </div>
 
-        <div className="flex justify-between items-center">
-          <h3 className="text-xs md:text-sm font-headline font-extrabold text-on-surface-variant uppercase tracking-widest italic">Group Configuration</h3>
-          <div className="flex gap-2.5">
-             <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".txt,.csv" className="hidden" />
-             <button 
-               onClick={() => fileInputRef.current?.click()}
-               className="text-[10px] font-headline font-extrabold text-primary bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary/20 transition-colors uppercase"
-             >
-               Load TXT/CSV Lists
-             </button>
-             <span className="text-xs font-headline font-extrabold text-on-surface bg-surface-container px-3 py-1.5 rounded-lg">{groups.length}/5</span>
-          </div>
-        </div>
+        <p className="text-xs text-indigo-200/80 leading-relaxed font-medium bg-indigo-950/20 border border-indigo-900/30 p-3.5 rounded-xl">
+          Let's challenge a friend to study! You'll both receive custom-generated syllabus questions on <strong className="text-indigo-300">"{user.topic || "your active focus topic"}"</strong>. Players take turns answering. Both scholars earn rewards, making this a collaborative boost to your exam prep!
+        </p>
 
-        <div className="space-y-4">
-          {groups.map((group) => (
-            <div key={group.id} className="flex gap-3 items-center bg-white/5 p-4 rounded-xl border border-white/5">
-              <div className="flex-1 space-y-2">
+        {/* 1v1 Arena Comparison Rows */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          {/* Left Column: Challenger (You) */}
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-primary/10 pb-2">
+              <span className="text-[10px] font-bold text-primary uppercase tracking-widest">You (Challenger)</span>
+              <User className="w-4 h-4 text-primary" />
+            </div>
+            
+            <div className="space-y-1">
+              <p className="text-sm font-headline font-black text-on-surface">{user.name || "You"}</p>
+              <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                Stream: {user.educationLevel || "School"} ({user.board || "Syllabus Board"})
+              </p>
+              <p className="text-[10px] text-primary/80 font-bold uppercase tracking-wider">
+                Syllabus Level {user.level || 1} • {user.topic || "General Topics"}
+              </p>
+            </div>
+          </div>
+
+          {/* Right Column: Opponent (Friend) */}
+          <div className="bg-tertiary/5 border border-tertiary/20 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-tertiary/10 pb-2">
+              <span className="text-[10px] font-bold text-tertiary uppercase tracking-widest">Friend (Opponent)</span>
+              <Users className="w-4 h-4 text-tertiary" />
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Friend's Name / Nickname</label>
                 <input 
                   type="text" 
-                  value={group.name} 
-                  onChange={e => updateGroupName(group.id, e.target.value)} 
-                  className="w-full px-4 py-2 text-sm rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary font-body font-bold" 
-                  placeholder={`Group ${group.id} Name`}
+                  value={friendName} 
+                  onChange={e => setFriendName(e.target.value)} 
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-surface border border-white/10 text-on-surface focus:outline-none focus:ring-1 focus:ring-tertiary font-body font-bold" 
+                  placeholder="e.g. Siddharth"
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Opponent Difficulty level</label>
                 <div className="flex gap-1">
-                  {Object.values(DifficultyLevel).filter(l => l !== DifficultyLevel.DEFAULT).map(level => (
+                  {[DifficultyLevel.LOW, DifficultyLevel.MEDIUM, DifficultyLevel.HIGH].map(level => (
                     <button
                       key={level}
                       type="button"
-                      onClick={() => updateGroupDifficulty(group.id, level)}
-                      className={`flex-1 py-1 rounded-lg text-[8px] font-headline font-extrabold uppercase border transition-all flex items-center justify-center gap-1 ${
-                        (group.difficulty || DifficultyLevel.LOW) === level 
-                          ? 'bg-primary text-on-primary border-primary' 
-                          : 'bg-surface-container-lowest text-outline border-outline-variant/10 hover:border-primary-container'
+                      onClick={() => setFriendDifficulty(level)}
+                      className={`flex-1 py-1.5 rounded-lg text-[9px] font-headline font-extrabold uppercase border transition-all flex items-center justify-center gap-1 ${
+                        friendDifficulty === level 
+                          ? 'bg-tertiary text-on-tertiary border-tertiary' 
+                          : 'bg-white/5 text-on-surface-variant border-white/5 hover:border-tertiary'
                       }`}
                     >
                       {level === DifficultyLevel.LOW && <SignalLow className="w-2.5 h-2.5" />}
@@ -545,28 +550,16 @@ const ClassroomSetupView: React.FC<ClassroomSetupViewProps> = ({ onStart, onCanc
                   ))}
                 </div>
               </div>
-              <button 
-                onClick={() => removeGroup(group.id)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-error-container/30 text-error hover:bg-error-container transition-all"
-                disabled={groups.length <= 2}
-              >
-                <X className="w-4 h-4" />
-              </button>
             </div>
-          ))}
+          </div>
+
         </div>
 
-        {groups.length < 5 && (
-          <button 
-            onClick={addGroup}
-            className="w-full py-3 rounded-xl border border-dashed border-white/10 text-on-surface-variant text-xs font-headline font-extrabold uppercase hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-2 bg-white/5"
-          >
-            <Plus className="w-4 h-4" /> Add Team
-          </button>
-        )}
-
+        {/* Question Timer */}
         <div className="pt-4 border-t border-white/5 flex justify-between items-center text-xs">
-          <label className="font-headline font-extrabold text-on-surface-variant uppercase tracking-widest italic">Question Timer</label>
+          <label className="font-headline font-extrabold text-on-surface-variant uppercase tracking-widest italic flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-primary" /> Question Timer
+          </label>
           <select 
             value={timer} 
             onChange={(e) => setTimer(Number(e.target.value))}
@@ -581,8 +574,11 @@ const ClassroomSetupView: React.FC<ClassroomSetupViewProps> = ({ onStart, onCanc
       </div>
 
       <div className="grid gap-3">
-        <Button onClick={() => onStart(groups, timer)} className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-2xl shadow-primary/40 neon-glow-primary">
-          Launch Classroom Battle
+        <Button 
+          onClick={handleLaunchDuel} 
+          className="h-16 rounded-[2rem] font-headline font-extrabold uppercase tracking-widest text-xs shadow-2xl bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/40"
+        >
+          Launch Study Duel 🚀
         </Button>
         <Button onClick={onCancel} variant="outline" className="h-12 rounded-[1.5rem] font-headline font-extrabold uppercase tracking-widest text-[9px] border-white/10 bg-surface-container-lowest/10">
           Cancel Setup
@@ -1160,6 +1156,11 @@ export default function App() {
 
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.ENTRY);
   const [entryMobileTab, setEntryMobileTab] = useState<'profile' | 'library' | 'records'>('profile');
+  const [selectedNodeIndex, setSelectedNodeIndex] = useState<number | null>(null);
+  const [isConfiguratorOpen, setIsConfiguratorOpen] = useState<boolean>(false);
+  const [xpBoostActive, setXpBoostActive] = useState<boolean>(false);
+  const [streakShields, setStreakShields] = useState<number>(0);
+  const [userCoins, setUserCoins] = useState<number>(150); // Pocket coins for students to start with!
   const [currentQuestions, setCurrentQuestions] = useState<QuizQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
@@ -1170,6 +1171,12 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
   const toastTimeoutRef = useRef<any>(null);
   const profileTrackTimeoutRef = useRef<any>(null);
+
+  // Reference for activeQuiz to avoid stale closure references inside delayed setTimeout handlers
+  const latestActiveQuizRef = useRef<QuizSession | null>(null);
+  useEffect(() => {
+    latestActiveQuizRef.current = activeQuiz;
+  }, [activeQuiz]);
 
   // --- Diagnostics State ---
   const [diagnosticSummary, setDiagnosticSummary] = useState<DiagnosticSummary | null>(null);
@@ -1588,6 +1595,7 @@ export default function App() {
           } else {
             // Write initial layout
             const initialUser: UserProfile = {
+              uid: fbUser.uid,
               name: fbUser.displayName || '',
               gradeLevel: '10',
               board: 'CBSE',
@@ -1626,7 +1634,8 @@ export default function App() {
     setUser(updated);
     localStorage.setItem('scholar_earn_user', JSON.stringify(updated));
     if (currentUser) {
-      setDoc(doc(db, 'users', currentUser.uid), updated).catch(err => {
+      const payload = { ...updated, uid: currentUser.uid };
+      setDoc(doc(db, 'users', currentUser.uid), payload).catch(err => {
         handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
       });
     }
@@ -1779,6 +1788,96 @@ export default function App() {
 
         setActiveQuiz({
           profile: currentUserProfile,
+          questions: questionsFetched,
+          userAnswers: new Array(questionsFetched.length).fill(null),
+          score: 0,
+          questionTimer: testTimer
+        });
+
+        setCurrentScreen(AppScreen.QUIZ);
+      }, 500);
+
+    } catch (error: any) {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      trackValidationError('quiz_initiation_fail', error.message || "Synthesis failure");
+      showToast(error.message || "AI Synthesizer failed. Check API Keys in settings.", 'error');
+      setCurrentScreen(AppScreen.ENTRY);
+    }
+  };
+
+  // --- Advance to Next Level and Practice ---
+  const handleNextLevel = async () => {
+    const nextLvl = (user.level || 1) + 1;
+    const updatedPoints = user.totalPoints + 30; // 30 bonus points for level advancement!
+    showToast(`Level Completed! Let's advance to Syllabus Level ${nextLvl} together! 🌟`, 'success');
+    
+    const updatedProfile = {
+      ...user,
+      level: nextLvl,
+      totalPoints: updatedPoints
+    };
+    
+    syncLocalUserProfile(updatedProfile);
+    
+    // Stop any speech
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    setIsReadingAloud(false);
+
+    setLoadingProgress(10);
+    setLoadingMessage(`Synthesizing Level ${nextLvl} Curriculum Guidelines...`);
+    setCurrentScreen(AppScreen.LOADING);
+
+    // Simulate synth steps
+    const timer1 = setTimeout(() => {
+      setLoadingProgress(45);
+      setLoadingMessage("Tuning Expert Gemini AI Explanatory Engine...");
+    }, 1000);
+
+    const timer2 = setTimeout(() => {
+      setLoadingProgress(75);
+      setLoadingMessage("Shuffling Options & Validating Uniqueness Map...");
+    }, 2200);
+
+    try {
+      const activeMaterial = materials.find(m => m.id === selectedMaterialId);
+      
+      // Log Quiz Start in Google Analytics
+      trackQuizStart({
+        topic: updatedProfile.topic,
+        difficulty: updatedProfile.difficulty || DifficultyLevel.DEFAULT,
+        mode: 'individual',
+        has_material: !!activeMaterial?.content
+      });
+
+      const questionsFetched = await generateQuizQuestions(
+        updatedProfile, 
+        false, 
+        undefined, 
+        updatedProfile.topic, 
+        updatedProfile.difficulty || DifficultyLevel.DEFAULT, 
+        0, 
+        undefined, 
+        activeMaterial?.content
+      );
+
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      setLoadingProgress(100);
+      setLoadingMessage(`Level ${nextLvl} Diagnostics Ready! Loading...`);
+
+      setTimeout(() => {
+        setCurrentQuestions(questionsFetched);
+        setCurrentQuestionIndex(0);
+        setUserAnswers(new Array(questionsFetched.length).fill(null));
+        setFeedback(null);
+        
+        const testTimer = individualTimer; // selected individual countdown
+        setTimeLeft(testTimer);
+        setIsTimerRunning(testTimer > 0);
+
+        setActiveQuiz({
+          profile: updatedProfile,
           questions: questionsFetched,
           userAnswers: new Array(questionsFetched.length).fill(null),
           score: 0,
@@ -2070,51 +2169,61 @@ export default function App() {
         setTimeLeft(nextTimer);
         setIsTimerRunning(nextTimer > 0);
       } else {
-        // Finish individual session
-        setIsTimerRunning(false);
-        if (activeQuiz) {
-          // Log individual adaptive
-          const finalScore = activeQuiz.score;
-          const rewardPoints = finalScore * 10;
+          // Finish individual session
+          setIsTimerRunning(false);
+          const freshQuiz = latestActiveQuizRef.current;
+          if (freshQuiz) {
+            // Log individual adaptive
+            const finalScore = freshQuiz.score;
+            const basePoints = finalScore * 10;
+            const rewardPoints = xpBoostActive ? basePoints * 2 : basePoints;
+            const earnedCoins = finalScore * 20 + (xpBoostActive ? 20 : 0);
 
-          // Log individual completion in Google Analytics
-          trackQuizCompletion({
-            score: finalScore,
-            total_questions: activeQuiz.questions.length,
-            points_earned: rewardPoints,
-            mode: 'individual',
-            topic: activeQuiz.profile.topic
-          });
+            // Update coins state
+            setUserCoins(prev => prev + earnedCoins);
 
-          const parsedTime = new Date().toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            // Log individual completion in Google Analytics
+            trackQuizCompletion({
+              score: finalScore,
+              total_questions: freshQuiz.questions.length,
+              points_earned: rewardPoints,
+              mode: 'individual',
+              topic: freshQuiz.profile.topic
+            });
 
-          const record: TestRecord = {
-            topic: user.topic,
-            score: finalScore,
-            total: 5,
-            date: parsedTime,
-            type: 'individual',
-            subject: user.subject,
-            grade: user.gradeLevel
-          };
+            const parsedTime = new Date().toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-          const progressiveLevel = finalScore >= 4 ? user.level + 1 : user.level;
+            const record: TestRecord = {
+              topic: user.topic,
+              score: finalScore,
+              total: 5,
+              date: parsedTime,
+              type: 'individual',
+              subject: user.subject,
+              grade: user.gradeLevel
+            };
 
-          const updatedUser: UserProfile = {
-            ...user,
-            level: progressiveLevel,
-            totalPoints: user.totalPoints + rewardPoints,
-            totalQuizzes: user.totalQuizzes + 1,
-            testHistory: [record, ...(user.testHistory || [])]
-          };
+            const progressiveLevel = finalScore >= 4 ? user.level + 1 : user.level;
 
-          syncLocalUserProfile(updatedUser);
-          setActiveQuiz({
-            ...activeQuiz,
-            score: finalScore
-          });
-          setCurrentScreen(AppScreen.RESULTS);
-        }
+            const updatedUser: UserProfile = {
+              ...user,
+              level: progressiveLevel,
+              totalPoints: user.totalPoints + rewardPoints,
+              totalQuizzes: user.totalQuizzes + 1,
+              testHistory: [record, ...(user.testHistory || [])]
+            };
+
+            syncLocalUserProfile(updatedUser);
+            
+            // Show custom double XP celebration toast
+            showToast(`Quiz Complete! Earned +${rewardPoints} XP and +${earnedCoins} ScholarCoins!${xpBoostActive ? " ⚡ Double XP Active!" : ""}`, 'success');
+
+            setActiveQuiz({
+              ...freshQuiz,
+              score: finalScore
+            });
+            setCurrentScreen(AppScreen.RESULTS);
+          }
       }
     }
   };
@@ -2191,6 +2300,426 @@ export default function App() {
     const link = document.createElement('a');
     link.href = url;
     link.download = `${activeQuiz.profile.name.replace(/\s+/g, '_')}_ScholarEarn_ReportCard.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadSingleRecordHtml = (record: TestRecord) => {
+    const percentage = Math.round((record.score / record.total) * 100);
+    const recommendation = record.score === 5 
+      ? "Flawless score! Your conceptual foundation is rock-solid. You are authorized to step up progressive level challenges." 
+      : record.score >= 3 
+        ? "Competent coverage! Focus on explanations mapped in wrong choices to reinforce board diagnostics." 
+        : "Requires review. Ingest related source textbook readings inside the Library to ground future diagnostics.";
+
+    let content = "";
+    content += "<!DOCTYPE html>\\n";
+    content += "<html lang=\\\"en\\\">\\n";
+    content += "<head>\\n";
+    content += "    <meta charset=\\\"UTF-8\\\">\\n";
+    content += "    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n";
+    content += "    <title>Scholar Earn Diagnostic Record - " + user.name + "</title>\\n";
+    content += "    <style>\\n";
+    content += "        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');\\n";
+    content += "        \\n";
+    content += "        :root {\\n";
+    content += "            --primary: #4f46e5;\\n";
+    content += "            --primary-light: #e0e7ff;\\n";
+    content += "            --tertiary: #0d9488;\\n";
+    content += "            --tertiary-light: #ccfbf1;\\n";
+    content += "            --danger: #e11d48;\\n";
+    content += "            --danger-light: #ffe4e6;\\n";
+    content += "            --surface: #f8fafc;\\n";
+    content += "            --text-main: #0f172a;\\n";
+    content += "            --text-muted: #475569;\\n";
+    content += "            --border: #e2e8f0;\\n";
+    content += "        }\\n";
+    content += "\\n";
+    content += "        body {\\n";
+    content += "            font-family: 'Inter', sans-serif;\\n";
+    content += "            background-color: #f1f5f9;\\n";
+    content += "            color: var(--text-main);\\n";
+    content += "            margin: 0;\\n";
+    content += "            padding: 40px 20px;\\n";
+    content += "            display: flex;\\n";
+    content += "            justify-content: center;\\n";
+    content += "        }\\n";
+    content += "\\n";
+    content += "        .report-card {\\n";
+    content += "            background: white;\\n";
+    content += "            max-width: 850px;\\n";
+    content += "            width: 100%;\\n";
+    content += "            border-radius: 24px;\\n";
+    content += "            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05);\\n";
+    content += "            border: 1px solid var(--border);\\n";
+    content += "            padding: 40px;\\n";
+    content += "            box-sizing: border-box;\\n";
+    content += "            position: relative;\\n";
+    content += "            overflow: hidden;\\n";
+    content += "        }\\n";
+    content += "\\n";
+    content += "        .report-card::before {\\n";
+    content += "            content: '';\\n";
+    content += "            position: absolute;\\n";
+    content += "            top: 0;\\n";
+    content += "            left: 0;\\n";
+    content += "            right: 0;\\n";
+    content += "            height: 8px;\\n";
+    content += "            background: linear-gradient(90deg, var(--primary), var(--tertiary));\\n";
+    content += "        }\\n";
+    content += "\\n";
+    content += "        .header-section {\\n";
+    content += "            display: flex;\\n";
+    content += "            justify-content: space-between;\\n";
+    content += "            align-items: center;\\n";
+    content += "            border-bottom: 2px solid var(--border);\\n";
+    content += "            padding-bottom: 24px;\\n";
+    content += "            margin-bottom: 30px;\\n";
+    content += "        }\\n";
+    content += "        .branding h1 {\\n";
+    content += "            font-family: 'Space Grotesk', sans-serif;\\n";
+    content += "            font-weight: 700;\\n";
+    content += "            font-size: 28px;\\n";
+    content += "            color: var(--primary);\\n";
+    content += "            margin: 0;\\n";
+    content += "        }\\n";
+    content += "        .branding p {\\n";
+    content += "            font-size: 11px;\\n";
+    content += "            text-transform: uppercase;\\n";
+    content += "            font-weight: 700;\\n";
+    content += "            letter-spacing: 2px;\\n";
+    content += "            color: var(--text-muted);\\n";
+    content += "            margin: 4px 0 0 0;\\n";
+    content += "        }\\n";
+    content += "        .profile-container {\\n";
+    content += "            display: grid;\\n";
+    content += "            grid-template-columns: repeat(2, 1fr);\\n";
+    content += "            gap: 20px;\\n";
+    content += "            background: var(--surface);\\n";
+    content += "            padding: 24px;\\n";
+    content += "            border-radius: 16px;\\n";
+    content += "            border: 1px solid var(--border);\\n";
+    content += "            margin-bottom: 30px;\\n";
+    content += "        }\\n";
+    content += "        .profile-field {\\n";
+    content += "            font-size: 14px;\\n";
+    content += "        }\\n";
+    content += "        .profile-field strong {\\n";
+    content += "            color: var(--text-muted);\\n";
+    content += "            font-size: 12px;\\n";
+    content += "            text-transform: uppercase;\\n";
+    content += "            display: block;\\n";
+    content += "            margin-bottom: 4px;\\n";
+    content += "        }\\n";
+    content += "        .score-row {\\n";
+    content += "            display: grid;\\n";
+    content += "            grid-template-columns: repeat(2, 1fr);\\n";
+    content += "            gap: 20px;\\n";
+    content += "            margin-bottom: 30px;\\n";
+    content += "        }\\n";
+    content += "        .score-box {\\n";
+    content += "            padding: 24px;\\n";
+    content += "            border-radius: 20px;\\n";
+    content += "            text-align: center;\\n";
+    content += "        }\\n";
+    content += "        .score-box.correct {\\n";
+    content += "            background-color: var(--primary-light);\\n";
+    content += "            border: 1px solid var(--primary);\\n";
+    content += "        }\\n";
+    content += "        .score-box.accrual {\\n";
+    content += "            background-color: var(--tertiary-light);\\n";
+    content += "            border: 1px solid var(--tertiary);\\n";
+    content += "        }\\n";
+    content += "        .score-value {\\n";
+    content += "            font-family: 'Space Grotesk', sans-serif;\\n";
+    content += "            font-weight: 700;\\n";
+    content += "            font-size: 40px;\\n";
+    content += "            margin-top: 8px;\\n";
+    content += "            margin-bottom: 0;\\n";
+    content += "        }\\n";
+    content += "        .score-label {\\n";
+    content += "            font-size: 11px;\\n";
+    content += "            text-transform: uppercase;\\n";
+    content += "            font-weight: 700;\\n";
+    content += "            letter-spacing: 1px;\\n";
+    content += "            color: var(--text-muted);\\n";
+    content += "        }\\n";
+    content += "        .recommendation-box {\\n";
+    content += "            background: #fff8f8;\\n";
+    content += "            border: 1px dashed var(--danger);\\n";
+    content += "            border-radius: 16px;\\n";
+    content += "            padding: 20px;\\n";
+    content += "            margin-bottom: 30px;\\n";
+    content += "            font-size: 13px;\\n";
+    content += "            line-height: 1.6;\\n";
+    content += "        }\\n";
+    content += "        .recommendation-box h4 {\\n";
+    content += "            font-family: 'Space Grotesk', sans-serif;\\n";
+    content += "            margin: 0 0 8px 0;\\n";
+    content += "            text-transform: uppercase;\\n";
+    content += "            color: var(--danger);\\n";
+    content += "        }\\n";
+    content += "    </style>\\n";
+    content += "</head>\\n";
+    content += "<body>\\n";
+    content += "    <div class=\\\"report-card\\\">\\n";
+    content += "        <div class=\\\"header-section\\\">\\n";
+    content += "            <div class=\\\"branding\\\">\\n";
+    content += "                <h1>Scholar Earn</h1>\\n";
+    content += "                <p>Academic Diagnostic Record</p>\\n";
+    content += "            </div>\\n";
+    content += "            <div class=\\\"date\\\" style=\\\"font-size: 13px; color: var(--text-muted); font-weight: 600;\\\">" + record.date + "</div>\\n";
+    content += "        </div>\\n";
+    content += "        <div class=\\\"profile-container\\\">\\n";
+    content += "            <div class=\\\"profile-field\\\"><strong>Student Name</strong>" + user.name + "</div>\\n";
+    content += "            <div class=\\\"profile-field\\\"><strong>Grade Level</strong>Grade " + record.grade + "</div>\\n";
+    content += "            <div class=\\\"profile-field\\\"><strong>Subject Focus</strong>" + record.subject + "</div>\\n";
+    content += "            <div class=\\\"profile-field\\\"><strong>Topic Target</strong>" + record.topic + "</div>\\n";
+    content += "            <div class=\\\"profile-field\\\"><strong>Session Type</strong>" + record.type.toUpperCase() + "</div>\\n";
+    content += "            <div class=\\\"profile-field\\\"><strong>Syllabus Level</strong>Progressive Level " + user.level + "</div>\\n";
+    content += "        </div>\\n";
+    content += "        <div class=\\\"score-row\\\">\\n";
+    content += "            <div class=\\\"score-box correct\\\">\\n";
+    content += "                <div class=\\\"score-label\\\">Correct Evaluations</div>\\n";
+    content += "                <h2 class=\\\"score-value\\\" style=\\\"color: var(--primary);\\\">" + record.score + " <span style=\\\"font-size: 20px; opacity: 0.6;\\\">/ " + record.total + "</span></h2>\\n";
+    content += "            </div>\\n";
+    content += "            <div class=\\\"score-box accrual\\\">\\n";
+    content += "                <div class=\\\"score-label\\\">XP Accrual</div>\\n";
+    content += "                <h2 class=\\\"score-value\\\" style=\\\"color: var(--tertiary);\\\">+" + (record.score * 10) + " pts</h2>\\n";
+    content += "            </div>\\n";
+    content += "        </div>\\n";
+    content += "        <div class=\\\"recommendation-box\\\">\\n";
+    content += "            <h4>Evaluator Recommendation</h4>\\n";
+    content += "            <p>" + recommendation + "</p>\\n";
+    content += "        </div>\\n";
+    content += "        <div class=\\\"footer\\\" style=\\\"text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;\\\">\\n";
+    content += "            Generated dynamically via Scholar Earn Intelligent Adaptive Sandbox.\\n";
+    content += "        </div>\\n";
+    content += "    </div>\\n";
+    content += "    <script>\\n";
+    content += "        window.onload = function() { window.print(); };\\n";
+    content += "    </script>\\n";
+    content += "</body>\\n";
+    content += "</html>\\n";
+
+    const blob = new Blob([content], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (!win) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${user.name.replace(/\s+/g, '_')}_Record_${record.topic.replace(/\s+/g, '_')}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const downloadSingleRecordText = (record: TestRecord) => {
+    const percentage = Math.round((record.score / record.total) * 100);
+    const recommendation = record.score === 5 
+      ? "Flawless score! Your conceptual foundation is rock-solid. You are authorized to step up progressive level challenges." 
+      : record.score >= 3 
+        ? "Competent coverage! Focus on explanations mapped in wrong choices to reinforce board diagnostics." 
+        : "Requires review. Ingest related source textbook readings inside the Library to ground future diagnostics.";
+
+    let content = `======================================================================\n`;
+    content += `               SCHOLAR EARN — INDIVIDUAL TEST RECORD                  \n`;
+    content += `======================================================================\n\n`;
+    content += `STUDENT INTELLIGENCE PROFILE:\n`;
+    content += `---------------------\n`;
+    content += `Student Name   : ${user.name}\n`;
+    content += `Grade Level    : Grade ${record.grade}\n`;
+    content += `Subject Focus  : ${record.subject}\n`;
+    content += `Topic Focus    : ${record.topic}\n`;
+    content += `Date Evaluated : ${record.date}\n\n`;
+    
+    content += `DIAGNOSTIC SCORE ACQUISITION:\n`;
+    content += `---------------------\n`;
+    content += `Score Accrued  : ${record.score} / ${record.total} (${percentage}% Accuracy)\n`;
+    content += `Points Earned  : +${record.score * 10} pts\n`;
+    content += `Session Type   : ${record.type.toUpperCase()}\n\n`;
+    
+    content += `EXPERT EVALUATOR RECOMMENDATION:\n`;
+    content += `--------------------------------\n`;
+    content += `${recommendation}\n\n`;
+    content += `Generated dynamically via Scholar Earn Intelligent Adaptive Sandbox.\n`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${user.name.replace(/\s+/g, '_')}_Record_${record.topic.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadBatchHtml = () => {
+    if (!user.testHistory || user.testHistory.length === 0) {
+      showToast("No academic history records found to generate batch portfolio.", "warning");
+      return;
+    }
+    const totalTests = user.testHistory.length;
+    const totalScore = user.testHistory.reduce((acc, r) => acc + r.score, 0);
+    const totalQuestions = user.testHistory.reduce((acc, r) => acc + r.total, 0);
+    const averageAccuracy = Math.round((totalScore / totalQuestions) * 100);
+    const totalPointsEarned = totalScore * 10;
+
+    let content = "";
+    content += "<!DOCTYPE html>\\n";
+    content += "<html lang=\\\"en\\\">\\n";
+    content += "<head>\\n";
+    content += "    <meta charset=\\\"UTF-8\\\">\\n";
+    content += "    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n";
+    content += "    <title>Scholar Earn Consolidated Progress Portfolio - " + user.name + "</title>\\n";
+    content += "    <style>\\n";
+    content += "        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');\\n";
+    content += "        :root {\\n";
+    content += "            --primary: #4f46e5;\\n";
+    content += "            --primary-light: #e0e7ff;\\n";
+    content += "            --tertiary: #0d9488;\\n";
+    content += "            --tertiary-light: #ccfbf1;\\n";
+    content += "            --surface: #f8fafc;\\n";
+    content += "            --text-main: #0f172a;\\n";
+    content += "            --text-muted: #475569;\\n";
+    content += "            --border: #e2e8f0;\\n";
+    content += "        }\\n";
+    content += "        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; color: var(--text-main); margin: 0; padding: 40px 20px; display: flex; justify-content: center; }\\n";
+    content += "        .report-card { background: white; max-width: 900px; width: 100%; border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); border: 1px solid var(--border); padding: 40px; box-sizing: border-box; position: relative; }\\n";
+    content += "        .report-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 8px; background: linear-gradient(90deg, var(--primary), var(--tertiary)); }\\n";
+    content += "        .header-section { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border); padding-bottom: 24px; margin-bottom: 30px; }\\n";
+    content += "        .branding h1 { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 28px; color: var(--primary); margin: 0; }\\n";
+    content += "        .branding p { font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 2px; color: var(--text-muted); margin: 4px 0 0 0; }\\n";
+    content += "        .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }\\n";
+    content += "        .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; text-align: center; }\\n";
+    content += "        .metric-value { font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; color: var(--primary); margin: 5px 0; }\\n";
+    content += "        .metric-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; }\\n";
+    content += "        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }\\n";
+    content += "        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }\\n";
+    content += "        th { background-color: var(--surface); font-weight: 700; text-transform: uppercase; font-size: 11px; color: var(--text-muted); }\\n";
+    content += "        .badge { display: inline-block; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; }\\n";
+    content += "        .badge.individual { background-color: var(--primary-light); color: var(--primary); }\\n";
+    content += "        .badge.classroom { background-color: var(--tertiary-light); color: var(--tertiary); }\\n";
+    content += "    </style>\\n";
+    content += "</head>\\n";
+    content += "<body>\\n";
+    content += "    <div class=\\\"report-card\\\">\\n";
+    content += "        <div class=\\\"header-section\\\">\\n";
+    content += "            <div class=\\\"branding\\\">\\n";
+    content += "                <h1>Scholar Earn</h1>\\n";
+    content += "                <p>Consolidated Academic Batch Portfolio</p>\\n";
+    content += "            </div>\\n";
+    content += "            <div class=\\\"date\\\" style=\\\"font-size: 13px; color: var(--text-muted); font-weight: 600;\\\">Total: " + totalTests + " Tests</div>\\n";
+    content += "        </div>\\n";
+    content += "        <div style=\\\"margin-bottom: 24px; font-size: 14px; color: var(--text-muted); text-align: left;\\\">\\n";
+    content += "            <strong>Student Name:</strong> " + user.name + " &nbsp;|&nbsp; <strong>Current Syllabus Level:</strong> Level " + user.level + "\\n";
+    content += "        </div>\\n";
+    content += "        <div class=\\\"metrics-grid\\\">\\n";
+    content += "            <div class=\\\"metric-card\\\">\\n";
+    content += "                <div class=\\\"metric-label\\\">Diagnostic Attempted</div>\\n";
+    content += "                <div class=\\\"metric-value\\\">" + totalTests + "</div>\\n";
+    content += "            </div>\\n";
+    content += "            <div class=\\\"metric-card\\\">\\n";
+    content += "                <div class=\\\"metric-label\\\">Average Board Accuracy</div>\\n";
+    content += "                <div class=\\\"metric-value\\\">" + averageAccuracy + "%</div>\\n";
+    content += "            </div>\\n";
+    content += "            <div class=\\\"metric-card\\\">\\n";
+    content += "                <div class=\\\"metric-label\\\">Total Points Earned</div>\\n";
+    content += "                <div class=\\\"metric-value\\\">" + totalPointsEarned + " pts</div>\\n";
+    content += "            </div>\\n";
+    content += "        </div>\\n";
+    content += "        <h3 style=\\\"font-family: 'Space Grotesk', sans-serif; text-align: left; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;\\\">ITEMIZED SYLLABUS LOG</h3>\\n";
+    content += "        <table>\\n";
+    content += "            <thead>\\n";
+    content += "                <tr>\\n";
+    content += "                    <th>Date</th>\\n";
+    content += "                    <th>Subject & Grade</th>\\n";
+    content += "                    <th>Syllabus Topic Focus</th>\\n";
+    content += "                    <th>Type</th>\\n";
+    content += "                    <th>Score Achieved</th>\\n";
+    content += "                </tr>\\n";
+    content += "            </thead>\\n";
+    content += "            <tbody>\\n";
+    user.testHistory.forEach(r => {
+      content += "                <tr>\\n";
+      content += "                    <td>" + r.date + "</td>\\n";
+      content += "                    <td>" + r.subject + " (Grade " + r.grade + ")</td>\\n";
+      content += "                    <td><strong>" + r.topic + "</strong></td>\\n";
+      content += "                    <td><span class=\\\"badge " + r.type + "\\\">" + r.type + "</span></td>\\n";
+      content += "                    <td><strong>" + r.score + " / " + r.total + "</strong> (" + Math.round((r.score / r.total) * 100) + "%)</td>\\n";
+      content += "                </tr>\\n";
+    });
+    content += "            </tbody>\\n";
+    content += "        </table>\\n";
+    content += "        <div class=\\\"footer\\\" style=\\\"text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;\\\">\\n";
+    content += "            Generated dynamically via Scholar Earn Intelligent Adaptive Sandbox.\\n";
+    content += "        </div>\\n";
+    content += "    </div>\\n";
+    content += "    <script>\\n";
+    content += "        window.onload = function() { window.print(); };\\n";
+    content += "    </script>\\n";
+    content += "</body>\\n";
+    content += "</html>\\n";
+
+    const blob = new Blob([content], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (!win) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${user.name.replace(/\s+/g, '_')}_Consolidated_Transcript_Batch.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const downloadBatchText = () => {
+    if (!user.testHistory || user.testHistory.length === 0) {
+      showToast("No academic history records found to generate batch portfolio.", "warning");
+      return;
+    }
+    const totalTests = user.testHistory.length;
+    const totalScore = user.testHistory.reduce((acc, r) => acc + r.score, 0);
+    const totalQuestions = user.testHistory.reduce((acc, r) => acc + r.total, 0);
+    const averageAccuracy = Math.round((totalScore / totalQuestions) * 100);
+    const totalPointsEarned = totalScore * 10;
+
+    let content = `======================================================================\n`;
+    content += `               SCHOLAR EARN — CONSOLIDATED PORTFOLIO                 \n`;
+    content += `======================================================================\n\n`;
+    content += `STUDENT PROFILE:\n`;
+    content += `---------------------\n`;
+    content += `Student Name   : ${user.name}\n`;
+    content += `Syllabus Level : Progressive Level ${user.level}\n\n`;
+
+    content += `CONSOLIDATED PROGRESS METRICS:\n`;
+    content += `---------------------\n`;
+    content += `Total Diagnostic Tests Taken : ${totalTests}\n`;
+    content += `Average Board Accuracy       : ${averageAccuracy}%\n`;
+    content += `Total Points Earned          : +${totalPointsEarned} pts\n\n`;
+
+    content += `ITEMIZED PROGRESS LOG:\n`;
+    content += `======================================================================\n`;
+    user.testHistory.forEach((r, idx) => {
+      content += `[${idx + 1}] Date: ${r.date}\n`;
+      content += `    Subject Focus  : ${r.subject} (Grade ${r.grade})\n`;
+      content += `    Syllabus Topic : ${r.topic}\n`;
+      content += `    Session Type   : ${r.type.toUpperCase()}\n`;
+      content += `    Score Achieved : ${r.score} / ${r.total} (${Math.round((r.score / r.total) * 100)}% Accuracy)\n`;
+      content += `----------------------------------------------------------------------\n`;
+    });
+    content += `\nGenerated dynamically via Scholar Earn Intelligent Adaptive Sandbox.\n`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${user.name.replace(/\s+/g, '_')}_Consolidated_Transcript_Batch.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -2836,6 +3365,22 @@ export default function App() {
     setClassroomSession(null);
   };
 
+  // --- Advance to Next Level and Immediately Start Diagnosis Challenge ---
+  const handleProceedToNextLevel = () => {
+    const nextLevel = (user.level || 1) + 1;
+    const updatedUser = {
+      ...user,
+      level: nextLevel
+    };
+    syncLocalUserProfile(updatedUser);
+    showToast(`Level Advanced! Now preparing Level ${nextLevel} Diagnosis Challenge... 🚀`, 'success');
+    
+    // Smooth delay before immediately launching the new diagnosis challenge
+    setTimeout(() => {
+      initiateDiagnosis();
+    }, 1200);
+  };
+
   return (
     <div className="min-h-screen text-on-background flex flex-col antialiased select-none pb-8 select-text">
       {/* Dynamic Background Overlays */}
@@ -2955,11 +3500,11 @@ export default function App() {
                           <div key={i} className="p-3 flex items-center justify-between text-xs gap-3 hover:bg-white/80 transition-colors">
                             <div className="min-w-0">
                               <p className="font-mono text-[9px] font-bold text-slate-800 truncate">{key.name}</p>
-                              <p className="text-[8px] text-slate-400 font-mono tracking-widest mt-0.5">{key.maskedValue}</p>
+                              <p className="text-[8px] text-slate-600 font-bold font-mono tracking-widest mt-0.5">{key.maskedValue}</p>
                             </div>
                             <div className="text-right flex-shrink-0 flex items-center gap-2">
                               {key.status === 'NOT_CONFIGURED' ? (
-                                <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100/50 text-slate-400 border border-slate-200">
+                                <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-300">
                                   Not Defined
                                 </span>
                               ) : key.status === 'SUCCESS' ? (
@@ -2967,7 +3512,7 @@ export default function App() {
                                   <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> SUCCESS
                                   </span>
-                                  <span className="text-[8px] text-slate-400 font-mono mt-0.5">{key.latencyMs}ms</span>
+                                  <span className="text-[8px] text-slate-600 font-bold font-mono mt-0.5">{key.latencyMs}ms</span>
                                 </div>
                               ) : (
                                 <div className="flex flex-col items-end max-w-[180px]">
@@ -3247,6 +3792,54 @@ export default function App() {
           {currentScreen === AppScreen.ENTRY && (
             <motion.div 
               key="landing"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="w-full animate-fade-in"
+            >
+              <GamifiedLanding 
+                user={user}
+                materials={materials}
+                selectedMaterialId={selectedMaterialId}
+                setSelectedMaterialId={setSelectedMaterialId}
+                handleAddNewMaterial={handleAddNewMaterial}
+                handleDeleteMaterial={handleDeleteMaterial}
+                initiateDiagnosis={initiateDiagnosis}
+                launchClassroomBattleSetup={launchClassroomBattleSetup}
+                syncLocalUserProfile={syncLocalUserProfile}
+                fetchSuggestedTopics={fetchSuggestedTopics}
+                suggestedTopics={suggestedTopics}
+                isFetchingSuggestions={isFetchingSuggestions}
+                suggestionError={suggestionError}
+                individualTimer={individualTimer}
+                setIndividualTimer={setIndividualTimer}
+                isRunningDiagnostics={isRunningDiagnostics}
+                handleRunDiagnostics={handleRunDiagnostics}
+                unlockedBadgesInSession={unlockedBadgesInSession}
+                showToast={showToast}
+                setCurrentScreen={setCurrentScreen}
+                authError={authError}
+                setAuthError={setAuthError}
+                handleAnonymousLogin={handleAnonymousLogin}
+                handleGoogleLogin={handleGoogleLogin}
+                currentUser={currentUser}
+                xpBoostActive={xpBoostActive}
+                setXpBoostActive={setXpBoostActive}
+                streakShields={streakShields}
+                setStreakShields={setStreakShields}
+                userCoins={userCoins}
+                setUserCoins={setUserCoins}
+                downloadSingleRecordHtml={downloadSingleRecordHtml}
+                downloadSingleRecordText={downloadSingleRecordText}
+                downloadBatchHtml={downloadBatchHtml}
+                downloadBatchText={downloadBatchText}
+              />
+            </motion.div>
+          )}
+
+          {false && currentScreen === AppScreen.ENTRY && (
+            <motion.div 
+              key="landing-legacy"
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
@@ -3838,8 +4431,8 @@ export default function App() {
                       <div className="space-y-2">
                         <p className="text-[9px] uppercase font-headline font-extrabold text-[#7c755d] tracking-widest">Diagnostic logs ({user.testHistory?.length || 0})</p>
                         <div className="space-y-2 max-h-[160px] overflow-y-auto pr-0.5 no-scrollbar">
-                          {user.testHistory && user.testHistory.length > 0 ? (
-                            user.testHistory.slice().reverse().map((record, i) => (
+                          {(user.testHistory || []).length > 0 ? (
+                            (user.testHistory || []).slice().reverse().map((record, i) => (
                               <div key={i} className="p-2.5 rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] flex items-center justify-between transition-all hover:bg-[#f5efe0]">
                                 <div className="min-w-0 flex-1">
                                   <p className="text-[11px] font-headline font-extrabold text-[#1e3a8a] truncate uppercase tracking-tight">
@@ -3889,6 +4482,7 @@ export default function App() {
               <ClassroomSetupView 
                 onStart={startClassroomSession}
                 onCancel={handleResetToMenu}
+                user={user}
               />
             </motion.div>
           )}
@@ -3964,154 +4558,170 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Dynamic Columns for Case study materials or diagram instructions */}
+              {/* Real Question Textbox - Full Width on Top */}
+              <div className="bg-surface-container-lowest/80 glass-card p-5 md:p-8 rounded-[1.8rem] border border-white/10 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-5 w-full">
+                <div className={`absolute left-0 top-0 h-full w-2 ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`} />
+                <h2 id="quiz-question-title" className={`font-body font-black text-on-surface flex-1 leading-snug tv-text-shadow transition-all duration-300 text-left ${
+                  fontSizeMode === 'normal' 
+                    ? 'text-lg md:text-xl lg:text-2xl' 
+                    : fontSizeMode === 'large' 
+                      ? 'text-xl md:text-2xl lg:text-3xl' 
+                      : 'text-2xl md:text-3xl lg:text-[1.8rem] leading-snug font-black'
+                }`}>
+                  {currentQ.text}
+                </h2>
+
+                {/* Audio action controller bar with beautiful instant hover tooltips */}
+                <div className="flex gap-2 flex-none items-center self-start md:self-center">
+                  {/* Speech Speak Aloud Toggles */}
+                  <div className="relative group">
+                    <button 
+                      onClick={handleReadAloud}
+                      type="button"
+                      className={`p-3 rounded-xl border flex-none ${isReadingAloud ? 'bg-primary text-on-primary border-primary animate-pulse' : 'bg-surface text-primary border-primary/20 hover:bg-primary/10'} transition-all cursor-pointer`}
+                      aria-label="Read question aloud"
+                    >
+                      {isReadingAloud ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+                    <span className="group-hover:opacity-100 group-hover:translate-y-0 opacity-0 translate-y-1 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-[9px] font-bold text-white bg-slate-900 border border-white/10 rounded-lg whitespace-nowrap shadow-xl transition-all z-20">
+                      {isReadingAloud ? "Stop Voice" : "Read Question Aloud"}
+                    </span>
+                  </div>
+
+                  {/* Interactive Correct/Incorrect Sound Effects Toggle */}
+                  <div className="relative group">
+                    <button 
+                      onClick={() => setSoundEffectsEnabled(!soundEffectsEnabled)}
+                      type="button"
+                      className={`p-3 rounded-xl border flex-none bg-surface transition-all relative cursor-pointer ${soundEffectsEnabled ? 'border-primary/20 hover:bg-primary/10 text-primary' : 'border-white/5 opacity-50 text-on-surface-variant'}`}
+                      aria-label="Toggle interactive sound effects"
+                    >
+                      <div className="relative">
+                        {soundEffectsEnabled ? <Volume2 className="w-4 h-4 text-primary" /> : <VolumeX className="w-4 h-4 text-on-surface-variant/40" />}
+                        <span className="absolute -top-1.5 -right-2 text-[7px] font-extrabold uppercase text-primary font-mono tracking-tight bg-surface px-0.5 rounded">
+                          {soundEffectsEnabled ? "FX" : "—"}
+                        </span>
+                      </div>
+                    </button>
+                    <span className="group-hover:opacity-100 group-hover:translate-y-0 opacity-0 translate-y-1 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-[9px] font-bold text-white bg-slate-900 border border-white/10 rounded-lg whitespace-nowrap shadow-xl transition-all z-20">
+                      {soundEffectsEnabled ? "Mute Sound FX" : "Unmute Sound FX"}
+                    </span>
+                  </div>
+
+                  {/* Web Speech API Record Answer Button */}
+                  <div className="relative group">
+                    <button 
+                      onClick={toggleRecordingAnswer}
+                      type="button"
+                      disabled={!!feedback}
+                      className={`p-3 rounded-xl border flex-none relative transition-all ${
+                        isRecordingAnswer 
+                          ? 'bg-error text-white border-error animate-pulse shadow-error/30 shadow-lg' 
+                          : 'bg-surface text-secondary border-secondary/20 hover:bg-secondary/10'
+                      } ${!!feedback ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
+                      aria-label="Answer with voice recorder"
+                    >
+                      {isRecordingAnswer ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                      {isRecordingAnswer && (
+                        <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                        </span>
+                      )}
+                    </button>
+                    <span className="group-hover:opacity-100 group-hover:translate-y-0 opacity-0 translate-y-1 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-[9px] font-bold text-white bg-slate-900 border border-white/10 rounded-lg whitespace-nowrap shadow-xl transition-all z-20">
+                      {isRecordingAnswer ? "Stop Recording" : "Speak Your Answer"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Web Speech Feedback Notification Area */}
+              <div className="space-y-2 w-full">
+                {isRecordingAnswer && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[11px] font-body bg-error/15 border border-error/20 p-3 rounded-2xl flex items-center justify-between gap-3 text-error"
+                  >
+                    <div className="flex items-center gap-2 text-left">
+                      <span className="flex h-2.5 w-2.5 relative flex-none animate-bounce">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-error"></span>
+                      </span>
+                      <p className="font-headline font-bold uppercase tracking-wider animate-pulse">Microphone active: Say option label (e.g., "Option A") or exact option text now...</p>
+                    </div>
+                    <div className="flex gap-0.5 items-center flex-none">
+                      <span className="w-0.5 h-3 bg-error animate-bounce" style={{ animationDelay: '0.1s' }} />
+                      <span className="w-0.5 h-4.5 bg-error animate-bounce" style={{ animationDelay: '0.2s' }} />
+                      <span className="w-0.5 h-2.5 bg-error animate-bounce" style={{ animationDelay: '0.3s' }} />
+                      <span className="w-0.5 h-4 bg-error animate-bounce" style={{ animationDelay: '0.4s' }} />
+                    </div>
+                  </motion.div>
+                )}
+
+                {spokenAnswerText && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-xs font-body bg-secondary/15 border border-secondary/20 p-3 rounded-2xl text-on-surface flex items-center gap-2.5"
+                  >
+                    <Mic className="w-4 h-4 text-secondary flex-none animate-pulse" />
+                    <p className="font-bold text-left">
+                      Transcribed Answer: <span className="text-secondary italic font-extrabold font-headline">"{spokenAnswerText}"</span>
+                    </p>
+                  </motion.div>
+                )}
+
+                {speechError && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-xs font-body bg-error/15 border border-error/20 p-3 rounded-2xl text-error flex items-center gap-2.5"
+                  >
+                    <Info className="w-4 h-4 text-error flex-none" />
+                    <p className="font-bold text-left">{speechError}</p>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Dynamic Columns for Case study materials or options list */}
               <div className={`transition-all duration-300 w-full ${
                 currentQ.contextMaterial 
-                  ? 'lg:flex lg:gap-6 items-start' 
-                  : 'flex flex-col items-center justify-start'
+                  ? 'lg:grid lg:grid-cols-12 lg:gap-6 items-start' 
+                  : 'max-w-3xl mx-auto w-full'
               }`}>
                 {/* Visual context readouts (Left panel if present) */}
                 {currentQ.contextMaterial && (
-                  <div className={`transition-all duration-300 mb-5 lg:mb-0 w-full ${
-                    fontSizeMode === 'normal' 
-                      ? 'lg:w-[35%]' 
-                      : fontSizeMode === 'large' 
-                        ? 'lg:w-[42%]' 
-                        : 'lg:w-[48%]'
-                  }`}>
-                    <div className="p-5 rounded-2xl bg-surface border border-white/10 h-fit space-y-3">
-                      <div className="flex items-center gap-2 opacity-80 text-secondary">
-                        <Eye className="w-4 h-4 text-secondary" />
-                        <span className="text-[10px] font-headline font-extrabold uppercase tracking-widest italic">Reference Study Material</span>
+                  <div className={`transition-all duration-300 mb-5 lg:mb-0 lg:col-span-5 w-full`}>
+                    <div className="p-6 rounded-[1.8rem] bg-surface border border-white/10 h-full flex flex-col space-y-4">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                        <div className="flex items-center gap-2 text-secondary">
+                          <Eye className="w-4 h-4 text-secondary" />
+                          <span className="text-[10px] font-headline font-extrabold uppercase tracking-widest italic">Reference Study Material</span>
+                        </div>
+                        <span className="text-[9px] font-bold text-on-surface-variant uppercase bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                          Scroll to read full content
+                        </span>
                       </div>
-                      <p className={`text-on-surface font-body font-bold leading-relaxed italic opacity-90 transition-all duration-300 ${
-                        fontSizeMode === 'normal' 
-                          ? 'text-xs md:text-sm max-h-[30vh] overflow-y-auto no-scrollbar' 
-                          : fontSizeMode === 'large' 
-                            ? 'text-sm md:text-base max-h-[40vh] overflow-y-auto no-scrollbar' 
-                            : 'text-base md:text-lg max-h-[50vh] overflow-y-auto no-scrollbar'
-                      }`}>
-                        {currentQ.contextMaterial}
-                      </p>
+                      <div className="pr-1">
+                        <p className={`text-on-surface font-body font-bold leading-relaxed italic opacity-90 transition-all duration-300 overflow-y-auto custom-scrollbar pr-2 ${
+                          fontSizeMode === 'normal' 
+                            ? 'text-xs md:text-sm max-h-[45vh]' 
+                            : fontSizeMode === 'large' 
+                              ? 'text-sm md:text-base max-h-[50vh]' 
+                              : 'text-base md:text-lg max-h-[55vh]'
+                        }`}>
+                          {currentQ.contextMaterial}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Question option mappings (Right Panel) */}
-                <div className="space-y-4 flex flex-col w-full flex-1">
+                {/* Options and Feedback (Right Panel if contextMaterial present, otherwise centered full-width) */}
+                <div className={`space-y-4 flex flex-col w-full ${currentQ.contextMaterial ? 'lg:col-span-7' : ''}`}>
                   
-                  {/* Real Question Textbox */}
-                  <div className="bg-surface-container-lowest/80 glass-card p-5 md:p-7 rounded-2xl border border-white/10 relative overflow-hidden flex justify-between items-start gap-3">
-                    <div className={`absolute left-0 top-0 h-full w-2 ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`} />
-                    <h2 className={`font-body font-black text-on-surface flex-1 leading-snug tv-text-shadow transition-all duration-300 ${
-                      fontSizeMode === 'normal' 
-                        ? 'text-sm md:text-base lg:text-lg' 
-                        : fontSizeMode === 'large' 
-                          ? 'text-base md:text-lg lg:text-xl' 
-                          : 'text-lg md:text-xl lg:text-[1.6rem] leading-snug font-black'
-                    }`}>
-                      {currentQ.text}
-                    </h2>
-
-                    {/* Audio action controller bar */}
-                    <div className="flex gap-2 flex-none items-center self-start">
-                      {/* Speech Speak Aloud Toggles */}
-                      <button 
-                        onClick={handleReadAloud}
-                        type="button"
-                        className={`p-2.5 rounded-xl border flex-none ${isReadingAloud ? 'bg-primary text-on-primary border-primary animate-pulse' : 'bg-surface text-primary border-primary/20 hover:bg-primary/10'} transition-all`}
-                        title={isReadingAloud ? "Stop speech synthesizer" : "Speak question aloud"}
-                      >
-                        {isReadingAloud ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                      </button>
-
-                      {/* Interactive Correct/Incorrect Sound Effects Toggle */}
-                      <button 
-                        onClick={() => setSoundEffectsEnabled(!soundEffectsEnabled)}
-                        type="button"
-                        className={`p-2.5 rounded-xl border flex-none bg-surface transition-all relative ${soundEffectsEnabled ? 'border-primary/20 hover:bg-primary/10 text-primary' : 'border-white/5 opacity-50 text-on-surface-variant'}`}
-                        title={soundEffectsEnabled ? "Mute interactive sound effects" : "Unmute interactive sound effects"}
-                      >
-                        <div className="relative">
-                          {soundEffectsEnabled ? <Volume2 className="w-4 h-4 text-primary" /> : <VolumeX className="w-4 h-4 text-on-surface-variant/40" />}
-                          <span className="absolute -top-1.5 -right-2 text-[7px] font-extrabold uppercase text-primary font-mono tracking-tight bg-surface px-0.5 rounded">
-                            {soundEffectsEnabled ? "FX" : "—"}
-                          </span>
-                        </div>
-                      </button>
-
-                      {/* Web Speech API Record Answer Button */}
-                      <button 
-                        onClick={toggleRecordingAnswer}
-                        type="button"
-                        disabled={!!feedback}
-                        className={`p-2.5 rounded-xl border flex-none relative transition-all ${
-                          isRecordingAnswer 
-                            ? 'bg-error text-white border-error animate-pulse shadow-error/30 shadow-lg' 
-                            : 'bg-surface text-secondary border-secondary/20 hover:bg-secondary/10'
-                        } ${!!feedback ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
-                        title={isRecordingAnswer ? "Stop speech transcription" : "Speak to record and submit your answer"}
-                      >
-                        {isRecordingAnswer ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                        {isRecordingAnswer && (
-                          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Web Speech Feedback Notification Area */}
-                  <div className="space-y-2">
-                    {isRecordingAnswer && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="text-[11px] font-body bg-error/15 border border-error/20 p-3 rounded-2xl flex items-center justify-between gap-3 text-error"
-                      >
-                        <div className="flex items-center gap-2 text-left">
-                          <span className="flex h-2.5 w-2.5 relative flex-none animate-bounce">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-error"></span>
-                          </span>
-                          <p className="font-headline font-bold uppercase tracking-wider animate-pulse">Microphone active: Say option label (e.g., "Option A") or exact option text now...</p>
-                        </div>
-                        <div className="flex gap-0.5 items-center flex-none">
-                          <span className="w-0.5 h-3 bg-error animate-bounce" style={{ animationDelay: '0.1s' }} />
-                          <span className="w-0.5 h-4.5 bg-error animate-bounce" style={{ animationDelay: '0.2s' }} />
-                          <span className="w-0.5 h-2.5 bg-error animate-bounce" style={{ animationDelay: '0.3s' }} />
-                          <span className="w-0.5 h-4 bg-error animate-bounce" style={{ animationDelay: '0.4s' }} />
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {spokenAnswerText && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="text-xs font-body bg-secondary/15 border border-secondary/20 p-3 rounded-2xl text-on-surface flex items-center gap-2.5"
-                      >
-                        <Mic className="w-4 h-4 text-secondary flex-none animate-pulse" />
-                        <p className="font-bold text-left">
-                          Transcribed Answer: <span className="text-secondary italic font-extrabold font-headline">"{spokenAnswerText}"</span>
-                        </p>
-                      </motion.div>
-                    )}
-
-                    {speechError && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="text-xs font-body bg-error/15 border border-error/20 p-3 rounded-2xl text-error flex items-center gap-2.5"
-                      >
-                        <Info className="w-4 h-4 text-error flex-none" />
-                        <p className="font-bold text-left">{speechError}</p>
-                      </motion.div>
-                    )}
-                  </div>
-
                   {/* Options Matrix Selection List */}
                   <div className="grid grid-cols-1 gap-2.5">
                     {currentQ.options.map((opt, i) => {
@@ -4272,11 +4882,14 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <Button onClick={initiateDiagnosis} className="h-14 rounded-2xl font-headline font-extrabold uppercase tracking-widest text-xs shadow-2xl shadow-primary/40 col-span-2">
-                  Retake Diagnosis
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+                <Button onClick={handleProceedToNextLevel} className="h-14 rounded-2xl font-headline font-extrabold uppercase tracking-widest text-xs shadow-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-600/40 cursor-pointer">
+                  Proceed to Next Level 🚀
                 </Button>
-                <Button onClick={handleResetToMenu} variant="outline" className="h-14 rounded-2xl font-headline font-extrabold uppercase tracking-widest text-[10px]">
+                <Button onClick={initiateDiagnosis} className="h-14 rounded-2xl font-headline font-extrabold uppercase tracking-widest text-xs shadow-2xl bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/40 cursor-pointer">
+                  Retake Diagnosis 🔄
+                </Button>
+                <Button onClick={handleResetToMenu} variant="outline" className="h-14 rounded-2xl font-headline font-extrabold uppercase tracking-widest text-[10px] cursor-pointer">
                   Close Panel
                 </Button>
               </div>
@@ -4370,113 +4983,7 @@ export default function App() {
         onClose={() => setShowMotivationalPopup(false)}
       />
 
-      {/* Badge Unlock Celebration Overlay Popup */}
-      <AnimatePresence>
-        {activeUnlockedBadgeNotification && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#070a13]/85 backdrop-blur-xl z-50 flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8, y: 50, rotate: -5 }}
-              animate={{ 
-                scale: 1, 
-                y: 0, 
-                rotate: 0,
-                transition: { type: "spring", damping: 15, stiffness: 100 }
-              }}
-              exit={{ scale: 0.8, y: 50, opacity: 0 }}
-              className="bg-[#faf6eb] text-slate-900 rounded-[2.5rem] p-8 max-w-sm w-full border border-amber-300 shadow-[0_0_50px_rgba(245,158,11,0.3)] text-center relative overflow-hidden"
-            >
-              {/* Confetti-like sparkle particles behind the badge */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
-                <div className="absolute top-10 left-10 w-2 h-2 bg-amber-500 rounded-full animate-ping" />
-                <div className="absolute bottom-10 right-10 w-3 h-3 bg-yellow-500 rounded-full animate-bounce" />
-                <div className="absolute top-24 right-12 w-2 h-2 bg-amber-600 rounded-full animate-pulse" />
-              </div>
-
-              {/* Header Title */}
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0, transition: { delay: 0.2 } }}
-                className="space-y-1"
-              >
-                <div className="bg-amber-500/10 text-amber-700 font-headline font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-full inline-block border border-amber-500/20">
-                  Milestone Achieved
-                </div>
-                <h3 className="text-2xl font-headline font-black text-slate-900 tracking-tight mt-2">
-                  Badge Unlocked!
-                </h3>
-              </motion.div>
-
-              {/* Floating Badge Visualizer */}
-              <div className="relative my-8 flex items-center justify-center">
-                <motion.div
-                  animate={{ 
-                    rotate: 360,
-                    transition: { duration: 15, repeat: Infinity, ease: "linear" }
-                  }}
-                  className="absolute w-32 h-32 rounded-full border border-dashed border-amber-400/60"
-                />
-                <motion.div
-                  animate={{ 
-                    scale: [1, 1.05, 1],
-                    transition: { duration: 2, repeat: Infinity, ease: "easeInOut" }
-                  }}
-                  className="relative w-24 h-24 bg-gradient-to-br from-amber-400 via-yellow-300 to-amber-500 rounded-full flex items-center justify-center shadow-[0_10px_30px_rgba(245,158,11,0.4)] border-4 border-white"
-                >
-                  {(() => {
-                    const Icon = activeUnlockedBadgeNotification.icon;
-                    return <Icon className="w-10 h-10 text-amber-900 stroke-[2.5]" />;
-                  })()}
-                </motion.div>
-              </div>
-
-              {/* Badge Details */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1, transition: { delay: 0.4 } }}
-                className="space-y-2 mb-6"
-              >
-                <h4 className="text-xl font-headline font-black text-amber-950">
-                  {activeUnlockedBadgeNotification.name}
-                </h4>
-                <p className="text-sm font-body text-slate-700 font-medium leading-relaxed">
-                  {activeUnlockedBadgeNotification.desc}
-                </p>
-              </motion.div>
-
-              {/* Actions Section */}
-              <div className="space-y-2.5">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    if (user && activeUnlockedBadgeNotification) {
-                      shareBadgeImage(user, activeUnlockedBadgeNotification);
-                    }
-                  }}
-                  className="w-full py-3.5 px-6 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-headline font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Download className="w-4 h-4 text-white animate-bounce" />
-                  <span>Share Achievement</span>
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setActiveUnlockedBadgeNotification(null)}
-                  className="w-full py-3 px-6 bg-transparent hover:bg-amber-100/50 text-amber-900 hover:text-amber-950 border border-amber-200/80 font-headline font-black text-xs uppercase tracking-widest rounded-2xl transition-all cursor-pointer"
-                >
-                  Close Window
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Badge Unlock Celebration Overlay Popup removed as per user request */}
     </div>
   );
 }

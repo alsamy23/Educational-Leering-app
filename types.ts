@@ -30,6 +30,7 @@ export interface StudyMaterial {
 }
 
 export interface UserProfile {
+  uid?: string;
   name: string;
   gradeLevel: string;
   section?: string;

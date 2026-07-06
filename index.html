@@ -47,19 +47,21 @@
     <!-- Google Analytics (GA4) -->
     <script>
       (function() {
-        const gaId = "G-J7NECQ2GBZ"; // Using your actual ID
-        if (gaId) {
-          const script = document.createElement('script');
-          script.async = true;
-          script.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
-          document.head.appendChild(script);
-
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          window.gtag = gtag; // Expose globally to the application
-          gtag('js', new Date());
-          gtag('config', gaId);
+        let gaId = "%VITE_GA_MEASUREMENT_ID%";
+        if (!gaId || gaId === "" || gaId.startsWith("%")) {
+          gaId = "G-J7NECQ2GBZ"; // Production fallback
         }
+        
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = `https://www.googletagmanager.com/gtag/js?id=` + gaId;
+        document.head.appendChild(script);
+
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        window.gtag = gtag;
+        gtag('js', new Date());
+        gtag('config', gaId);
       })();
     </script>
   </head>
