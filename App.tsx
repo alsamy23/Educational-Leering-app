@@ -1734,20 +1734,23 @@ export default function App() {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     setIsReadingAloud(false);
 
-    setLoadingProgress(10);
+    let progressVal = 10;
+    setLoadingProgress(progressVal);
     setLoadingMessage("Synthesizing Board Curriculum Guidelines...");
     setCurrentScreen(AppScreen.LOADING);
 
-    // Simulate synth steps
-    const timer1 = setTimeout(() => {
-      setLoadingProgress(45);
-      setLoadingMessage("Tuning Expert Gemini AI Explanatory Engine...");
-    }, 1000);
-
-    const timer2 = setTimeout(() => {
-      setLoadingProgress(75);
-      setLoadingMessage("Shuffling Options & Validating Uniqueness Map...");
-    }, 2200);
+    // Continuous smooth incrementing loading progress to avoid stagnation after 75%
+    const progressInterval = setInterval(() => {
+      progressVal = Math.min(progressVal + (progressVal < 75 ? Math.floor(Math.random() * 8) + 4 : 1), 98);
+      setLoadingProgress(progressVal);
+      if (progressVal < 45) {
+        setLoadingMessage("Synthesizing Board Curriculum Guidelines...");
+      } else if (progressVal < 75) {
+        setLoadingMessage("Tuning Expert Gemini AI Explanatory Engine...");
+      } else {
+        setLoadingMessage("Shuffling Options & Validating Uniqueness Map...");
+      }
+    }, 120);
 
     try {
       const activeMaterial = materials.find(m => m.id === selectedMaterialId);
@@ -1771,8 +1774,7 @@ export default function App() {
         activeMaterial?.content
       );
 
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      clearInterval(progressInterval);
       setLoadingProgress(100);
       setLoadingMessage("Diagnostics Complete! Preparing Interface...");
 
@@ -1798,8 +1800,7 @@ export default function App() {
       }, 500);
 
     } catch (error: any) {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      clearInterval(progressInterval);
       trackValidationError('quiz_initiation_fail', error.message || "Synthesis failure");
       showToast(error.message || "AI Synthesizer failed. Check API Keys in settings.", 'error');
       setCurrentScreen(AppScreen.ENTRY);
@@ -1824,20 +1825,23 @@ export default function App() {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     setIsReadingAloud(false);
 
-    setLoadingProgress(10);
+    let progressVal = 10;
+    setLoadingProgress(progressVal);
     setLoadingMessage(`Synthesizing Level ${nextLvl} Curriculum Guidelines...`);
     setCurrentScreen(AppScreen.LOADING);
 
-    // Simulate synth steps
-    const timer1 = setTimeout(() => {
-      setLoadingProgress(45);
-      setLoadingMessage("Tuning Expert Gemini AI Explanatory Engine...");
-    }, 1000);
-
-    const timer2 = setTimeout(() => {
-      setLoadingProgress(75);
-      setLoadingMessage("Shuffling Options & Validating Uniqueness Map...");
-    }, 2200);
+    // Continuous smooth incrementing loading progress to avoid stagnation after 75%
+    const progressInterval = setInterval(() => {
+      progressVal = Math.min(progressVal + (progressVal < 75 ? Math.floor(Math.random() * 8) + 4 : 1), 98);
+      setLoadingProgress(progressVal);
+      if (progressVal < 45) {
+        setLoadingMessage(`Synthesizing Level ${nextLvl} Curriculum Guidelines...`);
+      } else if (progressVal < 75) {
+        setLoadingMessage("Tuning Expert Gemini AI Explanatory Engine...");
+      } else {
+        setLoadingMessage("Shuffling Options & Validating Uniqueness Map...");
+      }
+    }, 120);
 
     try {
       const activeMaterial = materials.find(m => m.id === selectedMaterialId);
@@ -1861,8 +1865,7 @@ export default function App() {
         activeMaterial?.content
       );
 
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      clearInterval(progressInterval);
       setLoadingProgress(100);
       setLoadingMessage(`Level ${nextLvl} Diagnostics Ready! Loading...`);
 
@@ -1888,8 +1891,7 @@ export default function App() {
       }, 500);
 
     } catch (error: any) {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      clearInterval(progressInterval);
       trackValidationError('quiz_initiation_fail', error.message || "Synthesis failure");
       showToast(error.message || "AI Synthesizer failed. Check API Keys in settings.", 'error');
       setCurrentScreen(AppScreen.ENTRY);
@@ -1925,14 +1927,23 @@ export default function App() {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     setIsReadingAloud(false);
 
-    setLoadingProgress(10);
+    let progressVal = 10;
+    setLoadingProgress(progressVal);
     setLoadingMessage("Fortifying Classroom Arena...");
     setCurrentScreen(AppScreen.LOADING);
 
-    const timer1 = setTimeout(() => {
-      setLoadingProgress(50);
-      setLoadingMessage("Generating Team-Specific Unique Challenge Matrices...");
-    }, 1200);
+    // Continuous smooth incrementing loading progress to avoid stagnation after 75%
+    const progressInterval = setInterval(() => {
+      progressVal = Math.min(progressVal + (progressVal < 75 ? Math.floor(Math.random() * 8) + 4 : 1), 98);
+      setLoadingProgress(progressVal);
+      if (progressVal < 45) {
+        setLoadingMessage("Fortifying Classroom Arena...");
+      } else if (progressVal < 75) {
+        setLoadingMessage("Generating Team-Specific Unique Challenge Matrices...");
+      } else {
+        setLoadingMessage("Synchronizing Classroom Boards & Uniqueness Map...");
+      }
+    }, 120);
 
     try {
       const activeMaterial = materials.find(m => m.id === selectedMaterialId);
@@ -1968,7 +1979,7 @@ export default function App() {
 
       const questionsFetched = groupsWithQuestions[0]?.questions || [];
 
-      clearTimeout(timer1);
+      clearInterval(progressInterval);
       setLoadingProgress(100);
       setLoadingMessage("Battle Grid Connected!");
 
@@ -1996,7 +2007,7 @@ export default function App() {
       }, 500);
 
     } catch (e: any) {
-      clearTimeout(timer1);
+      clearInterval(progressInterval);
       trackValidationError('quiz_initiation_fail', e.message || "Failed to organize battle questions");
       showToast(e.message || "Failed to organize battle questions. Please check settings.", 'error');
       setCurrentScreen(AppScreen.CLASSROOM_SETUP);

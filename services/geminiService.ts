@@ -1075,7 +1075,7 @@ export const generateQuizQuestions = async (
         console.log(`Attempting question generation with Gemini key ending in ...${key.slice(-5)}`);
         const ai = getAIWithKey(key);
         const response = await ai.models.generateContent({
-          model: 'gemini-3.5-flash',
+          model: 'gemini-2.5-flash',
           contents: prompt,
           config: {
             systemInstruction: `You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades. ${groupName ? `This batch is specifically for Group ${groupName}. Ensure uniqueness.` : ''}`,
@@ -1087,21 +1087,22 @@ export const generateQuizQuestions = async (
                 properties: {
                   id: { type: Type.NUMBER },
                   type: { type: Type.STRING, description: "MCQ, WORD_PROBLEM, CASE_STUDY, or VISUAL_ANALYSIS" },
-                  contextMaterial: { type: Type.STRING, description: "Scenario text for CASE_STUDY or VISUAL_ANALYSIS" },
-                  text: { type: Type.STRING, description: "The question text. Must be a complete, challenging question." },
+                  contextMaterial: { type: Type.STRING, description: "Scenario text (only for CASE_STUDY or VISUAL_ANALYSIS, max 40 words, otherwise empty)" },
+                  text: { type: Type.STRING, description: "The question text, clear and concise, max 20 words" },
                   options: { 
                     type: Type.ARRAY, 
                     items: { type: Type.STRING },
-                    description: "Exactly 4 options"
+                    description: "Exactly 4 options, very concise, max 8 words each"
                   },
                   correctIndex: { type: Type.NUMBER, description: "0-3" },
-                  explanation: { type: Type.STRING, description: "Detailed explanation of the correct answer" },
-                  inquiryPrompt: { type: Type.STRING, description: "A follow-up challenge or inquiry for the student" }
+                  explanation: { type: Type.STRING, description: "Brief explanation, max 15 words" },
+                  inquiryPrompt: { type: Type.STRING, description: "Brief follow-up challenge, max 8 words" }
                 },
                 required: ["id", "type", "text", "options", "correctIndex", "explanation", "inquiryPrompt"]
               }
             },
-            temperature: 0.2
+            temperature: 0.2,
+            maxOutputTokens: 1000
           }
         });
 
