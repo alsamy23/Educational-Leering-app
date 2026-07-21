@@ -733,91 +733,184 @@ An academic group is attempting to implement this specific concept of ${topic} i
   }
 
   // Standard Smart General Fallback Generator (Ensuring highly realistic & specific questions incorporating topic name)
-  if (questions.length < 1) {
-    questions.push({
-      id: 1,
-      type: QuestionType.MCQ,
-      text: `In the academic study of "${capTopic}", which of the following represents a major foundational challenge or primary principle?`,
-      options: [
-        `Developing systematic empirical models to measure how ${topic} behaves under altered parameters.`,
-        `Disregarding experimental feedback loops entirely to focus on qualitative historical archives.`,
-        `Assuming all external environments remain static and have no influence on ${topic}.`,
-        `Limiting research to simplified ancient models that can no longer be verified.`
-      ],
-      correctIndex: 0,
-      explanation: `Studying "${capTopic}" requires establishing methodical, empirical models to predict behavior when critical parameters are changed, which is essential for advanced concept application.`,
-      inquiryPrompt: `Can you identify a real-life situation where this foundational challenge of "${capTopic}" is directly observed?`
-    });
-  }
+  const isTechnical = /science|physic|chem|biolog|math|calcul|comput|tech|engine|circuit|program|lab|algorithm|mechanic/i.test(subject) ||
+                      /science|physic|chem|biolog|math|calcul|comput|tech|engine|circuit|program|lab|algorithm|mechanic/i.test(topicLower);
 
-  if (questions.length < 2) {
-    questions.push({
-      id: 2,
-      type: QuestionType.WORD_PROBLEM,
-      text: `Consider a diagnostic test environment evaluating a "${capTopic}" system. If the baseline efficiency is 75%, and introducing a standardized catalyst parameter increases its performance by a factor of 1.2x, what is the new calculated system output?`,
-      options: [
-        `90% output (reflecting high responsive scaling)`,
-        `85% output`,
-        `80% output`,
-        `95% output`
-      ],
-      correctIndex: 0,
-      explanation: `Multiplying the baseline efficiency by the performance enhancement factor: 75% * 1.2 = 90%. This reflects a highly positive, scalable relationship.`,
-      inquiryPrompt: `What physical or structural limits might prevent this "${capTopic}" system from achieving a theoretical 100% efficiency?`
-    });
-  }
+  if (isTechnical) {
+    if (questions.length < 1) {
+      questions.push({
+        id: 1,
+        type: QuestionType.MCQ,
+        text: `In the academic study of "${capTopic}", which of the following represents a major foundational challenge or primary principle?`,
+        options: [
+          `Developing systematic empirical models to measure how ${topic} behaves under altered parameters.`,
+          `Disregarding experimental feedback loops entirely to focus on qualitative historical archives.`,
+          `Assuming all external environments remain static and have no influence on ${topic}.`,
+          `Limiting research to simplified ancient models that can no longer be verified.`
+        ],
+        correctIndex: 0,
+        explanation: `Studying "${capTopic}" requires establishing methodical, empirical models to predict behavior when critical parameters are changed, which is essential for advanced concept application.`,
+        inquiryPrompt: `Can you identify a real-life situation where this foundational challenge of "${capTopic}" is directly observed?`
+      });
+    }
 
-  if (questions.length < 3) {
-    questions.push({
-      id: 3,
-      type: QuestionType.CASE_STUDY,
-      contextMaterial: `A specialized research team is investigating the practical implications of "${capTopic}" in a high-performance environment. While traditional theories suggest a simple linear correlation between inputs and outputs, new experimental data strongly implies a non-linear threshold behavior where progress scales exponentially after a critical point.`,
-      text: `Based on this case study, how should the team adjust their analytical framework to model "${capTopic}" accurately?`,
-      options: [
-        `Adopt non-linear mathematical models and closely observe behavior near the critical threshold.`,
-        `Ignore the new data as a minor anomaly and maintain their simple linear models.`,
-        `Reduce the scope of the study to exclude complex variable interactions.`,
-        `Suspend the research project completely until ideal conditions are met.`
-      ],
-      correctIndex: 0,
-      explanation: `Because "${capTopic}" exhibits non-linear threshold behavior in this scenario, the team must implement non-linear modeling and pay close attention to the boundary conditions near the critical point to ensure correct findings.`,
-      inquiryPrompt: `How would you design a simple, controlled experiment to identify the exact numerical threshold of "${capTopic}"?`
-    });
-  }
+    if (questions.length < 2) {
+      questions.push({
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: `Consider a diagnostic test environment evaluating a "${capTopic}" system. If the baseline efficiency is 75%, and introducing a standardized catalyst parameter increases its performance by a factor of 1.2x, what is the new calculated system output?`,
+        options: [
+          `90% output (reflecting high responsive scaling)`,
+          `85% output`,
+          `80% output`,
+          `95% output`
+        ],
+        correctIndex: 0,
+        explanation: `Multiplying the baseline efficiency by the performance enhancement factor: 75% * 1.2 = 90%. This reflects a highly positive, scalable relationship.`,
+        inquiryPrompt: `What physical or structural limits might prevent this "${capTopic}" system from achieving a theoretical 100% efficiency?`
+      });
+    }
 
-  if (questions.length < 4) {
-    questions.push({
-      id: 4,
-      type: QuestionType.VISUAL_ANALYSIS,
-      contextMaterial: `An academic flowchart maps the relationships between the components of "${capTopic}". A central coordinate, labeled 'Core Dynamics', connects directly to three adjacent nodes: 'Structural Inputs', 'Process Controls', and 'Feedback Optimization'.`,
-      text: `If an operational block or bottleneck occurs at the 'Process Controls' node, which connected component of "${capTopic}" is most likely to suffer immediate degradation?`,
-      options: [
-        `Feedback Optimization (which relies on processed inputs from controls)`,
-        `Structural Inputs (which acts as a preceding generator)`,
-        `The parent subject entirely`,
-        `None of the connected subsystems are affected`
-      ],
-      correctIndex: 0,
-      explanation: `In the flow of "${capTopic}", Feedback Optimization is downstream of Process Controls, meaning any restriction in control immediately limits the optimization feedback cycle.`,
-      inquiryPrompt: `How could you introduce an alternative bypass loop to preserve system stability in "${capTopic}" if the primary controls fail?`
-    });
-  }
+    if (questions.length < 3) {
+      questions.push({
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: `A specialized research team is investigating the practical implications of "${capTopic}" in a high-performance environment. While traditional theories suggest a simple linear correlation between inputs and outputs, new experimental data strongly implies a non-linear threshold behavior where progress scales exponentially after a critical point.`,
+        text: `Based on this case study, how should the team adjust their analytical framework to model "${capTopic}" accurately?`,
+        options: [
+          `Adopt non-linear mathematical models and closely observe behavior near the critical threshold.`,
+          `Ignore the new data as a minor anomaly and maintain their simple linear models.`,
+          `Reduce the scope of the study to exclude complex variable interactions.`,
+          `Suspend the research project completely until ideal conditions are met.`
+        ],
+        correctIndex: 0,
+        explanation: `Because "${capTopic}" exhibits non-linear threshold behavior in this scenario, the team must implement non-linear modeling and pay close attention to the boundary conditions near the critical point to ensure correct findings.`,
+        inquiryPrompt: `How would you design a simple, controlled experiment to identify the exact numerical threshold of "${capTopic}"?`
+      });
+    }
 
-  if (questions.length < 5) {
-    questions.push({
-      id: 5,
-      type: QuestionType.MCQ,
-      text: `In professional academic testing, which approach consistently yields the most reliable, long-term mastery of "${capTopic}"?`,
-      options: [
-        `A balanced approach combining strong conceptual definitions with interactive, case-based problem solving.`,
-        `Memorizing key terms and standard answers without understanding the underlying mechanics.`,
-        `Focusing only on basic, low-difficulty questions to avoid challenging concepts.`,
-        `Bypassing systematic practice to rely on instinctual guessing during assessments.`
-      ],
-      correctIndex: 0,
-      explanation: `Consistent mastery of "${capTopic}" is achieved by pairing solid theoretical foundation with contextual, applied problem-solving practice.`,
-      inquiryPrompt: `Give an example of how you can apply the theory of "${capTopic}" to solve a practical problem in your community.`
-    });
+    if (questions.length < 4) {
+      questions.push({
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: `An academic flowchart maps the relationships between the components of "${capTopic}". A central coordinate, labeled 'Core Dynamics', connects directly to three adjacent nodes: 'Structural Inputs', 'Process Controls', and 'Feedback Optimization'.`,
+        text: `If an operational block or bottleneck occurs at the 'Process Controls' node, which connected component of "${capTopic}" is most likely to suffer immediate degradation?`,
+        options: [
+          `Feedback Optimization (which relies on processed inputs from controls)`,
+          `Structural Inputs (which acts as a preceding generator)`,
+          `The parent subject entirely`,
+          `None of the connected subsystems are affected`
+        ],
+        correctIndex: 0,
+        explanation: `In the flow of "${capTopic}", Feedback Optimization is downstream of Process Controls, meaning any restriction in control immediately limits the optimization feedback cycle.`,
+        inquiryPrompt: `How could you introduce an alternative bypass loop to preserve system stability in "${capTopic}" if the primary controls fail?`
+      });
+    }
+
+    if (questions.length < 5) {
+      questions.push({
+        id: 5,
+        type: QuestionType.MCQ,
+        text: `In professional academic testing, which approach consistently yields the most reliable, long-term mastery of "${capTopic}"?`,
+        options: [
+          `A balanced approach combining strong conceptual definitions with interactive, case-based problem solving.`,
+          `Memorizing key terms and standard answers without understanding the underlying mechanics.`,
+          `Focusing only on basic, low-difficulty questions to avoid challenging concepts.`,
+          `Bypassing systematic practice to rely on instinctual guessing during assessments.`
+        ],
+        correctIndex: 0,
+        explanation: `Consistent mastery of "${capTopic}" is achieved by pairing solid theoretical foundation with contextual, applied problem-solving practice.`,
+        inquiryPrompt: `Give an example of how you can apply the theory of "${capTopic}" to solve a practical problem in your community.`
+      });
+    }
+  } else {
+    // Non-Technical / Applied Skills / Humanities / Sports Fallbacks
+    if (questions.length < 1) {
+      questions.push({
+        id: 1,
+        type: QuestionType.MCQ,
+        text: `In the systematic study of "${capTopic}", which of the following represents a primary core value or foundational principle?`,
+        options: [
+          `Establishing consistent, structured practices and methods to sustain improvement.`,
+          `Restricting the practice only to rigid historical guidelines without any adaptation.`,
+          `Assuming that external factors have absolutely no impact on overall performance.`,
+          `Ignoring feedback and performing routines at random intervals.`
+        ],
+        correctIndex: 0,
+        explanation: `Mastery of "${capTopic}" relies on regular, structured practice combined with purposeful execution to build stable, long-term progression.`,
+        inquiryPrompt: `What is the risk of not having a structured routine in "${capTopic}"?`
+      });
+    }
+
+    if (questions.length < 2) {
+      questions.push({
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: `Consider a group practicing "${capTopic}". If the base participation efficiency is 75%, and introducing a standardized guidance parameter increases performance by a factor of 1.2x, what is the new active performance output?`,
+        options: [
+          `90% active performance`,
+          `85% active performance`,
+          `80% active performance`,
+          `95% active performance`
+        ],
+        correctIndex: 0,
+        explanation: `Multiplying the base efficiency by the guidance factor: 75% * 1.2 = 90%. This shows how structured guidance directly improves active output.`,
+        inquiryPrompt: `What common challenges might limit progression under this "${capTopic}" framework?`
+      });
+    }
+
+    if (questions.length < 3) {
+      questions.push({
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: `A training group is investigating the long-term benefits of "${capTopic}". Traditional approaches suggest progress is linear, but new longitudinal tracking demonstrates that regular practice combined with proper technique yields rapid, exponential progression after an initial developmental phase.`,
+        text: `Based on this case study, how should the group structure their sessions to optimize the benefits of "${capTopic}"?`,
+        options: [
+          `Focus on consistent, proper technique first to establish a solid foundation before increasing intensity.`,
+          `Increase intensity immediately, regardless of form or foundational technique.`,
+          `Maintain a low, unchanging level of practice and avoid challenging routines.`,
+          `Discontinue the sessions entirely as soon as minor fatigue is experienced.`
+        ],
+        correctIndex: 0,
+        explanation: `Establishing proper technique and a consistent foundation in "${capTopic}" is vital to safely unlocking the exponential benefits that accumulate over time.`,
+        inquiryPrompt: `How would you design a simple schedule to monitor consistent progress in "${capTopic}"?`
+      });
+    }
+
+    if (questions.length < 4) {
+      questions.push({
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: `An academic structural map charts the main domains of "${capTopic}". The central pillar, labeled 'Core Practice', connects directly to three adjacent modules: 'Foundational Knowledge', 'Active Training', and 'Mindful Integration'.`,
+        text: `If a participant experiences a bottleneck or lack of progress in 'Foundational Knowledge', which adjacent module of "${capTopic}" is most likely to suffer immediate difficulties?`,
+        options: [
+          `Mindful Integration (which relies on a deep, stable understanding of foundational principles)`,
+          `Active Training (which acts as a completely separate isolated speed drill)`,
+          `The subject title page`,
+          `None of the connected areas are affected in any way`
+        ],
+        correctIndex: 0,
+        explanation: `In the practice map of "${capTopic}", holistic integration and progression rely on foundational understanding; a weak foundation limits the ability to integrate advanced techniques.`,
+        inquiryPrompt: `How would you address a decline in foundational knowledge during active training of "${capTopic}"?`
+      });
+    }
+
+    if (questions.length < 5) {
+      questions.push({
+        id: 5,
+        type: QuestionType.MCQ,
+        text: `In professional education and training, which methodology consistently yields the best long-term retention of "${capTopic}"?`,
+        options: [
+          `A balanced approach combining clear conceptual definitions, regular practical sessions, and active self-reflection.`,
+          `Memorizing key definitions for exams without ever practicing the physical or mental components.`,
+          `Sprinting through the syllabus to finish early without checking for depth of understanding.`,
+          `Relying entirely on passive observation of others without any personal participation.`
+        ],
+        correctIndex: 0,
+        explanation: `Long-term retention and mastery of "${capTopic}" are best achieved by balancing clear concept knowledge with hands-on practice and self-assessment.`,
+        inquiryPrompt: `How can you integrate the principles of "${capTopic}" into your daily academic routine?`
+      });
+    }
   }
 
   return questions;
@@ -1075,7 +1168,7 @@ export const generateQuizQuestions = async (
         console.log(`Attempting question generation with Gemini key ending in ...${key.slice(-5)}`);
         const ai = getAIWithKey(key);
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.5-flash',
           contents: prompt,
           config: {
             systemInstruction: `You are an expert AI Tutor and curriculum designer. 
@@ -1655,7 +1748,7 @@ export const runAPIKeyDiagnostics = async (): Promise<DiagnosticSummary> => {
     try {
       const ai = getAIWithKey(val);
       await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: 'Hi',
         config: { maxOutputTokens: 2 }
       });
