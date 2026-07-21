@@ -4570,17 +4570,33 @@ export default function App() {
               </div>
 
               {/* Real Question Textbox - Full Width on Top */}
-              <div className="bg-surface-container-lowest/80 glass-card p-5 md:p-8 rounded-[1.8rem] border border-white/10 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-5 w-full">
+              <div className="bg-surface-container-lowest/80 glass-card p-5 md:p-8 rounded-[1.8rem] border border-white/10 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-5 w-full text-left">
                 <div className={`absolute left-0 top-0 h-full w-2 ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`} />
-                <h2 id="quiz-question-title" className={`font-body font-black text-on-surface flex-1 leading-snug tv-text-shadow transition-all duration-300 text-left ${
-                  fontSizeMode === 'normal' 
-                    ? 'text-lg md:text-xl lg:text-2xl' 
-                    : fontSizeMode === 'large' 
-                      ? 'text-xl md:text-2xl lg:text-3xl' 
-                      : 'text-2xl md:text-3xl lg:text-[1.8rem] leading-snug font-black'
-                }`}>
-                  {currentQ.text}
-                </h2>
+                
+                <div className="flex-1 space-y-2">
+                  {user.board && user.board.includes('CBSE') && (
+                    <div className="flex flex-wrap gap-1.5 mb-1 justify-start">
+                      <span className="bg-amber-500/15 border border-amber-500/35 text-amber-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        CBSE Board Pattern
+                      </span>
+                      <span className="bg-indigo-500/15 border border-indigo-500/35 text-indigo-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        {currentQ.type === QuestionType.CASE_STUDY ? '4 Marks (Case)' : currentQ.type === QuestionType.WORD_PROBLEM ? '3 Marks (SA)' : '1 Mark (MCQ)'}
+                      </span>
+                      <span className="bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        Syllabus Key Focus
+                      </span>
+                    </div>
+                  )}
+                  <h2 id="quiz-question-title" className={`font-body font-black text-on-surface flex-1 leading-snug tv-text-shadow transition-all duration-300 text-left ${
+                    fontSizeMode === 'normal' 
+                      ? 'text-lg md:text-xl lg:text-2xl' 
+                      : fontSizeMode === 'large' 
+                        ? 'text-xl md:text-2xl lg:text-3xl' 
+                        : 'text-2xl md:text-3xl lg:text-[1.8rem] leading-snug font-black'
+                  }`}>
+                    {currentQ.text}
+                  </h2>
+                </div>
 
                 {/* Audio action controller bar with beautiful instant hover tooltips */}
                 <div className="flex gap-2 flex-none items-center self-start md:self-center">

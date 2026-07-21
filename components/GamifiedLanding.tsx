@@ -12,6 +12,7 @@ import {
 } from '../types';
 import * as pdfjsLib from 'pdfjs-dist';
 import { shareBadgeImage } from '../services/badgeShareService';
+import { getCBSEPrepAnalysis } from '../services/cbseCompanionService';
 
 interface GamifiedLandingProps {
   user: UserProfile;
@@ -89,6 +90,8 @@ export const GamifiedLanding: React.FC<GamifiedLandingProps> = ({
   downloadBatchText
 }) => {
   const [entryMobileTab, setEntryMobileTab] = useState<'study' | 'library' | 'records'>('study');
+  const [sidebarSubTab, setSidebarSubTab] = useState<'library' | 'companion'>('companion');
+  const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(null);
   const [isConfiguratorOpen, setIsConfiguratorOpen] = useState<boolean>(false);
   const [configStep, setConfigStep] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<'text' | 'pdf'>('text');
@@ -1311,128 +1314,274 @@ export const GamifiedLanding: React.FC<GamifiedLandingProps> = ({
         {/* ================= RIGHT COLUMN: Notes Library & Ingest (3/12 cols) ================= */}
         <div className={`${entryMobileTab === 'library' ? 'block' : 'hidden'} ${showSidebars ? 'lg:block lg:col-span-3' : 'lg:hidden'} space-y-4`}>
           
-          <div className="bg-slate-900/60 border border-white/5 rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="border-b border-white/5 pb-2 text-left">
-              <h3 className="text-xs font-extrabold text-white">Study Notes Library</h3>
-              <p className="text-[9px] text-slate-400 uppercase tracking-wider mt-0.5">Ingest textbook chapters & PDFs</p>
-            </div>
+          {/* TAB BAR FOR SIDEBAR COMPANIONS */}
+          <div className="flex gap-1 bg-slate-950 border border-white/5 p-1 rounded-xl">
+            <button
+              onClick={() => setSidebarSubTab('companion')}
+              type="button"
+              className={`flex-1 py-1.5 text-[9px] font-headline font-extrabold uppercase tracking-widest rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                sidebarSubTab === 'companion' 
+                  ? 'bg-amber-650 text-white shadow-md font-black' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5" /> CBSE Companion
+            </button>
+            <button
+              onClick={() => setSidebarSubTab('library')}
+              type="button"
+              className={`flex-1 py-1.5 text-[9px] font-headline font-extrabold uppercase tracking-widest rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                sidebarSubTab === 'library' 
+                  ? 'bg-indigo-650 text-white shadow-md font-black' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" /> Notes Library
+            </button>
+          </div>
 
-            {libError && <p className="text-[10px] text-red-400 font-bold bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 text-left">{libError}</p>}
+          {sidebarSubTab === 'library' ? (
+            <div className="bg-slate-900/60 border border-white/5 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="border-b border-white/5 pb-2 text-left">
+                <h3 className="text-xs font-extrabold text-white">Study Notes Library</h3>
+                <p className="text-[9px] text-slate-400 uppercase tracking-wider mt-0.5">Ingest textbook chapters & PDFs</p>
+              </div>
 
-            {/* Saved Guides List */}
-            <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-0.5 no-scrollbar">
-              {materials.length === 0 ? (
-                <p className="text-[10px] text-slate-400 italic text-center py-6 bg-slate-950/40 rounded-xl border border-dashed border-white/5">
-                  Using default CBSE/school system textbook patterns. Click tab below to add notes.
-                </p>
-              ) : (
-                materials.map(m => (
-                  <div 
-                    key={m.id} 
-                    className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
-                      selectedMaterialId === m.id 
-                        ? 'bg-indigo-950/50 border-indigo-500 shadow-sm' 
-                        : 'bg-slate-950 border-white/5 hover:bg-slate-900'
-                    }`}
-                  >
-                    <button 
-                      onClick={() => setSelectedMaterialId(selectedMaterialId === m.id ? null : m.id)}
-                      disabled={pdfParsing}
-                      className="flex-1 text-left min-w-0 cursor-pointer"
-                    >
-                      <p className="text-[11px] font-extrabold text-white truncate">{m.title}</p>
-                      <p className="text-[9px] text-slate-400 truncate">{m.content.slice(0, 45)}...</p>
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteMaterial(m.id)}
-                      className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-white/5 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
+              {libError && <p className="text-[10px] text-red-400 font-bold bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 text-left">{libError}</p>}
 
-            {/* Tabbed Ingestion Container */}
-            <div className="flex gap-1 bg-slate-950 border border-white/5 p-1 rounded-xl">
-              <button
-                onClick={() => setActiveTab('text')}
-                className={`flex-1 py-1 text-[9px] font-bold rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'text' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Type Notes
-              </button>
-              <button
-                onClick={() => setActiveTab('pdf')}
-                className={`flex-1 py-1 text-[9px] font-bold rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'pdf' ? 'bg-indigo-600 text-white font-black shadow' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Upload PDF
-              </button>
-            </div>
-
-            {activeTab === 'text' ? (
-              <form onSubmit={handleMaterialSubmit} className="space-y-2">
-                <input 
-                  type="text" 
-                  placeholder="Chapter Title" 
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-slate-950 border border-white/10 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-500"
-                />
-                <textarea 
-                  placeholder="Paste high-yield curriculum points or syllabus texts here..." 
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                  rows={2}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-slate-950 border border-white/10 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-500"
-                />
-                <button 
-                  type="submit"
-                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase rounded-lg transition-all shadow-sm cursor-pointer"
-                >
-                  Save to Library
-                </button>
-              </form>
-            ) : (
-              <div 
-                onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrop}
-                className={`p-4 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center transition-all ${
-                  dragActive ? 'border-indigo-500 bg-indigo-950/20' : 'border-white/5 bg-slate-950'
-                }`}
-              >
-                {pdfParsing ? (
-                  <div className="space-y-1">
-                    <SpinnerIcon className="w-5 h-5 text-indigo-400 animate-spin mx-auto" />
-                    <p className="text-[10px] font-bold text-indigo-300">Ingesting Syllabus...</p>
-                    <p className="text-[8px] text-slate-400">Parsing {pdfProgress.current} / {pdfProgress.total}</p>
-                  </div>
+              {/* Saved Guides List */}
+              <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-0.5 no-scrollbar">
+                {materials.length === 0 ? (
+                  <p className="text-[10px] text-slate-400 italic text-center py-6 bg-slate-950/40 rounded-xl border border-dashed border-white/5">
+                    Using default CBSE/school system textbook patterns. Click tab below to add notes.
+                  </p>
                 ) : (
-                  <>
-                    <FileText className="w-6 h-6 text-slate-500 mb-1" />
-                    <p className="text-[10px] font-bold text-slate-300 uppercase">Drag & Drop PDF here</p>
-                    <p className="text-[8px] text-slate-500 mb-2">or select textbook summary</p>
-                    <input 
-                      type="file" 
-                      accept="application/pdf"
-                      onChange={handleFileInputChange}
-                      className="hidden" 
-                      id="pdf-library-upload"
-                    />
-                    <label 
-                      htmlFor="pdf-library-upload"
-                      className="cursor-pointer px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[9px] uppercase rounded-lg transition-all"
+                  materials.map(m => (
+                    <div 
+                      key={m.id} 
+                      className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
+                        selectedMaterialId === m.id 
+                          ? 'bg-indigo-950/50 border-indigo-500 shadow-sm' 
+                          : 'bg-slate-950 border-white/5 hover:bg-slate-900'
+                      }`}
                     >
-                      Browse PDF
-                    </label>
-                  </>
+                      <button 
+                        onClick={() => setSelectedMaterialId(selectedMaterialId === m.id ? null : m.id)}
+                        disabled={pdfParsing}
+                        className="flex-1 text-left min-w-0 cursor-pointer"
+                        type="button"
+                      >
+                        <p className="text-[11px] font-extrabold text-white truncate">{m.title}</p>
+                        <p className="text-[9px] text-slate-400 truncate">{m.content.slice(0, 45)}...</p>
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteMaterial(m.id)}
+                        className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-white/5 cursor-pointer"
+                        type="button"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
                 )}
               </div>
-            )}
-          </div>
+
+              {/* Tabbed Ingestion Container */}
+              <div className="flex gap-1 bg-slate-950 border border-white/5 p-1 rounded-xl">
+                <button
+                  onClick={() => setActiveTab('text')}
+                  type="button"
+                  className={`flex-1 py-1 text-[9px] font-bold rounded-lg transition-all cursor-pointer ${
+                    activeTab === 'text' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Type Notes
+                </button>
+                <button
+                  onClick={() => setActiveTab('pdf')}
+                  type="button"
+                  className={`flex-1 py-1 text-[9px] font-bold rounded-lg transition-all cursor-pointer ${
+                    activeTab === 'pdf' ? 'bg-indigo-600 text-white font-black shadow' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Upload PDF
+                </button>
+              </div>
+
+              {activeTab === 'text' ? (
+                <form onSubmit={handleMaterialSubmit} className="space-y-2">
+                  <input 
+                    type="text" 
+                    placeholder="Chapter Title" 
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-slate-950 border border-white/10 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-500"
+                  />
+                  <textarea 
+                    placeholder="Paste high-yield curriculum points or syllabus texts here..." 
+                    value={content}
+                    onChange={e => setContent(e.target.value)}
+                    rows={2}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-slate-950 border border-white/10 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-500"
+                  />
+                  <button 
+                    type="submit"
+                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase rounded-lg transition-all shadow-sm cursor-pointer"
+                  >
+                    Save to Library
+                  </button>
+                </form>
+              ) : (
+                <div 
+                  onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrop}
+                  className={`p-4 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center transition-all ${
+                    dragActive ? 'border-indigo-500 bg-indigo-950/20' : 'border-white/5 bg-slate-950'
+                  }`}
+                >
+                  {pdfParsing ? (
+                    <div className="space-y-1">
+                      <SpinnerIcon className="w-5 h-5 text-indigo-400 animate-spin mx-auto" />
+                      <p className="text-[10px] font-bold text-indigo-300">Ingesting Syllabus...</p>
+                      <p className="text-[8px] text-slate-400">Parsing {pdfProgress.current} / {pdfProgress.total}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <FileText className="w-6 h-6 text-slate-500 mb-1" />
+                      <p className="text-[10px] font-bold text-slate-300 uppercase">Drag & Drop PDF here</p>
+                      <p className="text-[8px] text-slate-500 mb-2">or select textbook summary</p>
+                      <input 
+                        type="file" 
+                        accept="application/pdf"
+                        onChange={handleFileInputChange}
+                        className="hidden" 
+                        id="pdf-library-upload"
+                      />
+                      <label 
+                        htmlFor="pdf-library-upload"
+                        className="cursor-pointer px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[9px] uppercase rounded-lg transition-all"
+                      >
+                        Browse PDF
+                      </label>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (() => {
+            const cbsePrep = getCBSEPrepAnalysis(user.subject, user.topic);
+            return (
+              <div className="bg-slate-900/80 border border-white/5 rounded-2xl p-5 shadow-sm space-y-4 text-left">
+                {/* Header */}
+                <div className="border-b border-white/5 pb-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-headline font-black text-white flex items-center gap-1.5 uppercase tracking-wide">
+                      <GraduationCap className="w-4 h-4 text-amber-500" /> CBSE Prep Companion
+                    </h3>
+                    <span className="bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[8px] font-headline font-black px-1.5 py-0.5 rounded uppercase">
+                      Class {user.gradeLevel}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-slate-400 uppercase tracking-wider mt-1">Topic-oriented board analysis</p>
+                </div>
+
+                {/* Active Info */}
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-white/5 text-[10px] space-y-1">
+                  <p className="text-slate-400 font-bold">
+                    Subject: <span className="text-white font-black">{user.subject}</span>
+                  </p>
+                  <p className="text-slate-400 font-bold">
+                    Topic: <span className="text-amber-400 font-black">{user.topic}</span>
+                  </p>
+                </div>
+
+                {/* Section 1: Syllabus Pillars */}
+                <div className="space-y-1.5">
+                  <h4 className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" /> Syllabus Highlights
+                  </h4>
+                  <ul className="space-y-1 bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                    {cbsePrep.syllabusPillars.map((pill, idx) => (
+                      <li key={idx} className="text-[10px] text-slate-300 leading-relaxed font-body font-bold flex items-start gap-1.5">
+                        <span className="text-indigo-400 mt-0.5 flex-none font-mono">▸</span>
+                        <span>{pill}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Section 2: Frequently Asked Questions (Accordion) */}
+                <div className="space-y-2">
+                  <h4 className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                    <HelpCircle className="w-3.5 h-3.5 text-amber-400" /> Past Board Questions (FAQs)
+                  </h4>
+                  <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-0.5 no-scrollbar">
+                    {cbsePrep.faqs.map((faq, idx) => {
+                      const isExpanded = expandedFaqIndex === idx;
+                      return (
+                        <div key={idx} className="bg-slate-950 border border-white/5 rounded-xl overflow-hidden transition-all">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedFaqIndex(isExpanded ? null : idx)}
+                            className="w-full text-left p-2.5 hover:bg-slate-900 transition-all cursor-pointer flex items-start justify-between gap-2 border-none"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[7px] font-headline font-black px-1.5 py-0.2 rounded uppercase">
+                                  {faq.frequentlyAskedYear || "Board Standard"}
+                                </span>
+                                <span className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[7px] font-headline font-black px-1.5 py-0.2 rounded uppercase">
+                                  {faq.marks} Marks
+                                </span>
+                              </div>
+                              <p className="text-[10.5px] font-bold text-white leading-snug">{faq.question}</p>
+                            </div>
+                            <ChevronRight className={`w-3.5 h-3.5 text-slate-400 mt-0.5 flex-none transition-transform ${isExpanded ? 'rotate-90 text-amber-400' : ''}`} />
+                          </button>
+                          
+                          {isExpanded && (
+                            <div className="p-3 bg-slate-950 border-t border-white/5 space-y-1">
+                              <p className="text-[8px] font-headline font-extrabold uppercase text-amber-500 tracking-wider">Perfect Model Answer:</p>
+                              <p className="text-[10px] text-slate-300 leading-relaxed font-body font-bold italic bg-white/5 p-2 rounded-lg border border-white/5">
+                                "{faq.answer}"
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Section 3: Future Board Predictions */}
+                <div className="space-y-2">
+                  <h4 className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                    <Lightbulb className="w-3.5 h-3.5 text-emerald-400" /> Future Board Predictions
+                  </h4>
+                  <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-0.5 no-scrollbar">
+                    {cbsePrep.predictions.map((pred, idx) => (
+                      <div key={idx} className="bg-slate-950 p-2.5 rounded-xl border border-white/5 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[8px] font-headline font-black text-amber-400 uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
+                            {pred.questionType}
+                          </span>
+                          <span className="text-[7.5px] font-headline font-black text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
+                            {pred.probability} Prob
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] font-black text-white">{pred.topicFocus}</p>
+                        <p className="text-[9px] text-slate-400 leading-normal font-bold">
+                          <span className="text-white font-black">Pattern:</span> {pred.expectedPattern}
+                        </p>
+                        <p className="text-[9px] text-slate-400 leading-normal font-bold">
+                          <span className="text-white font-black">Why Expected:</span> {pred.rationale}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Non-intrusive Quick Sync guest alert inside sidebar */}
           {!currentUser && (

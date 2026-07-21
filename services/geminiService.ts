@@ -653,6 +653,228 @@ const generateOfflineQuizQuestions = (
         explanation: "Fundamental Rights are justiciable, meaning a citizen can move courts if they are violated. DPSPs (Part IV) are non-justiciable; they are fundamental in the governance of the country and it is the duty of the State to apply them in making laws, but courts cannot force their implementation due to financial and resource constraints.",
         inquiryPrompt: "Why did the makers of the Constitution make DPSPs non-justiciable while making Fundamental Rights justiciable?"
       }
+    ],
+    "yoga": [
+      {
+        id: 1,
+        type: QuestionType.MCQ,
+        text: "Which of the following asanas is highly recommended for managing Diabetes and involves pressing the abdomen with folded legs in a seated posture?",
+        options: [
+          "Mandukasana (Frog Pose)",
+          "Trikonasana (Triangle Pose)",
+          "Shalabhasana (Locust Pose)",
+          "Sukhasana (Easy Pose)"
+        ],
+        correctIndex: 0,
+        explanation: "Mandukasana is highly beneficial for diabetes as it puts pressure on the pancreas, stimulating insulin secretion. The body mimics a frog posture, pressing the fists into the abdominal cavity during a forward fold.",
+        inquiryPrompt: "What is the key contraindication of Mandukasana for individuals with lower back pain?"
+      },
+      {
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: "Assertion (A): Vajrasana is the only yogic asana that can be performed safely immediately after taking meals. Reason (R): Vajrasana alters the flow of blood, increasing circulation to the pelvic and digestive areas to aid digestion.",
+        options: [
+          "Both A and R are true, and R is the correct explanation of A.",
+          "Both A and R are true, but R is not the correct explanation of A.",
+          "A is true but R is false.",
+          "A is false but R is true."
+        ],
+        correctIndex: 0,
+        explanation: "Vajrasana can be practiced post-meals. It suppresses blood flow to the lower limbs and directs it to the abdomen, which significantly accelerates and aids the digestive process.",
+        inquiryPrompt: "How does Vajrasana help in curing sciatic nerve pain?"
+      },
+      {
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: "A 45-year-old high-stress corporate employee is diagnosed with early-stage Stage-1 Hypertension (140/90 mmHg). His physical trainer suggests a daily 20-minute yogic intervention. The program includes Shalabhasana, Gomukhasana, and Shavasana to relax the nervous system.",
+        text: "Which of the prescribed asanas must be practiced with extreme caution or avoided completely by patients suffering from severe Hypertension, and why?",
+        options: [
+          "Shalabhasana (Locust Pose); because it requires holding breath and increases intra-abdominal and blood pressure",
+          "Shavasana (Corpse Pose); because deep breathing further excites cardiac activity",
+          "Gomukhasana (Cow Face Pose); because sitting cross-legged blocks blood return",
+          "None; all yogic asanas are perfectly safe for extreme hypertension"
+        ],
+        correctIndex: 0,
+        explanation: "Shalabhasana is a strenuous backward-bending prone asana that involves holding breath (Kumbhaka) and heavy isometric exertion, which can cause a sudden spike in blood pressure.",
+        inquiryPrompt: "Why is Shavasana considered the ultimate restorative practice for hypertension?"
+      },
+      {
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: "A posture diagram shows a student performing Bhujangasana (Cobra Pose). The student is lying in a prone position, hands placed next to the chest, lifting the chest and head upwards while keeping the navel touching the floor and curving the spine backward.",
+        text: "Based on the physiological mechanics of this posture, what is the primary muscle group being stretched, and who is contraindicated from performing it?",
+        options: [
+          "Abdominal muscles (rectus abdominis) are stretched; contraindicated for pregnant women and hernia patients",
+          "Hamstrings are stretched; contraindicated for asthma patients",
+          "Quadriceps are stretched; contraindicated for diabetic patients",
+          "Deltoids are stretched; contraindicated for hypertension patients"
+        ],
+        correctIndex: 0,
+        explanation: "Bhujangasana stretches the abdomen and spine. It is strictly contraindicated for individuals with hernia, intestinal tuberculosis, or pregnancy due to high pressure exerted on the abdominal walls.",
+        inquiryPrompt: "How does Bhujangasana improve respiratory capacity in asthma patients?"
+      },
+      {
+        id: 5,
+        type: QuestionType.MCQ,
+        text: "According to the CBSE Class 12 Physical Education syllabus, which yogic practice combines physical postures, controlled respiration, and deep relaxation to act as a preventative measure for lifestyle disorders?",
+        options: [
+          "A structured program of specific Asanas, Pranayama, and Kriyas tailored to the individual's condition",
+          "High-intensity interval training (HIIT) combined with heavy weight training",
+          "Only performing extreme stretching postures without breathing regulations",
+          "Relying entirely on passive meditation while avoiding all physical poses"
+        ],
+        correctIndex: 0,
+        explanation: "Yogic practice functions as a preventative measure by integrating Asanas (postures), Pranayama (breath control), and Shatkarmas/Kriyas (cleansing), balancing the endocrine, nervous, and cardiovascular systems.",
+        inquiryPrompt: "What role does the parasympathetic nervous system play in yogic therapy?"
+      }
+    ],
+    "children": [
+      {
+        id: 1,
+        type: QuestionType.MCQ,
+        text: "A physical instructor observes that a student has 'Knock Knees' (Genu Valgum). Which of the following corrective exercises should be recommended to correct this postural deformity?",
+        options: [
+          "Horse riding and walking with a pillow kept between the knees",
+          "Running on hard flat concrete surfaces with high-heel shoes",
+          "Lifting heavy weights without knee supports",
+          "Performing regular skipping exercises on single leg"
+        ],
+        correctIndex: 0,
+        explanation: "Knock Knees (Genu Valgum) can be corrected through exercises that strengthen the inner thigh muscles and force hip abduction. Horse riding and sleeping/walking with a soft pillow between the knees are highly effective corrective measures.",
+        inquiryPrompt: "What is the primary nutritional deficiency that causes Knock Knees in childhood?"
+      },
+      {
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: "A female high school runner experiences a combination of three interlinked clinical conditions: a severe energy deficit, absence of menstrual cycles for 4 consecutive months, and recurrent stress fractures. What is the correct medical term for this triad, and what are its components?",
+        options: [
+          "Female Athlete Triad; comprising Eating Disorders/Energy Deficiency, Amenorrhea, and Osteoporosis",
+          "Athletic Scurvy Triad; comprising Rickets, Gout, and Menorrhagia",
+          "Physiological Fatigue Triad; comprising Anemia, Scoliosis, and Bulimia",
+          "Cardiovascular Deformity Triad; comprising Hypertension, Lordosis, and Dyspnea"
+        ],
+        correctIndex: 0,
+        explanation: "The Female Athlete Triad is a clinical syndrome found in active women, composed of: 1) Low Energy Availability (with or without eating disorders), 2) Menstrual Dysfunction (Amenorrhea), and 3) Low Bone Mineral Density (Osteoporosis).",
+        inquiryPrompt: "How does low estrogen in the Female Athlete Triad lead to Osteoporosis?"
+      },
+      {
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: "During a comprehensive health and posture screening at a CBSE senior secondary school, a physical therapist examines a 16-year-old student. The therapist notes a significant lateral (sideways) S-shaped deviation of the spine, along with uneven shoulder heights and one hip appearing higher than the other.",
+        text: "Which postural deformity is this student presenting, and what is a primary corrective measure for this condition?",
+        options: [
+          "Scoliosis; corrected by performing Trikonasana, hanging on horizontal bars, and swimming",
+          "Kyphosis; corrected by sleeping on a soft mattress and forward bending",
+          "Lordosis; corrected by backward bending asanas like Bhujangasana",
+          "Flat Foot; corrected by walking barefoot on smooth tiles"
+        ],
+        correctIndex: 0,
+        explanation: "Scoliosis is the lateral curvature of the spine, characterized by uneven hips/shoulders. It can be managed through unilateral traction, hanging on a bar, and lateral stretching poses like Trikonasana.",
+        inquiryPrompt: "Which muscle group on the concave side of the curve needs stretching in Scoliosis?"
+      },
+      {
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: "An orthopedic diagnostic schematic shows the side-profile silhouette of a student's upper torso. The thoracic region of the vertebral column shows an abnormal, highly exaggerated outward curvature, causing the shoulders to droop forward and creating a rounded hump look.",
+        text: "Identify this specific spinal deformity, its common name, and the appropriate yoga pose to counteract it.",
+        options: [
+          "Kyphosis (Round Upper Back/Hunchback); counteracted by practicing Dhanurasana and Chakrasana",
+          "Lordosis (Swayback); counteracted by practicing Paschimottanasana",
+          "Scoliosis (Sideways Spine); counteracted by performing Tadasana",
+          "Bow Legs (Genu Varum); counteracted by performing Ardh-Matsyendrasana"
+        ],
+        correctIndex: 0,
+        explanation: "Kyphosis is an exaggerated outward rounding of the thoracic spine (hunchback). Backward bending poses like Dhanurasana (Bow Pose) and Chakrasana (Wheel Pose) help open the chest and reverse this thoracic flexion.",
+        inquiryPrompt: "What is the primary difference between Kyphosis and Lordosis?"
+      },
+      {
+        id: 5,
+        type: QuestionType.MCQ,
+        text: "What are the primary physiological benefits of sports participation for women, and how does regular exercise influence menstrual health?",
+        options: [
+          "Improves cardiovascular efficiency, bone density, and when done moderately, regulates menstrual cycles and reduces dysmenorrhea",
+          "Decreases lung capacity, limits flexibility, and causes permanent hormonal shutdown",
+          "Only improves skin appearance without having any inner metabolic or cardiovascular impacts",
+          "Schedules a mandatory delay of puberty by 10 years and permanently weakens bone structure"
+        ],
+        correctIndex: 0,
+        explanation: "Regular, moderate exercise increases bone mineral density, strengthens muscles, boosts cardiovascular output, and reduces menstrual pain (dysmenorrhea) by improving blood flow and releasing endorphins.",
+        inquiryPrompt: "What is the difference between Primary Amenorrhea and Secondary Amenorrhea?"
+      }
+    ],
+    "physical education": [
+      {
+        id: 1,
+        type: QuestionType.MCQ,
+        text: "In a Knock-out tournament of 11 teams, how many total matches will be played, and how many teams will receive a 'Bye' in the first round?",
+        options: [
+          "10 matches; 5 teams will receive a Bye",
+          "11 matches; 4 teams will receive a Bye",
+          "9 matches; 3 teams will receive a Bye",
+          "10 matches; 6 teams will receive a Bye"
+        ],
+        correctIndex: 0,
+        explanation: "For 'N' teams in a Knock-out tournament, total matches = N - 1 = 11 - 1 = 10 matches. The number of Byes is calculated by subtracting N from the next power of 2 (which is 16). Byes = 16 - 11 = 5 Byes.",
+        inquiryPrompt: "How are the 5 Byes distributed between the Upper Half and Lower Half of the fixture?"
+      },
+      {
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: "For drawing a League fixture of 7 teams using the Cyclic Method, how many total rounds are required, and what is the formula to calculate the total number of matches?",
+        options: [
+          "7 rounds; total matches = 21 (Formula: N*(N-1)/2)",
+          "6 rounds; total matches = 15 (Formula: (N-1))",
+          "7 rounds; total matches = 42 (Formula: N*(N-1))",
+          "8 rounds; total matches = 28 (Formula: N*(N+1)/2)"
+        ],
+        correctIndex: 0,
+        explanation: "If 'N' is odd, total rounds = N (so 7 rounds). Total matches = N*(N-1)/2. For 7 teams: 7 * 6 / 2 = 21 matches. In the Cyclic method, one position (or 'Bye') is kept fixed at the top right, and other teams rotate clockwise.",
+        inquiryPrompt: "What is the difference between Cyclic Method and Staircase Method for league fixtures?"
+      },
+      {
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: "A senior CBSE school is organizing its Annual National Athletic Meet. The Physical Education department has created several committees: Technical Committee, Food & Lodging Committee, First Aid Committee, and Finance Committee. During a 100m sprint race, two athletes collide and sustain minor muscle strains.",
+        text: "Which school sports committee is responsible for immediate care of these injured athletes, and which committee is responsible for resolving disputes regarding track rules during the tournament?",
+        options: [
+          "First Aid Committee handles the injuries; Technical Committee resolves the track dispute",
+          "Finance Committee handles the injuries; Reception Committee resolves the track dispute",
+          "Board of Directors handles both; Lodging Committee makes the final call",
+          "First Aid Committee handles the injuries; Board of Governors handles the track dispute"
+        ],
+        correctIndex: 0,
+        explanation: "The First Aid Committee is responsible for providing immediate medical assistance to injured athletes. The Technical Committee is responsible for the smooth technical conduct of matches, including track rules, refereeing, and resolving disputes during the event.",
+        inquiryPrompt: "What are the pre-tournament responsibilities of the Publicity Committee?"
+      },
+      {
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: "A school tournament planning chart displays two columns: Column A lists 'Intramural Tournaments' and Column B lists 'Extramural Tournaments'. Arrows connect Intramurals to 'Within the walls of the school' and Extramurals to 'Outside the boundary of the institution'.",
+        text: "Based on this organizational chart, what is the primary objective of Intramural tournaments, and how do Extramural tournaments benefit the school sports program?",
+        options: [
+          "Intramurals foster mass participation and identify talent within the school; Extramurals elevate school prestige, provide exposure, and test competitive standards",
+          "Intramurals are only for professional athletes; Extramurals are casual community fun runs",
+          "Intramurals seek to raise funds from external corporations; Extramurals are strictly zero-cost drills",
+          "Both have the exact same boundaries, rules, and student eligibility criteria"
+        ],
+        correctIndex: 0,
+        explanation: "Intramural tournaments are organized within school walls to encourage maximum student participation, collaboration, and sportsmanship. Extramural tournaments provide high-level competitive exposure, enhance the school's sports reputation, and test team performance against outer schools.",
+        inquiryPrompt: "What is a major example of a community sports program run by schools?"
+      },
+      {
+        id: 5,
+        type: QuestionType.MCQ,
+        text: "Which of the following represents a correct classification of tournament fixtures, and what is a 'Combination' tournament?",
+        options: [
+          "Knock-out and League fixtures; a Combination tournament is played as Knock-out cum League or League cum Knock-out",
+          "Single-elimination and Bye fixtures; a Combination tournament is played without any referee",
+          "Intramural and Extramural fixtures; a Combination tournament is only for physical education teachers",
+          "Staircase and Cyclic fixtures; a Combination tournament is when students invent their own sports"
+        ],
+        correctIndex: 0,
+        explanation: "Tournaments are primarily Knock-out, League, or Combination. A Combination tournament is played when matches are conducted in stages, such as Knock-out cum League (e.g., World Cup groups) or League cum Knock-out.",
+        inquiryPrompt: "Under what conditions is a Combination tournament preferred over a pure Knock-out tournament?"
+      }
     ]
   };
 
@@ -668,6 +890,12 @@ const generateOfflineQuizQuestions = (
     matchedKey = "force";
   } else if (topicLower.includes("right") || topicLower.includes("constitut") || topicLower.includes("polity") || topicLower.includes("fundamental") || topicLower.includes("civics") || topicLower.includes("social")) {
     matchedKey = "rights";
+  } else if (topicLower.includes("yoga") || topicLower.includes("asana") || topicLower.includes("pranayama") || topicLower.includes("yogic") || topicLower.includes("disease") || topicLower.includes("health")) {
+    matchedKey = "yoga";
+  } else if (topicLower.includes("children") || topicLower.includes("women") || topicLower.includes("deformit") || topicLower.includes("posture") || topicLower.includes("postural") || topicLower.includes("flat foot") || topicLower.includes("knock knee") || topicLower.includes("triad") || topicLower.includes("lordosis") || topicLower.includes("kyphosis") || topicLower.includes("scoliosis") || topicLower.includes("sport") || topicLower.includes("female athlete")) {
+    matchedKey = "children";
+  } else if (topicLower.includes("physical education") || topicLower.includes("planning") || topicLower.includes("fixture") || topicLower.includes("tournament") || topicLower.includes("intramural") || topicLower.includes("extramural") || topicLower.includes("pe") || subject.includes("pe") || subject.includes("physical education")) {
+    matchedKey = "physical education";
   }
 
   if (matchedKey && offlineDatabase[matchedKey]) {
@@ -846,16 +1074,16 @@ An academic group is attempting to implement this specific concept of ${topic} i
       questions.push({
         id: 2,
         type: QuestionType.WORD_PROBLEM,
-        text: `Consider a group practicing "${capTopic}". If the base participation efficiency is 75%, and introducing a standardized guidance parameter increases performance by a factor of 1.2x, what is the new active performance output?`,
+        text: `Consider a student preparing for an assessment on "${capTopic}". If the student spends 40 minutes on conceptual reading and 20 minutes on practicing application questions, what percentage of their study session was dedicated to active practice?`,
         options: [
-          `90% active performance`,
-          `85% active performance`,
-          `80% active performance`,
-          `95% active performance`
+          `33.3% of the study session`,
+          `50% of the study session`,
+          `25% of the study session`,
+          `66.7% of the study session`
         ],
         correctIndex: 0,
-        explanation: `Multiplying the base efficiency by the guidance factor: 75% * 1.2 = 90%. This shows how structured guidance directly improves active output.`,
-        inquiryPrompt: `What common challenges might limit progression under this "${capTopic}" framework?`
+        explanation: `Total study time is 60 minutes (40 + 20). The portion spent on practice is 20/60, which is exactly 1/3 or 33.3%. This balances theoretical acquisition and active recall.`,
+        inquiryPrompt: `What are the benefits of active recall versus passive reading for "${capTopic}"?`
       });
     }
 
@@ -863,17 +1091,17 @@ An academic group is attempting to implement this specific concept of ${topic} i
       questions.push({
         id: 3,
         type: QuestionType.CASE_STUDY,
-        contextMaterial: `A training group is investigating the long-term benefits of "${capTopic}". Traditional approaches suggest progress is linear, but new longitudinal tracking demonstrates that regular practice combined with proper technique yields rapid, exponential progression after an initial developmental phase.`,
-        text: `Based on this case study, how should the group structure their sessions to optimize the benefits of "${capTopic}"?`,
+        contextMaterial: `An academic syllabus committee is reviewing the modern integration of "${capTopic}" in senior secondary education. Some educators argue that teaching theoretical rules is enough, while a progressive panel presents data showing that integrating practical case-based scenarios boosts student retention and interest significantly.`,
+        text: `Based on this study, how should the syllabus be designed to optimize the mastery of "${capTopic}"?`,
         options: [
-          `Focus on consistent, proper technique first to establish a solid foundation before increasing intensity.`,
-          `Increase intensity immediately, regardless of form or foundational technique.`,
-          `Maintain a low, unchanging level of practice and avoid challenging routines.`,
-          `Discontinue the sessions entirely as soon as minor fatigue is experienced.`
+          `A balanced structure combining core definitions with hands-on application cases`,
+          `Restricting the coursework strictly to memorizing bullet points from old exams`,
+          `Dropping the topic completely from the national curriculum`,
+          `Increasing theoretical lecturing time while cutting all active practice sessions`
         ],
         correctIndex: 0,
-        explanation: `Establishing proper technique and a consistent foundation in "${capTopic}" is vital to safely unlocking the exponential benefits that accumulate over time.`,
-        inquiryPrompt: `How would you design a simple schedule to monitor consistent progress in "${capTopic}"?`
+        explanation: `The case study demonstrates that a balanced structure of theory and application yields higher retention and engagement with "${capTopic}".`,
+        inquiryPrompt: `How would you introduce practical cases in your own study of "${capTopic}"?`
       });
     }
 
@@ -881,17 +1109,17 @@ An academic group is attempting to implement this specific concept of ${topic} i
       questions.push({
         id: 4,
         type: QuestionType.VISUAL_ANALYSIS,
-        contextMaterial: `An academic structural map charts the main domains of "${capTopic}". The central pillar, labeled 'Core Practice', connects directly to three adjacent modules: 'Foundational Knowledge', 'Active Training', and 'Mindful Integration'.`,
-        text: `If a participant experiences a bottleneck or lack of progress in 'Foundational Knowledge', which adjacent module of "${capTopic}" is most likely to suffer immediate difficulties?`,
+        contextMaterial: `A visual structural concept map charts the learning progression of "${capTopic}". A central node labeled 'Core Mastery' is linked directly to three adjacent nodes: 'Syllabus Concepts', 'Practical Application', and 'Self-Evaluation'.`,
+        text: `If a student avoids the 'Self-Evaluation' phase, which aspect of mastering "${capTopic}" will most likely suffer immediate degradation?`,
         options: [
-          `Mindful Integration (which relies on a deep, stable understanding of foundational principles)`,
-          `Active Training (which acts as a completely separate isolated speed drill)`,
-          `The subject title page`,
-          `None of the connected areas are affected in any way`
+          `Identifying individual learning gaps and exam-readiness`,
+          `Recalling the basic definitions of the syllabus`,
+          `The physical size of the textbook`,
+          `No aspect is affected as testing is completely unnecessary`
         ],
         correctIndex: 0,
-        explanation: `In the practice map of "${capTopic}", holistic integration and progression rely on foundational understanding; a weak foundation limits the ability to integrate advanced techniques.`,
-        inquiryPrompt: `How would you address a decline in foundational knowledge during active training of "${capTopic}"?`
+        explanation: `Without Self-Evaluation, the student cannot track learning gaps or identify weaknesses, hindering their path to core mastery of "${capTopic}".`,
+        inquiryPrompt: `How often should you self-evaluate your progress in "${capTopic}"?`
       });
     }
 
