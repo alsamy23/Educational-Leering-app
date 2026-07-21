@@ -1004,9 +1004,9 @@ export const generateQuizQuestions = async (
   const groundedInstruction = sourceMaterial 
     ? `SOURCE-GROUNDED MODE (STRICT):
     A specific curriculum segment or textbook material has been provided below. 
-    1. Your primary task is to generate questions derived EXCLUSIVELY from this source material.
+    1. Your absolute primary task is to generate questions derived EXCLUSIVELY from this source material, focusing strictly on the specific topic "${topic}" within it.
     2. However, you MUST still respect the Educational Setting / Stream (${eduLevel}), target year/academic stage (${profile.gradeLevel}), and standards (${profile.board || "General"}).
-    3. Ensure the vocabulary and complexity are completely appropriate for ${profile.gradeLevel}.
+    3. Ensure the vocabulary and complexity are completely appropriate for ${profile.gradeLevel} and relevant to "${topic}".
     
     SOURCE MATERIAL:
     """
@@ -1016,8 +1016,8 @@ export const generateQuizQuestions = async (
     : `CURRICULUM-BASELINE MODE (STRICT):
     No private source material was provided. 
     1. You MUST generate questions based on the official curriculum/course standards for ${eduLevel} - ${profile.board || "General"}.
-    2. Focus on the core pillars of the syllabus/topic for the subject "${profile.subject}".
-    3. Refer to standard academic structures matching ${profile.gradeLevel}.`;
+    2. Every single question MUST focus on the core pillars, concepts, and details of the specific topic "${topic}" within the subject "${profile.subject}". Do not generate questions from other areas of "${profile.subject}".
+    3. Refer to standard academic structures matching ${profile.gradeLevel} for this specific topic "${topic}".`;
 
   const prompt = `
   ${educationalSettingPrompt}
@@ -1040,18 +1040,18 @@ export const generateQuizQuestions = async (
   TASK: Generate exactly 5 questions for this Batch. 
   
   PEDAGOGICAL GOAL (EXAM EXCELLENCE):
-  - PRIMARY OBJECTIVE: ${sourceMaterial ? "Synthesize the source material into high-quality assessments aligned with exam patterns." : "Strictly follow curriculum and textbook standards to ensure exam readiness."}
-  - Test foundational understanding, conceptual clarity, and the ability to apply the specific topic.
+  - PRIMARY OBJECTIVE: Every single question, scenario, and answer option must be 100% relevant and directly related to "${topic}" in the context of "${profile.subject}". Do NOT stray from "${topic}". Do NOT generate generic general-knowledge questions.
+  - Test foundational understanding, conceptual clarity, and the ability to apply the specific topic "${topic}".
   - Questions must mirror the complexity (MCQs, Case Studies, etc.) of actual board or exam patterns.
   - Provide an 'inquiryPrompt' as a "Diagnostic Challenge" to help students identify areas for further study.
   
   MODE-SPECIFIC GUIDANCE:
-  - INDIVIDUAL CHALLENGE: Focus on incremental mastery. Questions should help the student identify gaps in their understanding of the ${topic} syllabus.
-  - CLASSROOM BATTLE: Questions should be competitive and balanced, designed to test the group's collective knowledge of core curriculum points under pressure.
+  - INDIVIDUAL CHALLENGE: Focus on incremental mastery. Questions should help the student identify gaps in their understanding of the "${topic}" syllabus.
+  - CLASSROOM BATTLE: Questions should be competitive and balanced, designed to test the group's collective knowledge of core curriculum points of "${topic}" under pressure.
   
   CRITICAL ACCORDING TO CURRICULUM & UNIQUENESS (CLASSROOM ANTI-REPEAT PROTOCOL):
-  - Ensure 100% adherence strictly to the official curriculum for this level. No generic questions. Use exact curriculum terminology.
-  - To absolutely prevent repeating questions between different groups, you MUST use the RandomSeed (${seed}) to deeply alter the sub-topic focus, problem formats, and numerical values. 
+  - Ensure 100% adherence strictly to the official curriculum of "${topic}" for this level. No generic questions. Use exact curriculum terminology.
+  - To absolutely prevent repeating questions between different groups, you MUST use the RandomSeed (${seed}) to deeply alter the sub-topic focus, problem formats, and numerical values of "${topic}". 
   - Group ${groupName || "N/A"} must receive an entirely distinct set of 5 questions than any other group. DO NOT recycle common starter questions.
   
   QUESTION TYPES DISTRIBUTION:
@@ -1059,8 +1059,8 @@ export const generateQuizQuestions = async (
   - Only use CASE_STUDY or VISUAL_ANALYSIS if permitted by the allowed types, otherwise strictly generate high quality MCQ and WORD_PROBLEM.
   
   GUIDELINES:
-  - CASE_STUDY: Provide a short paragraph (50-100 words) in 'contextMaterial' that the student must analyze to answer the question.
-  - VISUAL_ANALYSIS: Describe a diagram, graph, or physical setup in 'contextMaterial' (e.g., "A circuit diagram shows two resistors in parallel...") and ask a question based on it. (Do NOT provide images, purely textual visual descriptions).
+  - CASE_STUDY: Provide a short paragraph (50-100 words) in 'contextMaterial' directly about a real-world scenario of "${topic}" that the student must analyze to answer the question.
+  - VISUAL_ANALYSIS: Describe a diagram, graph, or physical setup of "${topic}" in 'contextMaterial' (e.g., "A diagram shows standard structures/equations of ${topic}...") and ask a question based on it. (Do NOT provide images, purely textual visual descriptions).
   - The 'explanation' must be detailed but highly concise.
   - The 'text' field MUST contain the actual question and MUST NOT be empty.`;
 
@@ -1078,7 +1078,10 @@ export const generateQuizQuestions = async (
           model: 'gemini-2.5-flash',
           contents: prompt,
           config: {
-            systemInstruction: `You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades. ${groupName ? `This batch is specifically for Group ${groupName}. Ensure uniqueness.` : ''}`,
+            systemInstruction: `You are an expert AI Tutor and curriculum designer. 
+YOUR ABSOLUTE HIGHEST PRIORITY: Every generated question, scenario, answer option, and explanation MUST be deeply, strictly, and 100% relevant to the Subject "${profile.subject}" and the specific Topic "${topic}". 
+Do NOT generate generic, loosely-connected, or general subject questions. If the topic is "${topic}", every single question must directly assess concepts, definitions, or applications of "${topic}".
+Output valid JSON only.`,
             responseMimeType: "application/json",
             responseSchema: {
               type: Type.ARRAY,
