@@ -4574,16 +4574,16 @@ export default function App() {
                 <div className={`absolute left-0 top-0 h-full w-2 ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`} />
                 
                 <div className="flex-1 space-y-2">
-                  {user.board && user.board.includes('CBSE') && (
+                  {user.board && (
                     <div className="flex flex-wrap gap-1.5 mb-1 justify-start">
                       <span className="bg-amber-500/15 border border-amber-500/35 text-amber-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                        CBSE Board Pattern
+                        Topic-Based Challenge
                       </span>
                       <span className="bg-indigo-500/15 border border-indigo-500/35 text-indigo-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                        {currentQ.type === QuestionType.CASE_STUDY ? '4 Marks (Case)' : currentQ.type === QuestionType.WORD_PROBLEM ? '3 Marks (SA)' : '1 Mark (MCQ)'}
+                        {currentQ.type === QuestionType.CASE_STUDY ? 'Applied Case' : currentQ.type === QuestionType.WORD_PROBLEM ? 'Problem Solving' : 'Conceptual MCQ'}
                       </span>
                       <span className="bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                        Syllabus Key Focus
+                        Deep Concept Focus
                       </span>
                     </div>
                   )}

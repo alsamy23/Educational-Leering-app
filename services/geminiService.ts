@@ -875,6 +875,80 @@ const generateOfflineQuizQuestions = (
         explanation: "Tournaments are primarily Knock-out, League, or Combination. A Combination tournament is played when matches are conducted in stages, such as Knock-out cum League (e.g., World Cup groups) or League cum Knock-out.",
         inquiryPrompt: "Under what conditions is a Combination tournament preferred over a pure Knock-out tournament?"
       }
+    ],
+    "chemical_kinetics": [
+      {
+        id: 1,
+        type: QuestionType.MCQ,
+        text: "For a first-order reaction, how does the half-life (t_1/2) change if the initial concentration of the reactant is doubled?",
+        options: [
+          "It remains constant and independent of concentration",
+          "It is doubled",
+          "It is halved",
+          "It increases by a factor of 1.414"
+        ],
+        correctIndex: 0,
+        explanation: "For a first-order reaction, the half-life is given by t_1/2 = 0.693 / k. It is independent of the initial concentration of the reactant.",
+        inquiryPrompt: "What is the unit of the rate constant for this first-order reaction?"
+      },
+      {
+        id: 2,
+        type: QuestionType.WORD_PROBLEM,
+        text: "The rate of a chemical reaction doubles when the temperature is raised from 300 K to 310 K. What is the activation energy (E_a) of the reaction? (Take R = 8.314 J/K/mol, ln(2) = 0.693)",
+        options: [
+          "Approximately 53.6 kJ/mol",
+          "Approximately 12.5 kJ/mol",
+          "Approximately 105.2 kJ/mol",
+          "Approximately 2.1 kJ/mol"
+        ],
+        correctIndex: 0,
+        explanation: "Using the Arrhenius equation, ln(k2/k1) = (E_a / R) * (1/T1 - 1/T2). Thus ln(2) = (E_a / 8.314) * (10 / 93000), which yields E_a = 53.6 kJ/mol.",
+        inquiryPrompt: "How does a catalyst affect the activation energy of a reaction?"
+      },
+      {
+        id: 3,
+        type: QuestionType.CASE_STUDY,
+        contextMaterial: "In an industrial synthesis of ammonia, chemists monitor the reaction rate. They observe that increasing the pressure of reactants speeds up the process. However, adding a finely divided iron catalyst increases the reaction rate dramatically without altering the equilibrium yield or consumption of the catalyst.",
+        text: "By what mechanism does the iron catalyst increase the rate of the reaction?",
+        options: [
+          "It provides an alternative reaction pathway with a lower activation energy",
+          "It increases the average kinetic energy of the reacting gaseous molecules",
+          "It shifts the chemical equilibrium towards the product side",
+          "It increases the frequency of collisions by raising the temperature"
+        ],
+        correctIndex: 0,
+        explanation: "A catalyst speeds up a chemical reaction by providing an alternative pathway with a lower activation energy, allowing more reactant molecules to successfully collide and form products.",
+        inquiryPrompt: "What is a promoter and how does it assist a catalyst?"
+      },
+      {
+        id: 4,
+        type: QuestionType.VISUAL_ANALYSIS,
+        contextMaterial: "A reaction energy profile graph plots potential energy on the y-axis against the reaction coordinate on the x-axis. The reactant energy level is at 50 kJ, the peak of the transition state is at 120 kJ, and the product energy level is at 30 kJ.",
+        text: "What is the activation energy of the forward reaction and is this reaction exothermic or endothermic?",
+        options: [
+          "Activation energy is 70 kJ; the reaction is exothermic",
+          "Activation energy is 120 kJ; the reaction is endothermic",
+          "Activation energy is 50 kJ; the reaction is exothermic",
+          "Activation energy is 20 kJ; the reaction is endothermic"
+        ],
+        correctIndex: 0,
+        explanation: "Activation energy for the forward reaction is Peak - Reactant = 120 - 50 = 70 kJ. Since the product energy (30 kJ) is lower than the reactant energy (50 kJ), energy is released, meaning the reaction is exothermic.",
+        inquiryPrompt: "What is the activation energy for the reverse reaction?"
+      },
+      {
+        id: 5,
+        type: QuestionType.MCQ,
+        text: "If the rate law for the reaction A + B -> C is Rate = k[A]^2[B], what is the overall order of the reaction and what happens to the rate if the concentration of A is tripled?",
+        options: [
+          "Overall order is 3; the rate increases by 9 times",
+          "Overall order is 2; the rate increases by 3 times",
+          "Overall order is 3; the rate increases by 6 times",
+          "Overall order is 1; the rate remains unchanged"
+        ],
+        correctIndex: 0,
+        explanation: "The overall order is the sum of exponents: 2 + 1 = 3. Since the reaction is second-order with respect to A, tripling [A] increases the rate by 3^2 = 9 times.",
+        inquiryPrompt: "What happens if we double both [A] and [B]?"
+      }
     ]
   };
 
@@ -894,6 +968,8 @@ const generateOfflineQuizQuestions = (
     matchedKey = "yoga";
   } else if (topicLower.includes("children") || topicLower.includes("women") || topicLower.includes("deformit") || topicLower.includes("posture") || topicLower.includes("postural") || topicLower.includes("flat foot") || topicLower.includes("knock knee") || topicLower.includes("triad") || topicLower.includes("lordosis") || topicLower.includes("kyphosis") || topicLower.includes("scoliosis") || topicLower.includes("sport") || topicLower.includes("female athlete")) {
     matchedKey = "children";
+  } else if (topicLower.includes("kinetic") || topicLower.includes("chemical kinetic") || topicLower.includes("reaction rate") || topicLower.includes("arrhenius") || topicLower.includes("chemistry")) {
+    matchedKey = "chemical_kinetics";
   } else if (topicLower.includes("physical education") || topicLower.includes("planning") || topicLower.includes("fixture") || topicLower.includes("tournament") || topicLower.includes("intramural") || topicLower.includes("extramural") || topicLower.includes("pe") || subject.includes("pe") || subject.includes("physical education")) {
     matchedKey = "physical education";
   }
@@ -1198,11 +1274,11 @@ export const generateQuizQuestions = async (
   
   if (eduLevel === 'School') {
     educationalSettingPrompt = `
-      ROLE: Act as an Expert school curriculum designer and board examination author for Grade ${profile.gradeLevel}.
+      ROLE: Act as an Expert school educator and conceptual topic specialist for Grade ${profile.gradeLevel}.
       EDUCATION STREAM: School Education (K-12).
       GRADE TARGET: Grade ${profile.gradeLevel}.
-      CURRICULUM/BOARD: ${profile.board || "General Board"}.
-      ACADEMIC LEVEL: Focus on grade-appropriate curriculum pillars, core textbooks syllabus, and official blueprint model.
+      CURRICULUM/BOARD: Topic-Based Question Generation (Not restricted to any specific book or exam pattern. Focus strictly on generating high-quality questions on the topic itself).
+      ACADEMIC LEVEL: Focus on key conceptual understanding and direct applications of the topic.
     `;
   } else if (eduLevel === 'College') {
     educationalSettingPrompt = `
@@ -1326,7 +1402,7 @@ export const generateQuizQuestions = async (
     ? `SOURCE-GROUNDED MODE (STRICT):
     A specific curriculum segment or textbook material has been provided below. 
     1. Your absolute primary task is to generate questions derived EXCLUSIVELY from this source material, focusing strictly on the specific topic "${topic}" within it.
-    2. However, you MUST still respect the Educational Setting / Stream (${eduLevel}), target year/academic stage (${profile.gradeLevel}), and standards (${profile.board || "General"}).
+    2. Do NOT look at or rely on any specific external book or exam pattern. Focus entirely on the academic/scientific concepts within the source.
     3. Ensure the vocabulary and complexity are completely appropriate for ${profile.gradeLevel} and relevant to "${topic}".
     
     SOURCE MATERIAL:
@@ -1334,11 +1410,10 @@ export const generateQuizQuestions = async (
     ${sourceMaterial}
     """
     ` 
-    : `CURRICULUM-BASELINE MODE (STRICT):
+    : `TOPIC-BASED MODE (STRICT):
     No private source material was provided. 
-    1. You MUST generate questions based on the official curriculum/course standards for ${eduLevel} - ${profile.board || "General"}.
-    2. Every single question MUST focus on the core pillars, concepts, and details of the specific topic "${topic}" within the subject "${profile.subject}". Do not generate questions from other areas of "${profile.subject}".
-    3. Refer to standard academic structures matching ${profile.gradeLevel} for this specific topic "${topic}".`;
+    1. Every single question MUST focus strictly on the core academic concepts, principles, formulas, and details of the specific topic "${topic}". Do NOT stray from "${topic}" or generate generic general-knowledge questions.
+    2. Do NOT look at any specific book, school textbook, or rigid exam format. Focus the question generation strictly and purely on the topic's actual content.`;
 
   const prompt = `
   ${educationalSettingPrompt}
@@ -1360,10 +1435,10 @@ export const generateQuizQuestions = async (
 
   TASK: Generate exactly 5 questions for this Batch. 
   
-  PEDAGOGICAL GOAL (EXAM EXCELLENCE):
-  - PRIMARY OBJECTIVE: Every single question, scenario, and answer option must be 100% relevant and directly related to "${topic}" in the context of "${profile.subject}". Do NOT stray from "${topic}". Do NOT generate generic general-knowledge questions.
-  - Test foundational understanding, conceptual clarity, and the ability to apply the specific topic "${topic}".
-  - Questions must mirror the complexity (MCQs, Case Studies, etc.) of actual board or exam patterns.
+  PEDAGOGICAL GOAL (TOPIC CONCEPTS ONLY):
+  - PRIMARY OBJECTIVE: Every single question, scenario, and answer option must be 100% relevant and directly related to the core concepts of "${topic}" in the context of "${profile.subject}". Do NOT stray from "${topic}". Do NOT generate generic general-knowledge questions.
+  - Test foundational understanding, conceptual clarity, and the ability to apply the specific topic "${topic}" directly.
+  - Do NOT look at any specific book, school textbook, or rigid exam pattern. Focus entirely on the conceptual and practical details of the topic: ${topic}.
   - Provide an 'inquiryPrompt' as a "Diagnostic Challenge" to help students identify areas for further study.
   
   MODE-SPECIFIC GUIDANCE:
@@ -1399,9 +1474,10 @@ export const generateQuizQuestions = async (
           model: 'gemini-3.5-flash',
           contents: prompt,
           config: {
-            systemInstruction: `You are an expert AI Tutor and curriculum designer. 
-YOUR ABSOLUTE HIGHEST PRIORITY: Every generated question, scenario, answer option, and explanation MUST be deeply, strictly, and 100% relevant to the Subject "${profile.subject}" and the specific Topic "${topic}". 
-Do NOT generate generic, loosely-connected, or general subject questions. If the topic is "${topic}", every single question must directly assess concepts, definitions, or applications of "${topic}".
+            systemInstruction: `You are an expert AI Tutor.
+YOUR ABSOLUTE HIGHEST PRIORITY: Every generated question, scenario, answer option, and explanation MUST be deeply, strictly, and 100% focused on the concrete academic and scientific concepts of the specific Topic "${topic}".
+DO NOT look at any specific book, school textbook, or rigid board pattern. Focus the question generation strictly and purely on the actual academic/scientific concepts and direct applications of "${topic}" itself.
+DO NOT generate generic templates, meta-questions, or abstract questions about 'studying the topic', 'analytical frameworks', 'research teams', or 'textbook patterns'. Every question must be a concrete, direct assessment of "${topic}" (for example, if the topic is 'Chemical kinetics', ask directly about reaction rates, activation energy, catalysts, rate laws, or half-life).
 Output valid JSON only.`,
             responseMimeType: "application/json",
             responseSchema: {
