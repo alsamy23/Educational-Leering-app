@@ -30,7 +30,6 @@ export interface StudyMaterial {
 }
 
 export interface UserProfile {
-  uid?: string;
   name: string;
   gradeLevel: string;
   section?: string;
@@ -46,7 +45,6 @@ export interface UserProfile {
   role?: 'admin' | 'user';
   isGuest?: boolean;
   educationLevel?: 'School' | 'College' | 'Competitive' | 'Personal';
-  difficulty?: DifficultyLevel;
 }
 
 export interface QuizQuestion {
@@ -81,7 +79,6 @@ export interface Group {
   score: number;
   members: string[];
   difficulty?: DifficultyLevel;
-  questions?: QuizQuestion[];
 }
 
 export interface ClassroomSession {
@@ -109,10 +106,3 @@ export enum AppScreen {
   ADMIN_DASHBOARD = 'ADMIN_DASHBOARD',
   PROGRESS = 'PROGRESS'
 }
-
-export interface SuggestedTopic {
-  topic: string;
-  difficulty: 'Prerequisite' | 'Standard Extension' | 'Elite Mastery';
-  rationale: string;
-}
-

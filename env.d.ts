@@ -3,7 +3,6 @@ interface Window {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   };
-  gtag?: (command: string, action: string, params?: Record<string, any>) => void;
 }
 
 declare namespace NodeJS {
