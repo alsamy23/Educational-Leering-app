@@ -954,7 +954,13 @@ const generateOfflineQuizQuestions = (
 
   // Check if topic is a pre-defined offline topic
   let matchedKey = "";
-  if (topicLower.includes("light") || topicLower.includes("reflect") || topicLower.includes("refract") || topicLower.includes("lens")) {
+  if (topicLower.includes("management") || topicLower.includes("sporting event") || topicLower.includes("planning") || topicLower.includes("fixture") || topicLower.includes("tournament") || topicLower.includes("intramural") || topicLower.includes("extramural") || topicLower.includes("sports management")) {
+    matchedKey = "physical education"; // CBSE Ch 1: Management of Sporting Events / Planning in Sports
+  } else if (topicLower.includes("children") || topicLower.includes("women") || topicLower.includes("deformit") || topicLower.includes("posture") || topicLower.includes("postural") || topicLower.includes("flat foot") || topicLower.includes("knock knee") || topicLower.includes("genu valgum") || topicLower.includes("triad") || topicLower.includes("lordosis") || topicLower.includes("kyphosis") || topicLower.includes("scoliosis") || topicLower.includes("female athlete") || topicLower.includes("amenorrhea") || topicLower.includes("osteoporosis")) {
+    matchedKey = "children"; // CBSE Ch 2: Children & Women in Sports
+  } else if (topicLower.includes("yoga") || topicLower.includes("asana") || topicLower.includes("pranayama") || topicLower.includes("yogic") || topicLower.includes("disease") || topicLower.includes("health")) {
+    matchedKey = "yoga"; // CBSE Ch 3: Yoga as Preventive Measure for Lifestyle Disease
+  } else if (topicLower.includes("light") || topicLower.includes("reflect") || topicLower.includes("refract") || topicLower.includes("lens")) {
     matchedKey = "light";
   } else if (topicLower.includes("photosynthesis") || topicLower.includes("plant") || topicLower.includes("chloroplast") || topicLower.includes("leaf") || topicLower.includes("biology") || topicLower.includes("life process")) {
     matchedKey = "photosynthesis";
@@ -964,13 +970,9 @@ const generateOfflineQuizQuestions = (
     matchedKey = "force";
   } else if (topicLower.includes("right") || topicLower.includes("constitut") || topicLower.includes("polity") || topicLower.includes("fundamental") || topicLower.includes("civics") || topicLower.includes("social")) {
     matchedKey = "rights";
-  } else if (topicLower.includes("yoga") || topicLower.includes("asana") || topicLower.includes("pranayama") || topicLower.includes("yogic") || topicLower.includes("disease") || topicLower.includes("health")) {
-    matchedKey = "yoga";
-  } else if (topicLower.includes("children") || topicLower.includes("women") || topicLower.includes("deformit") || topicLower.includes("posture") || topicLower.includes("postural") || topicLower.includes("flat foot") || topicLower.includes("knock knee") || topicLower.includes("triad") || topicLower.includes("lordosis") || topicLower.includes("kyphosis") || topicLower.includes("scoliosis") || topicLower.includes("sport") || topicLower.includes("female athlete")) {
-    matchedKey = "children";
   } else if (topicLower.includes("kinetic") || topicLower.includes("chemical kinetic") || topicLower.includes("reaction rate") || topicLower.includes("arrhenius") || topicLower.includes("chemistry")) {
     matchedKey = "chemical_kinetics";
-  } else if (topicLower.includes("physical education") || topicLower.includes("planning") || topicLower.includes("fixture") || topicLower.includes("tournament") || topicLower.includes("intramural") || topicLower.includes("extramural") || topicLower.includes("pe") || subject.includes("pe") || subject.includes("physical education")) {
+  } else if (topicLower.includes("pe") || subject.includes("pe") || subject.includes("physical education")) {
     matchedKey = "physical education";
   }
 
@@ -1274,11 +1276,11 @@ export const generateQuizQuestions = async (
   
   if (eduLevel === 'School') {
     educationalSettingPrompt = `
-      ROLE: Act as an Expert school educator and conceptual topic specialist for Grade ${profile.gradeLevel}.
+      ROLE: Act as an Expert school curriculum designer and subject specialist for Grade ${profile.gradeLevel}.
       EDUCATION STREAM: School Education (K-12).
       GRADE TARGET: Grade ${profile.gradeLevel}.
-      CURRICULUM/BOARD: Topic-Based Question Generation (Not restricted to any specific book or exam pattern. Focus strictly on generating high-quality questions on the topic itself).
-      ACADEMIC LEVEL: Focus on key conceptual understanding and direct applications of the topic.
+      CURRICULUM/BOARD: ${profile.board || "CBSE Board"} Syllabus.
+      ACADEMIC LEVEL: Ensure every question is 100% aligned with the official syllabus concepts, terms, definitions, and problem types of "${topic}" under "${profile.subject}".
     `;
   } else if (eduLevel === 'College') {
     educationalSettingPrompt = `
@@ -1474,10 +1476,11 @@ export const generateQuizQuestions = async (
           model: 'gemini-3.5-flash',
           contents: prompt,
           config: {
-            systemInstruction: `You are an expert AI Tutor.
-YOUR ABSOLUTE HIGHEST PRIORITY: Every generated question, scenario, answer option, and explanation MUST be deeply, strictly, and 100% focused on the concrete academic and scientific concepts of the specific Topic "${topic}".
-DO NOT look at any specific book, school textbook, or rigid board pattern. Focus the question generation strictly and purely on the actual academic/scientific concepts and direct applications of "${topic}" itself.
-DO NOT generate generic templates, meta-questions, or abstract questions about 'studying the topic', 'analytical frameworks', 'research teams', or 'textbook patterns'. Every question must be a concrete, direct assessment of "${topic}" (for example, if the topic is 'Chemical kinetics', ask directly about reaction rates, activation energy, catalysts, rate laws, or half-life).
+            systemInstruction: `You are an expert AI Tutor and Curriculum Specialist.
+YOUR ABSOLUTE HIGHEST PRIORITY: Every generated question, scenario, answer option, and explanation MUST be deeply, strictly, and 100% focused on the concrete academic concepts, formulas, and syllabus details of the specific Topic "${topic}" under "${profile.subject}" (${profile.board || "CBSE Board"}).
+If the topic is 'Sports Management of Sporting Events' (or 'Planning in Sports'), generate questions strictly on tournament fixtures, knock-out byes calculations, league cyclic methods, and committee responsibilities.
+If the topic is 'Children and Women in Sports', generate questions strictly on postural deformities (knock knees, flat foot, scoliosis), motor development, or female athlete triad.
+Every question must be a concrete, direct assessment of "${topic}". DO NOT generate generic templates, meta-questions, or abstract questions.
 Output valid JSON only.`,
             responseMimeType: "application/json",
             responseSchema: {

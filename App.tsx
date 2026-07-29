@@ -4574,19 +4574,17 @@ export default function App() {
                 <div className={`absolute left-0 top-0 h-full w-2 ${currentQ.type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`} />
                 
                 <div className="flex-1 space-y-2">
-                  {user.board && (
-                    <div className="flex flex-wrap gap-1.5 mb-1 justify-start">
-                      <span className="bg-amber-500/15 border border-amber-500/35 text-amber-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                        Topic-Based Challenge
-                      </span>
-                      <span className="bg-indigo-500/15 border border-indigo-500/35 text-indigo-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                        {currentQ.type === QuestionType.CASE_STUDY ? 'Applied Case' : currentQ.type === QuestionType.WORD_PROBLEM ? 'Problem Solving' : 'Conceptual MCQ'}
-                      </span>
-                      <span className="bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                        Deep Concept Focus
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-1.5 mb-1 justify-start">
+                    <span className="bg-amber-500/15 border border-amber-500/35 text-amber-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                      {user.board || 'CBSE Board Pattern'}
+                    </span>
+                    <span className="bg-indigo-500/15 border border-indigo-500/35 text-indigo-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                      {currentQ.type === QuestionType.CASE_STUDY ? '4 Marks (Case Study)' : currentQ.type === QuestionType.WORD_PROBLEM ? '3 Marks (Short Answer)' : '1 Mark (MCQ)'}
+                    </span>
+                    <span className="bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-[8px] font-headline font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                      {user.topic ? `Topic: ${user.topic}` : 'Syllabus Focus'}
+                    </span>
+                  </div>
                   <h2 id="quiz-question-title" className={`font-body font-black text-on-surface flex-1 leading-snug tv-text-shadow transition-all duration-300 text-left ${
                     fontSizeMode === 'normal' 
                       ? 'text-lg md:text-xl lg:text-2xl' 
