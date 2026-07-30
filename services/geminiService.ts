@@ -575,17 +575,97 @@ const generateOfflineQuizQuestions = (
 
   // Check if topic is a pre-defined offline topic
   let matchedKey = "";
-  if (topicLower.includes("light") || topicLower.includes("reflect") || topicLower.includes("refract") || topicLower.includes("lens")) {
+  if (topicLower.includes("chemical kinetics") || topicLower.includes("kinetics") || topicLower.includes("rate of reaction")) {
+    matchedKey = "chemical_kinetics";
+  } else if (topicLower.includes("electrochem") || topicLower.includes("galvanic") || topicLower.includes("nernst")) {
+    matchedKey = "electrochemistry";
+  } else if (topicLower.includes("light") || topicLower.includes("reflect") || topicLower.includes("refract") || topicLower.includes("lens") || topicLower.includes("optics")) {
     matchedKey = "light";
   } else if (topicLower.includes("photosynthesis") || topicLower.includes("plant") || topicLower.includes("chloroplast") || topicLower.includes("leaf") || topicLower.includes("biology") || topicLower.includes("life process")) {
     matchedKey = "photosynthesis";
   } else if (topicLower.includes("quadrat") || topicLower.includes("equation") || topicLower.includes("polynomial") || topicLower.includes("math")) {
     matchedKey = "quadratic";
-  } else if (topicLower.includes("force") || topicLower.includes("gravit") || topicLower.includes("gravity") || topicLower.includes("physics") || topicLower.includes("weight")) {
+  } else if (topicLower.includes("force") || topicLower.includes("gravit") || topicLower.includes("gravity") || topicLower.includes("physics") || topicLower.includes("weight") || topicLower.includes("motion")) {
     matchedKey = "force";
   } else if (topicLower.includes("right") || topicLower.includes("constitut") || topicLower.includes("polity") || topicLower.includes("fundamental") || topicLower.includes("civics") || topicLower.includes("social")) {
     matchedKey = "rights";
   }
+
+  // Pre-defined database additions for Chemical Kinetics & Electrochemistry
+  offlineDatabase["chemical_kinetics"] = [
+    {
+      id: 1,
+      type: QuestionType.MCQ,
+      text: `For a first-order reaction A -> Products, if the initial concentration of A is 0.8 M and its half-life (t1/2) is 20 minutes, what will be the concentration of A remaining after 60 minutes?`,
+      options: [
+        `0.10 M`,
+        `0.20 M`,
+        `0.05 M`,
+        `0.40 M`
+      ],
+      correctIndex: 0,
+      explanation: `For a first-order reaction, concentration decreases by half in each half-life period. Elapsed time = 60 mins = 3 half-lives (3 * 20 mins). Remaining concentration = Initial / (2^3) = 0.8 / 8 = 0.10 M.`,
+      inquiryPrompt: `How does the rate constant (k) of a first-order reaction depend on the initial concentration of reactants?`
+    },
+    {
+      id: 2,
+      type: QuestionType.WORD_PROBLEM,
+      text: `The activation energy (Ea) of a chemical reaction is doubled while keeping the temperature constant at 300 K. According to the Arrhenius equation k = A * e^(-Ea / RT), how does the rate constant 'k' change?`,
+      options: [
+        `The rate constant k decreases exponentially`,
+        `The rate constant k doubles proportionally`,
+        `The rate constant k remains unchanged`,
+        `The rate constant k quadruples`
+      ],
+      correctIndex: 0,
+      explanation: `In the Arrhenius equation k = A * e^(-Ea / RT), since Ea appears in the negative exponent, increasing the activation energy Ea causes the exponential factor e^(-Ea/RT) to decrease exponentially, thereby lowering the rate constant k.`,
+      inquiryPrompt: `What role does a chemical catalyst play regarding activation energy and reaction speed?`
+    },
+    {
+      id: 3,
+      type: QuestionType.CASE_STUDY,
+      contextMaterial: `A board exam candidate is performing a kinetics laboratory experiment measuring the decomposition of hydrogen peroxide: 2H2O2(aq) -> 2H2O(l) + O2(g). The student measures the volume of O2 gas collected at 30-second intervals and plots a graph of Volume vs. Time.`,
+      text: `The student notices that the slope of the curve is steepest in the first 30 seconds and gradually flattens out to horizontal after 5 minutes. What is the correct board-pattern explanation for this observation?`,
+      options: [
+        `The reaction rate is highest initially due to high reactant concentration and becomes zero when reactants are exhausted`,
+        `The reaction rate increases continuously over time as products accumulate`,
+        `The oxygen gas leaks out of the tube after 5 minutes`,
+        `The temperature drops to absolute zero after 5 minutes`
+      ],
+      correctIndex: 0,
+      explanation: `Reaction rate is directly proportional to reactant concentration. At t=0, H2O2 concentration is highest, producing the steepest slope. As reactants are consumed, concentration drops, slowing the rate until equilibrium/completion is reached (flat slope).`,
+      inquiryPrompt: `How would adding manganese dioxide (MnO2) powder alter the slope of this Volume vs. Time graph?`
+    },
+    {
+      id: 4,
+      type: QuestionType.VISUAL_ANALYSIS,
+      contextMaterial: `A reaction profile diagram plots Potential Energy against Reaction Coordinate for an exothermic reaction: A + B -> C + D. The energy level of reactants (A+B) is 50 kJ/mol, the transition state peak is 120 kJ/mol, and the energy level of products (C+D) is 20 kJ/mol.`,
+      text: `What is the Activation Energy (Ea) for the forward reaction, and what is the overall enthalpy change (ΔH) of the reaction?`,
+      options: [
+        `Activation Energy Ea = 70 kJ/mol; Enthalpy Change ΔH = -30 kJ/mol`,
+        `Activation Energy Ea = 120 kJ/mol; Enthalpy Change ΔH = +70 kJ/mol`,
+        `Activation Energy Ea = 50 kJ/mol; Enthalpy Change ΔH = -70 kJ/mol`,
+        `Activation Energy Ea = 100 kJ/mol; Enthalpy Change ΔH = +30 kJ/mol`
+      ],
+      correctIndex: 0,
+      explanation: `Forward Activation Energy Ea = Peak Energy - Reactant Energy = 120 - 50 = 70 kJ/mol. Overall Enthalpy Change ΔH = Product Energy - Reactant Energy = 20 - 50 = -30 kJ/mol (exothermic).`,
+      inquiryPrompt: `What would be the Activation Energy for the reverse reaction (C + D -> A + B)?`
+    },
+    {
+      id: 5,
+      type: QuestionType.MCQ,
+      text: `Which of the following conditions is required for a bi-molecular collision between two gaseous reactant molecules to successfully lead to product formation according to Collision Theory?`,
+      options: [
+        `Molecules must collide with energy greater than or equal to Activation Energy (Ea) AND possess proper steric orientation`,
+        `Molecules must collide at maximum velocity regardless of orientation`,
+        `Molecules must be in liquid phase at standard atmospheric pressure`,
+        `Molecules must absorb light photons during every collision`
+      ],
+      correctIndex: 0,
+      explanation: `According to Collision Theory, effective collisions require both sufficient kinetic energy (Threshold Energy / Ea) and correct spatial/steric orientation so that bond breaking and making can occur.`,
+      inquiryPrompt: `Why do orientation factors become increasingly critical for larger organic macromolecules?`
+    }
+  ];
 
   if (matchedKey && offlineDatabase[matchedKey]) {
     // Return copies of the pre-defined questions
@@ -601,69 +681,72 @@ const generateOfflineQuizQuestions = (
     questions.push({
       id: 1,
       type: QuestionType.MCQ,
-      contextMaterial: `Based on the provided syllabus material: "${s1}"`,
-      text: `According to the educational guidelines, which statement best aligns with the core thesis of "${topic}" discussed above?`,
+      contextMaterial: `Syllabus reference excerpt: "${s1}"`,
+      text: `According to the official board curriculum, which statement correctly interprets the core principle of "${topic}" stated above?`,
       options: [
-        `It represents a foundational mechanism within the study of ${topic}.`,
-        `It indicates that the primary variables are static and do not interact.`,
-        `It is largely obsolete and replaced by alternative methods.`,
-        `It has no direct application in modern diagnostic environments.`
+        `It establishes a fundamental rule governing the behavior of ${topic} under standard conditions.`,
+        `It asserts that external variables have no impact on the outcome of ${topic}.`,
+        `It refutes the established textbook models and suggests alternative theories.`,
+        `It applies exclusively to theoretical conditions and cannot be experimentally verified.`
       ],
       correctIndex: 0,
-      explanation: `The material states: "${s1}". This confirms its fundamental role and modern relevance in our analysis of ${topic}.`,
-      inquiryPrompt: `How would you explain this core concept to a peer using a real-world analogy?`
+      explanation: `The textbook excerpt directly outlines the fundamental mechanism governing "${topic}".`,
+      inquiryPrompt: `How can you apply this rule to solve a board examination numerical or conceptual problem?`
     });
 
     questions.push({
       id: 2,
       type: QuestionType.WORD_PROBLEM,
-      contextMaterial: `Consider the following excerpt: "${s2}"`,
-      text: `In a practical scenario applying this principle to "${topic}", if we increase the scope or intensity by 50%, what is the expected outcome?`,
+      contextMaterial: `Case study excerpt: "${s2}"`,
+      text: `In a board exam application scenario testing "${topic}", if key input parameters are increased by 50%, what is the expected outcome?`,
       options: [
-        `Proportional advancement and optimized feedback loops`,
-        `Immediate system failure and resource exhaustion`,
-        `No change in the final outcomes or diagnostic accuracy`,
-        `A complete reversal of the underlying mechanics`
+        `The output changes proportionally in accordance with the established law of ${topic}`,
+        `The reaction or system halts completely due to overload`,
+        `The measured result remains strictly zero`,
+        `The direction of the reaction or effect is completely reversed`
       ],
       correctIndex: 0,
-      explanation: `The concept defined as "${s2}" suggests that increasing input parameters leads to an active scale of outcomes, enhancing the study of ${topic}.`,
-      inquiryPrompt: `What variables would you need to keep constant to test this hypothesis?`
+      explanation: `Applying the law referenced in "${s2}", changing input parameters yields a proportional result predicted by the formula for ${topic}.`,
+      inquiryPrompt: `Which variables must be held constant during this experimental setup?`
     });
 
     questions.push({
       id: 3,
       type: QuestionType.CASE_STUDY,
-      contextMaterial: `Case Study Excerpt: "${s3}"
+      contextMaterial: `Board Exam Practical Scenario: "${s3}"
       
-An academic group is attempting to implement this specific concept of ${topic} in their diagnostic laboratory under a tight deadline. They notice that minor deviations in initial parameters lead to compound variations.`,
-      text: `What is the most methodical approach for the group to stabilize their diagnostic results?`,
+An academic group is investigating "${topic}" in a school laboratory. They observe minor variations during trials and need to stabilize their results to match textbook values.`,
+      text: `Which step is most essential according to standard board laboratory guidelines?`,
       options: [
-        `Formulate standardized controls and document all system deviations`,
-        `Disregard the source material and build an entirely new framework`,
-        `Increase the test timer limit and accept high margin of error`,
-        `Rely purely on mock parameters without empirical verification`
+        `Formulate precise control variables and record temperature/pressure deviations`,
+        `Discard the experiment and write random estimated values`,
+        `Increase trial duration without controlling environmental factors`,
+        `Ignore the variations and submit unverified theoretical figures`
       ],
       correctIndex: 0,
-      explanation: `The case study highlights that standardizing controls and systematic documentation is critical to manage compound variations when analyzing "${s3}".`,
-      inquiryPrompt: `What is the risk of not documenting minor parameter variations in this study?`
+      explanation: `Standard board exam practical guidelines require controlling environmental variables and systematic documentation when analyzing ${topic}.`,
+      inquiryPrompt: `Why is recording environmental conditions essential in board practical examinations?`
     });
   }
 
-  // Standard Smart General Fallback Generator (Ensuring highly realistic & specific questions incorporating topic name)
+  // Smart Academic Board Pattern Fallback Generator for any custom topic
+  const isScience = /chem|phys|bio|sci|kinetic|force|light|motion|cell|acid|base|element|reaction|energy/i.test(subject) || /chem|phys|bio|sci|kinetic|force|light|motion|cell|acid|base|element|reaction|energy/i.test(topicLower);
+  const isMath = /math|calc|trig|geom|algebra|stat|prob|vector|matrix|quad/i.test(subject) || /math|calc|trig|geom|algebra|stat|prob|vector|matrix|quad/i.test(topicLower);
+
   if (questions.length < 1) {
     questions.push({
       id: 1,
       type: QuestionType.MCQ,
-      text: `In the academic study of "${capTopic}", which of the following represents a major foundational challenge or primary principle?`,
+      text: `According to the official Board examination blueprint for Grade ${profile.gradeLevel || "10/12"} ${profile.subject || "Syllabus"}, which of the following statements represents a fundamental law or principle of "${capTopic}"?`,
       options: [
-        `Developing systematic empirical models to measure how ${topic} behaves under altered parameters.`,
-        `Disregarding experimental feedback loops entirely to focus on qualitative historical archives.`,
-        `Assuming all external environments remain static and have no influence on ${topic}.`,
-        `Limiting research to simplified ancient models that can no longer be verified.`
+        `It defines the core quantitative relationship and functional behavior of "${capTopic}" under standard conditions.`,
+        `It proves that "${capTopic}" operates independently of physical or mathematical constraints.`,
+        `It contradicts standard textbook formulas and is restricted to historical interest.`,
+        `It applies solely to qualitative observations with no measurable equations or outcomes.`
       ],
       correctIndex: 0,
-      explanation: `Studying "${capTopic}" requires establishing methodical, empirical models to predict behavior when critical parameters are changed, which is essential for advanced concept application.`,
-      inquiryPrompt: `Can you identify a real-life situation where this foundational challenge of "${capTopic}" is directly observed?`
+      explanation: `Official board examination guidelines emphasize that "${capTopic}" establishes the foundational principles and mathematical/conceptual relationships required in ${profile.subject || "curriculum"}.`,
+      inquiryPrompt: `What textbook formula or definition is most frequently used to solve board questions on "${capTopic}"?`
     });
   }
 
@@ -671,16 +754,24 @@ An academic group is attempting to implement this specific concept of ${topic} i
     questions.push({
       id: 2,
       type: QuestionType.WORD_PROBLEM,
-      text: `Consider a diagnostic test environment evaluating a "${capTopic}" system. If the baseline efficiency is 75%, and introducing a standardized catalyst parameter increases its performance by a factor of 1.2x, what is the new calculated system output?`,
+      text: isMath 
+        ? `In a board examination problem on "${capTopic}", a student is given a baseline function where value f(x) = 2x + 10. If the value of x is increased from 5 to 10, what is the calculated percentage change in f(x)?`
+        : isScience
+        ? `In a standard laboratory test investigating "${capTopic}", doubling the concentration or intensity of the primary agent increases the rate by a factor of 2. What is the calculated order or power relationship for "${capTopic}"?`
+        : `A student analyzing a historical or social dataset on "${capTopic}" notes a 25% increase in core output over a 4-year period. What is the average annual compound rate of growth?`,
       options: [
-        `90% output (reflecting high responsive scaling)`,
-        `85% output`,
-        `80% output`,
-        `95% output`
+        isMath ? `50% increase (from 20 to 30)` : isScience ? `First-order kinetics / linear direct proportionality` : `6.25% per annum`,
+        isMath ? `100% increase` : isScience ? `Zero-order independence` : `25% per annum`,
+        isMath ? `25% increase` : isScience ? `Second-order exponential scaling` : `12.5% per annum`,
+        isMath ? `75% increase` : isScience ? `Inverse square relationship` : `0% growth`
       ],
       correctIndex: 0,
-      explanation: `Multiplying the baseline efficiency by the performance enhancement factor: 75% * 1.2 = 90%. This reflects a highly positive, scalable relationship.`,
-      inquiryPrompt: `What physical or structural limits might prevent this "${capTopic}" system from achieving a theoretical 100% efficiency?`
+      explanation: isMath
+        ? `At x=5, f(5) = 2(5)+10 = 20. At x=10, f(10) = 2(10)+10 = 30. Change = (30-20)/20 = 10/20 = 50% increase.`
+        : isScience
+        ? `Doubling concentration doubles the rate (2^1 = 2), indicating a first-order direct linear relationship for ${capTopic}.`
+        : `Dividing total growth by time period gives an average annual baseline rate of 6.25%.`,
+      inquiryPrompt: `What steps would you take to verify this result during a board exam step-wise marking evaluation?`
     });
   }
 
@@ -688,17 +779,17 @@ An academic group is attempting to implement this specific concept of ${topic} i
     questions.push({
       id: 3,
       type: QuestionType.CASE_STUDY,
-      contextMaterial: `A specialized research team is investigating the practical implications of "${capTopic}" in a high-performance environment. While traditional theories suggest a simple linear correlation between inputs and outputs, new experimental data strongly implies a non-linear threshold behavior where progress scales exponentially after a critical point.`,
-      text: `Based on this case study, how should the team adjust their analytical framework to model "${capTopic}" accurately?`,
+      contextMaterial: `Board Examination Case Study: A team of students is conducting an in-depth investigation into "${capTopic}". During their preliminary trials, they observe that slight modifications in initial conditions lead to measurable variations in final results. Their textbook recommends establishing standardized controls before recording final examination readings.`,
+      text: `Based on this board examination case study, why is establishing standardized control parameters essential when evaluating "${capTopic}"?`,
       options: [
-        `Adopt non-linear mathematical models and closely observe behavior near the critical threshold.`,
-        `Ignore the new data as a minor anomaly and maintain their simple linear models.`,
-        `Reduce the scope of the study to exclude complex variable interactions.`,
-        `Suspend the research project completely until ideal conditions are met.`
+        `To isolate the primary variable and ensure reproducible, accurate results that match board standards`,
+        `To eliminate the need for mathematical calculations in the final report`,
+        `To bypass safety and quality protocols in the laboratory`,
+        `To force the results to conform to unverified assumptions`
       ],
       correctIndex: 0,
-      explanation: `Because "${capTopic}" exhibits non-linear threshold behavior in this scenario, the team must implement non-linear modeling and pay close attention to the boundary conditions near the critical point to ensure correct findings.`,
-      inquiryPrompt: `How would you design a simple, controlled experiment to identify the exact numerical threshold of "${capTopic}"?`
+      explanation: `Standardizing controls ensures that observed changes are solely due to the investigated variable of "${capTopic}", fulfilling board exam requirements for experimental accuracy.`,
+      inquiryPrompt: `How would you design a control setup for "${capTopic}" in your school laboratory?`
     });
   }
 
@@ -706,17 +797,17 @@ An academic group is attempting to implement this specific concept of ${topic} i
     questions.push({
       id: 4,
       type: QuestionType.VISUAL_ANALYSIS,
-      contextMaterial: `An academic flowchart maps the relationships between the components of "${capTopic}". A central coordinate, labeled 'Core Dynamics', connects directly to three adjacent nodes: 'Structural Inputs', 'Process Controls', and 'Feedback Optimization'.`,
-      text: `If an operational block or bottleneck occurs at the 'Process Controls' node, which connected component of "${capTopic}" is most likely to suffer immediate degradation?`,
+      contextMaterial: `An examination schematic diagram illustrates the key components and sequential workflow of "${capTopic}". Stage 1 represents 'Input Preparation', Stage 2 represents 'Core Transformation / Operation', and Stage 3 represents 'Product / Analytical Outcome'. An arrow indicates feedback from Stage 3 back to Stage 1.`,
+      text: `If a bottleneck or error occurs at Stage 2 ('Core Transformation'), how does this affect Stage 3 and the overall feedback loop in "${capTopic}"?`,
       options: [
-        `Feedback Optimization (which relies on processed inputs from controls)`,
-        `Structural Inputs (which acts as a preceding generator)`,
-        `The parent subject entirely`,
-        `None of the connected subsystems are affected`
+        `Stage 3 output is degraded or delayed, which in turn distorts the feedback signal sent to Stage 1`,
+        `Stage 3 output increases automatically to compensate for Stage 2 failure`,
+        `The entire system operates at 100% efficiency regardless of Stage 2`,
+        `Stage 1 immediately shuts down without any signal delay`
       ],
       correctIndex: 0,
-      explanation: `In the flow of "${capTopic}", Feedback Optimization is downstream of Process Controls, meaning any restriction in control immediately limits the optimization feedback cycle.`,
-      inquiryPrompt: `How could you introduce an alternative bypass loop to preserve system stability in "${capTopic}" if the primary controls fail?`
+      explanation: `Since Stage 3 relies directly on the output of Stage 2 in "${capTopic}", a bottleneck in Stage 2 diminishes Stage 3 output and disrupts the regulatory feedback loop.`,
+      inquiryPrompt: `What diagnostic indicator would tell an engineer or student that Stage 2 is experiencing a bottleneck in "${capTopic}"?`
     });
   }
 
@@ -724,16 +815,16 @@ An academic group is attempting to implement this specific concept of ${topic} i
     questions.push({
       id: 5,
       type: QuestionType.MCQ,
-      text: `In professional academic testing, which approach consistently yields the most reliable, long-term mastery of "${capTopic}"?`,
+      text: `Which student strategy is recommended by Board Exam toppers for achieving 100% mastery and top marks in "${capTopic}"?`,
       options: [
-        `A balanced approach combining strong conceptual definitions with interactive, case-based problem solving.`,
-        `Memorizing key terms and standard answers without understanding the underlying mechanics.`,
-        `Focusing only on basic, low-difficulty questions to avoid challenging concepts.`,
-        `Bypassing systematic practice to rely on instinctual guessing during assessments.`
+        `Thoroughly understanding textbook concepts, practicing board PYQs (Previous Year Questions), and applying step-wise formula derivations`,
+        `Relying exclusively on last-minute cramming without understanding underlying definitions`,
+        `Skipping numerical and case-based questions to focus only on 1-mark definitions`,
+        `Memorizing option letters (A, B, C, D) from past sample papers`
       ],
       correctIndex: 0,
-      explanation: `Consistent mastery of "${capTopic}" is achieved by pairing solid theoretical foundation with contextual, applied problem-solving practice.`,
-      inquiryPrompt: `Give an example of how you can apply the theory of "${capTopic}" to solve a practical problem in your community.`
+      explanation: `High performance in Board Examinations on topics like "${capTopic}" requires deep conceptual understanding, practicing board previous year questions, and clear step-by-step presentation.`,
+      inquiryPrompt: `What is one key formula or concept from "${capTopic}" that you will revise today?`
     });
   }
 
@@ -988,56 +1079,71 @@ export const generateQuizQuestions = async (
         const ai = getAIWithKey(key);
 
         let accumulatedText = "";
-        const responseStream = await ai.models.generateContentStream({
-          model: 'gemini-3.5-flash',
-          contents: prompt,
-          config: {
-            systemInstruction: `You are an AI Tutor. Output valid JSON only. Focus on Case Studies for higher grades. ${groupName ? `This batch is specifically for Group ${groupName}. Ensure uniqueness.` : ''}`,
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.NUMBER },
-                  type: { type: Type.STRING, description: "MCQ, WORD_PROBLEM, CASE_STUDY, or VISUAL_ANALYSIS" },
-                  contextMaterial: { type: Type.STRING, description: "Scenario text for CASE_STUDY or VISUAL_ANALYSIS" },
-                  text: { type: Type.STRING, description: "The question text. Must be a complete, challenging question." },
-                  options: { 
-                    type: Type.ARRAY, 
-                    items: { type: Type.STRING },
-                    description: "Exactly 4 options"
-                  },
-                  correctIndex: { type: Type.NUMBER, description: "0-3" },
-                  explanation: { type: Type.STRING, description: "Detailed explanation of the correct answer" },
-                  inquiryPrompt: { type: Type.STRING, description: "A follow-up challenge or inquiry for the student" }
+        const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        let modelSuccess = false;
+
+        for (const modelName of candidateModels) {
+          try {
+            console.log(`Attempting question generation with model ${modelName} and key ending in ...${key.slice(-5)}`);
+            const responseStream = await ai.models.generateContentStream({
+              model: modelName,
+              contents: prompt,
+              config: {
+                systemInstruction: `You are a Senior Board Examination Author and Academic Curriculum Master. Output valid JSON only. Generate authentic, board-pattern questions matching official examination standards for ${profile.board || "CBSE/NCERT"}. Never output generic placeholders or abstract phrases like "Core Dynamics" or "Process Controls". Every question must use exact, realistic academic terminology for the requested subject and topic. ${groupName ? `This batch is specifically for Group ${groupName}. Ensure 100% uniqueness.` : ''}`,
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      id: { type: Type.NUMBER },
+                      type: { type: Type.STRING, description: "MCQ, WORD_PROBLEM, CASE_STUDY, or VISUAL_ANALYSIS" },
+                      contextMaterial: { type: Type.STRING, description: "Scenario text for CASE_STUDY or VISUAL_ANALYSIS" },
+                      text: { type: Type.STRING, description: "The question text. Must be a complete, challenging board-style question." },
+                      options: { 
+                        type: Type.ARRAY, 
+                        items: { type: Type.STRING },
+                        description: "Exactly 4 options with 1 correct answer and 3 realistic distractors"
+                      },
+                      correctIndex: { type: Type.NUMBER, description: "0-3" },
+                      explanation: { type: Type.STRING, description: "Detailed explanation of the correct answer based on textbook principles" },
+                      inquiryPrompt: { type: Type.STRING, description: "A follow-up challenge or inquiry for the student" }
+                    },
+                    required: ["id", "type", "text", "options", "correctIndex", "explanation", "inquiryPrompt"]
+                  }
                 },
-                required: ["id", "type", "text", "options", "correctIndex", "explanation", "inquiryPrompt"]
+                temperature: 0.3
               }
-            },
-            temperature: 0.2
-          }
-        });
+            });
 
-        for await (const chunk of responseStream) {
-          accumulatedText += chunk.text || "";
-          const rawObjects = extractJsonObjects(accumulatedText);
-          for (const rawObj of rawObjects) {
-            const formatted = formatSingleQuestion(rawObj, deliveredQuestions.length, topic);
-            emitQuestion(formatted);
+            for await (const chunk of responseStream) {
+              accumulatedText += chunk.text || "";
+              const rawObjects = extractJsonObjects(accumulatedText);
+              for (const rawObj of rawObjects) {
+                const formatted = formatSingleQuestion(rawObj, deliveredQuestions.length, topic);
+                emitQuestion(formatted);
+              }
+            }
+
+            if (deliveredQuestions.length === 0 && accumulatedText.trim().length > 0) {
+              const cleaned = repairJson(accumulatedText || "[]");
+              const parsed = JSON.parse(cleaned);
+              const formattedBatch = validateAndFormatQuestions(parsed, topic);
+              for (const q of formattedBatch) {
+                emitQuestion(q);
+              }
+            }
+
+            if (deliveredQuestions.length > 0) {
+              modelSuccess = true;
+              break;
+            }
+          } catch (mErr: any) {
+            console.warn(`Model ${modelName} failed on key: ${mErr.message || mErr}`);
           }
         }
 
-        if (deliveredQuestions.length === 0) {
-          const cleaned = repairJson(accumulatedText || "[]");
-          const parsed = JSON.parse(cleaned);
-          const formattedBatch = validateAndFormatQuestions(parsed, topic);
-          for (const q of formattedBatch) {
-            emitQuestion(q);
-          }
-        }
-
-        if (deliveredQuestions.length > 0) {
+        if (modelSuccess && deliveredQuestions.length > 0) {
           return deliveredQuestions;
         }
       } catch (geminiErr: any) {
