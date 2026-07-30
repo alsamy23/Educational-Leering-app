@@ -2802,8 +2802,8 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Year or Grade selection */}
-                      <div className="grid grid-cols-2 gap-2">
+                      {/* Year or Grade selection & Board Pattern */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                         <div className="space-y-1">
                           <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
                             <Shield className="w-3 h-3" /> Target Stage
@@ -2831,7 +2831,7 @@ export default function App() {
 
                         <div className="space-y-1">
                           <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
-                            <Lightbulb className="w-3 h-3" /> Learning Focus
+                            <Lightbulb className="w-3 h-3 text-[#1e3a8a]" /> Learning Focus
                           </label>
                           <select
                             value={user.focus}
@@ -2841,6 +2841,23 @@ export default function App() {
                             <option value={StudyFocus.SYLLABUS}>Core Syllabus</option>
                             <option value={StudyFocus.PATTERN}>Exam Pattern</option>
                             <option value={StudyFocus.TOPICS}>Custom Subtopics</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <FileText className="w-3 h-3 text-[#1e3a8a]" /> Board Pattern
+                          </label>
+                          <select
+                            value={user.boardPattern || 'Mixed Board Pattern'}
+                            onChange={e => syncLocalUserProfile({ ...user, boardPattern: e.target.value })}
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                          >
+                            <option value="Mixed Board Pattern">Mixed Pattern</option>
+                            <option value="MCQ Focus">MCQ Only</option>
+                            <option value="Assertion-Reasoning Focus">Assertion-Reason</option>
+                            <option value="Case Study & Passage-Based Focus">Case-Based</option>
+                            <option value="Competency & Application Focus">Competency & Numerical</option>
                           </select>
                         </div>
                       </div>

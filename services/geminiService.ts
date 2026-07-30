@@ -1023,12 +1023,28 @@ export const generateQuizQuestions = async (
     2. Focus on the core pillars of the syllabus/topic for the subject "${profile.subject}".
     3. Refer to standard academic structures matching ${profile.gradeLevel}.`;
 
+  const boardPatternFormat = profile.boardPattern || "Mixed Board Pattern";
+  const boardPatternInstruction = `
+  BOARD PATTERN INSTRUCTION (${boardPatternFormat.toUpperCase()}):
+  - Selected Format Strategy: "${boardPatternFormat}".
+  - If "MCQ Focus": Generate 100% Multiple Choice Questions (type: "MCQ") with 4 clear, plausible option distractors testing conceptual accuracy and textbook facts.
+  - If "Assertion-Reasoning Focus": Generate questions formatted as Assertion (A) and Reason (R) statements in 'text' or 'contextMaterial'. The 4 options must strictly be:
+      Option 0: Both Assertion (A) and Reason (R) are true and Reason (R) is the correct explanation of Assertion (A).
+      Option 1: Both Assertion (A) and Reason (R) are true but Reason (R) is NOT the correct explanation of Assertion (A).
+      Option 2: Assertion (A) is true but Reason (R) is false.
+      Option 3: Assertion (A) is false but Reason (R) is true.
+  - If "Case Study & Passage-Based Focus": Include detailed contextual scenarios, laboratory case studies, or reading passages in 'contextMaterial' for the questions (type: "CASE_STUDY").
+  - If "Competency & Application Focus": Focus heavily on numerical problem-solving, real-world application, data interpretation, and quantitative calculations.
+  - If "Mixed Board Pattern": Include a balanced mix of MCQs, Assertion-Reasoning, Word Problems, and Case Studies.
+  `;
+
   const prompt = `
   ${educationalSettingPrompt}
   Current Academic Year: ${currentYear}-${currentYear + 1} (Targeting ${currentYear + 1} Exams).
   Subject: ${profile.subject}.
   Topic: ${topic}.
   Context: ${focusContext}.
+  Target Board Format: ${boardPatternFormat}.
   ${languageInstruction}
   ${groupContext}
   ${difficultyContext}
@@ -1036,13 +1052,14 @@ export const generateQuizQuestions = async (
   RandomSeed: ${seed}.
   
   ${groundedInstruction}
+  ${boardPatternInstruction}
   
   TASK: Generate exactly 5 questions for this Batch. 
   
   PEDAGOGICAL GOAL (EXAM EXCELLENCE):
   - PRIMARY OBJECTIVE: ${sourceMaterial ? "Synthesize the source material into high-quality assessments aligned with exam patterns." : "Strictly follow curriculum and textbook standards to ensure exam readiness."}
   - Test foundational understanding, conceptual clarity, and the ability to apply the specific topic.
-  - Questions must mirror the complexity (MCQs, Case Studies, etc.) of actual board or exam patterns.
+  - Questions must mirror the complexity and specific format (${boardPatternFormat}) of actual board or exam patterns.
   - ${eduLevel === 'School' && gradeInt < 6 
       ? "For PRIMARY SCHOOL: Focus on simplified core curriculum pillars. Ensure questions reflect standard educational early-years patterns." 
       : "Focus on analytical rigor. Every question must evaluate syllabus-specific mastery."}
@@ -1058,8 +1075,7 @@ export const generateQuizQuestions = async (
   - Group ${groupName || "N/A"} must receive an entirely distinct set of 5 questions than any other group. DO NOT recycle common starter questions.
   
   QUESTION TYPES DISTRIBUTION:
-  - Match question complexity and types with the target educational tier (${eduLevel}). For advanced levels (College, Competitive), include Case Studies and complex situations.
-  - Include at least 1 'CASE_STUDY' and 1 'VISUAL_ANALYSIS' if possible.
+  - Follow the requested format (${boardPatternFormat}). Match question complexity with the target educational tier (${eduLevel}).
   
   GUIDELINES:
   - CASE_STUDY: Provide a short paragraph (50-100 words) in 'contextMaterial' that the student must analyze to answer the question.
@@ -1089,7 +1105,7 @@ export const generateQuizQuestions = async (
               model: modelName,
               contents: prompt,
               config: {
-                systemInstruction: `You are a Senior Board Examination Author and Academic Curriculum Master. Output valid JSON only. Generate authentic, board-pattern questions matching official examination standards for ${profile.board || "CBSE/NCERT"}. Never output generic placeholders or abstract phrases like "Core Dynamics" or "Process Controls". Every question must use exact, realistic academic terminology for the requested subject and topic. ${groupName ? `This batch is specifically for Group ${groupName}. Ensure 100% uniqueness.` : ''}`,
+                systemInstruction: `You are a Senior Board Examination Author and Academic Curriculum Master. Output valid JSON only. Generate authentic, board-pattern questions matching official examination standards for ${profile.board || "CBSE/NCERT"} following the requested format pattern: "${boardPatternFormat}". Never output generic placeholders or abstract phrases like "Core Dynamics" or "Process Controls". Every question must use exact, realistic academic terminology for the requested subject and topic. ${groupName ? `This batch is specifically for Group ${groupName}. Ensure 100% uniqueness.` : ''}`,
                 responseMimeType: "application/json",
                 responseSchema: {
                   type: Type.ARRAY,

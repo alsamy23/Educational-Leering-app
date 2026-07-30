@@ -35,6 +35,7 @@ export interface UserProfile {
   section?: string;
   subject: string;
   board?: string; // e.g. CBSE, ICSE, IGCSE, State Board, or Major stream
+  boardPattern?: string; // e.g. 'Mixed Board Pattern', 'MCQ Focus', 'Assertion-Reasoning Focus', 'Case Study & Passage-Based Focus', 'Competency & Application Focus'
   focus: StudyFocus;
   topic: string;
   level: number; // Progressive level (1, 2, 3...)
