@@ -28,6 +28,7 @@ export default defineConfig(({ mode }) => {
       'process.env.GEMINI_API_KEY_9': JSON.stringify(env.GEMINI_API_KEY_9 || process.env.GEMINI_API_KEY_9 || ''),
       'process.env.GEMINI_API_KEY_10': JSON.stringify(env.GEMINI_API_KEY_10 || process.env.GEMINI_API_KEY_10 || ''),
       'process.env.GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY || process.env.GROQ_API_KEY || ''),
+      'process.env.GROQ_MODEL': JSON.stringify(env.GROQ_MODEL || process.env.GROQ_MODEL || ''),
       'process.env.GROK_API_KEY': JSON.stringify(env.GROK_API_KEY || process.env.GROK_API_KEY || env.XAI_API_KEY || process.env.XAI_API_KEY || ''),
       'process.env.XAI_API_KEY': JSON.stringify(env.XAI_API_KEY || process.env.XAI_API_KEY || env.GROK_API_KEY || process.env.GROK_API_KEY || '')
     },

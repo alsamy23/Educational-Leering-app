@@ -62,7 +62,8 @@ const getFallbackAI = () => {
       type: 'grok' as const,
       apiKey: grokKey,
       baseURL: "https://api.x.ai/v1",
-      model: 'grok-2-1212'
+      model: 'grok-2-1212',
+      models: ['grok-2-1212', 'grok-beta']
     };
   } else if (groqKey) {
     // If they supplied an xAI key inside GROQ_API_KEY (users sometimes do this)
@@ -71,13 +72,26 @@ const getFallbackAI = () => {
         type: 'grok' as const,
         apiKey: groqKey,
         baseURL: "https://api.x.ai/v1",
-        model: 'grok-2-1212'
+        model: 'grok-2-1212',
+        models: ['grok-2-1212', 'grok-beta']
       };
     }
+
+    // Groq model migration: Llama 3.1 8B Instant decommissioned -> migrated to GPT OSS 20B (gpt-oss-20b) and Llama 3.3 70B (llama-3.3-70b-versatile)
+    const envModel = (process.env.GROQ_MODEL || "").trim();
+    const candidateModels = [
+      envModel,
+      'gpt-oss-20b',
+      'llama-3.3-70b-versatile',
+      'llama-3.1-70b-versatile',
+      'mixtral-8x7b-32768'
+    ].filter((m, idx, arr) => m && arr.indexOf(m) === idx && m !== 'llama-3.1-8b-instant' && m !== 'llama3-8b-8192');
+
     return {
       type: 'groq' as const,
       client: new Groq({ apiKey: groqKey, dangerouslyAllowBrowser: true }),
-      model: 'llama-3.3-70b-versatile'
+      model: candidateModels[0] || 'gpt-oss-20b',
+      models: candidateModels
     };
   }
   return null;
@@ -1038,6 +1052,17 @@ export const generateQuizQuestions = async (
   - If "Mixed Board Pattern": Include a balanced mix of MCQs, Assertion-Reasoning, Word Problems, and Case Studies.
   `;
 
+  const progressiveLevelInstruction = `
+  PROGRESSIVE LEVEL & DIFFICULTY CALIBRATION (CURRENT LEVEL: ${profile.level || 1}):
+  - Level 1 (Foundational Knowledge): Focus on fundamental concepts, textbook definitions, basic formulas, and single-step straightforward evaluations.
+  - Level 2 (Applied Understanding): Introduce multi-step logic, practical applications, reasoning through scenarios, and detecting subtle nuances.
+  - Level 3 (Analytical Board Rigor): Match official Board Exam standard difficulty with demanding calculations, analytical assertion-reasoning, and in-depth case evaluations.
+  - Level 4 (Advanced Higher-Order Thinking Skills / HOTS): Require multi-concept integration, troubleshooting laboratory edge cases, and high-rigor synthesis.
+  - Level 5+ (Mastery / Olympiad / Exam Topper): Premier competitive & exemplar difficulty. Maximum depth, complex cross-topic synthesis, advanced numerical derivations, and challenging distractor analysis.
+  
+  DIFFICULTY SCALING REQUIREMENT: The user is currently on Progressive Level ${profile.level || 1}. You MUST generate questions that strictly reflect this progressive difficulty step. As the level number increases, continually and measurably elevate the analytical rigor and depth.
+  `;
+
   const prompt = `
   ${educationalSettingPrompt}
   Current Academic Year: ${currentYear}-${currentYear + 1} (Targeting ${currentYear + 1} Exams).
@@ -1048,11 +1073,12 @@ export const generateQuizQuestions = async (
   ${languageInstruction}
   ${groupContext}
   ${difficultyContext}
-  Current Level: ${isMockMode ? "Exam Standard" : profile.level}.
+  Current Level: ${isMockMode ? "Exam Standard" : profile.level || 1}.
   RandomSeed: ${seed}.
   
   ${groundedInstruction}
   ${boardPatternInstruction}
+  ${progressiveLevelInstruction}
   
   TASK: Generate exactly 5 questions for this Batch. 
   
@@ -1192,41 +1218,77 @@ export const generateQuizQuestions = async (
       
       let content = "[]";
       if (fallback.type === 'groq') {
-        const groqResponse = await fallback.client.chat.completions.create({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          model: fallback.model,
-          response_format: { type: "json_object" }
-        });
-        content = groqResponse.choices[0]?.message?.content || "[]";
-      } else {
-        // xAI Grok (direct API call via fetch)
-        const response = await fetch(`${fallback.baseURL}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${fallback.apiKey}`
-          },
-          body: JSON.stringify({
-            model: fallback.model,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ],
-            response_format: { type: "json_object" },
-            temperature: 0.2
-          })
-        });
-
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(`Grok API Error: ${response.status} - ${errText}`);
+        let groqSuccess = false;
+        const candidateGroqModels = (fallback as any).models || [fallback.model, 'gpt-oss-20b', 'llama-3.3-70b-versatile'];
+        
+        for (const groqModel of candidateGroqModels) {
+          try {
+            console.log(`Calling Groq with model ${groqModel}...`);
+            const groqResponse = await fallback.client.chat.completions.create({
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+              ],
+              model: groqModel,
+              response_format: { type: "json_object" }
+            });
+            content = groqResponse.choices[0]?.message?.content || "[]";
+            if (content && content.trim() !== "[]" && content.trim() !== "{}") {
+              groqSuccess = true;
+              break;
+            }
+          } catch (mErr: any) {
+            console.warn(`Groq model ${groqModel} failed:`, mErr?.message || mErr);
+          }
         }
 
-        const data = await response.json();
-        content = data.choices[0]?.message?.content || "[]";
+        if (!groqSuccess && (!content || content.trim() === "[]")) {
+          throw new Error("All candidate Groq models failed or returned empty content");
+        }
+      } else {
+        // xAI Grok (direct API call via fetch)
+        const candidateGrokModels = (fallback as any).models || [fallback.model, 'grok-2-1212'];
+        let grokSuccess = false;
+
+        for (const grokModel of candidateGrokModels) {
+          try {
+            const response = await fetch(`${fallback.baseURL}/chat/completions`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${fallback.apiKey}`
+              },
+              body: JSON.stringify({
+                model: grokModel,
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  { role: "user", content: userPrompt }
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.2
+              })
+            });
+
+            if (!response.ok) {
+              const errText = await response.text();
+              console.warn(`Grok API Error for ${grokModel}: ${response.status} - ${errText}`);
+              continue;
+            }
+
+            const data = await response.json();
+            content = data.choices[0]?.message?.content || "[]";
+            if (content && content.trim() !== "[]" && content.trim() !== "{}") {
+              grokSuccess = true;
+              break;
+            }
+          } catch (grokErr: any) {
+            console.warn(`Grok model ${grokModel} attempt failed:`, grokErr);
+          }
+        }
+
+        if (!grokSuccess && (!content || content.trim() === "[]")) {
+          throw new Error("All Grok API requests failed");
+        }
       }
 
       let parsed = JSON.parse(repairJson(content));

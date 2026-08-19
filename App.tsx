@@ -5,7 +5,8 @@ import {
   Trash2, Eye, Award, Clock, GraduationCap, Monitor, FileText,
   User, ShieldCheck, HelpCircle, Laptop, Smartphone, Lightbulb, Users,
   ListRestart, Check, X, SignalLow, SignalMedium, SignalHigh,
-  Settings, LogOut, Info, RefreshCw, Mic, MicOff, Download, Printer
+  Settings, LogOut, Info, RefreshCw, Mic, MicOff, Download, Printer,
+  Zap, ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -24,6 +25,47 @@ import { get as get_idb, set as set_idb } from 'idb-keyval';
 // Configure pdfjs worker source via jsDelivr CDN
 const pdfjsVersion = pdfjsLib.version || '5.6.205';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.mjs`;
+
+// --- Progressive Level & Difficulty Evaluator Helper ---
+export const getLevelDifficultyInfo = (lvl: number) => {
+  const levelNum = Math.max(1, lvl || 1);
+  if (levelNum === 1) {
+    return {
+      name: 'Foundational',
+      difficulty: DifficultyLevel.LOW,
+      badgeColor: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+      description: 'Core definitions, basic formulas & direct conceptual questions'
+    };
+  } else if (levelNum === 2) {
+    return {
+      name: 'Intermediate',
+      difficulty: DifficultyLevel.MEDIUM,
+      badgeColor: 'bg-blue-500/15 text-blue-700 border-blue-500/30',
+      description: 'Multi-step logic, practical scenarios & applied problems'
+    };
+  } else if (levelNum === 3) {
+    return {
+      name: 'Board Rigor',
+      difficulty: DifficultyLevel.HIGH,
+      badgeColor: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+      description: 'Official Board standards, case-studies & assertion-reasoning'
+    };
+  } else if (levelNum === 4) {
+    return {
+      name: 'Advanced HOTS',
+      difficulty: DifficultyLevel.HIGH,
+      badgeColor: 'bg-purple-500/15 text-purple-700 border-purple-500/30',
+      description: 'Higher-Order Thinking Skills & multi-concept synthesis'
+    };
+  } else {
+    return {
+      name: `Mastery Lv ${levelNum}`,
+      difficulty: DifficultyLevel.HIGH,
+      badgeColor: 'bg-rose-500/15 text-rose-700 border-rose-500/30',
+      description: 'Exemplar & Olympiad complexity with deep analytical depth'
+    };
+  }
+};
 
 // --- Browser-Native Audio Feedback Synthesizer ---
 let audioCtx: AudioContext | null = null;
@@ -1303,7 +1345,7 @@ export default function App() {
   };
 
   // --- Load and synthesize questions ---
-  const initiateDiagnosis = async () => {
+  const initiateDiagnosis = async (targetLevel?: number) => {
     if (autoAdvanceTimeoutRef.current) {
       clearTimeout(autoAdvanceTimeoutRef.current);
       autoAdvanceTimeoutRef.current = null;
@@ -1313,13 +1355,25 @@ export default function App() {
       alert("Please configure your Student Name before starting the diagnose course.");
       return;
     }
+
+    const currentLevel = targetLevel !== undefined ? targetLevel : (user.level || 1);
+    const difficultyInfo = getLevelDifficultyInfo(currentLevel);
+    const activeUserProfile: UserProfile = {
+      ...user,
+      level: currentLevel
+    };
+
+    // Keep user state in sync with current level
+    if (user.level !== currentLevel) {
+      syncLocalUserProfile(activeUserProfile);
+    }
     
     // Stop any speech
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     setIsReadingAloud(false);
 
-    setLoadingProgress(20);
-    setLoadingMessage("Synthesizing Board Curriculum Guidelines...");
+    setLoadingProgress(25);
+    setLoadingMessage(`Synthesizing Level ${currentLevel} (${difficultyInfo.name}) Diagnostic Assessments...`);
     setCurrentScreen(AppScreen.LOADING);
 
     setCurrentQuestions([]);
@@ -1341,7 +1395,7 @@ export default function App() {
         setActiveQuiz(activeQuizPrev => {
           if (!activeQuizPrev) {
             return {
-              profile: user,
+              profile: activeUserProfile,
               questions: updated,
               userAnswers: new Array(5).fill(null),
               score: 0,
@@ -1350,6 +1404,7 @@ export default function App() {
           }
           return {
             ...activeQuizPrev,
+            profile: activeUserProfile,
             questions: updated
           };
         });
@@ -1369,11 +1424,11 @@ export default function App() {
     try {
       const activeMaterial = materials.find(m => m.id === selectedMaterialId);
       const questionsFetched = await generateQuizQuestions(
-        user, 
+        activeUserProfile, 
         false, 
         undefined, 
-        user.topic, 
-        DifficultyLevel.DEFAULT, 
+        activeUserProfile.topic, 
+        difficultyInfo.difficulty, 
         0, 
         undefined, 
         activeMaterial?.content,
@@ -1381,8 +1436,8 @@ export default function App() {
       );
 
       setCurrentQuestions(questionsFetched);
-      setActiveQuiz(prev => prev ? { ...prev, questions: questionsFetched } : {
-        profile: user,
+      setActiveQuiz(prev => prev ? { ...prev, profile: activeUserProfile, questions: questionsFetched } : {
+        profile: activeUserProfile,
         questions: questionsFetched,
         userAnswers: new Array(questionsFetched.length).fill(null),
         score: 0,
@@ -1653,7 +1708,7 @@ export default function App() {
           grade: user.gradeLevel
         };
 
-        const progressiveLevel = finalScore >= 4 ? user.level + 1 : user.level;
+        const progressiveLevel = finalScore >= 3 ? user.level + 1 : user.level;
 
         const updatedUser: UserProfile = {
           ...user,
@@ -2961,10 +3016,14 @@ export default function App() {
                     {/* Integrated Launch buttons */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2">
                       <button 
-                        onClick={initiateDiagnosis}
-                        className="h-12 rounded-xl text-[10px] font-headline font-black uppercase tracking-wider bg-[#1e3a8a] hover:bg-[#172554] text-white flex items-center justify-center gap-1.5 transition-all shadow-md md:col-span-2"
+                        onClick={() => initiateDiagnosis(user.level || 1)}
+                        className="h-12 rounded-xl text-[10px] font-headline font-black uppercase tracking-wider bg-[#1e3a8a] hover:bg-[#172554] text-white flex items-center justify-center gap-1.5 transition-all shadow-md md:col-span-2 group"
                       >
-                        <Rocket className="w-3.5 h-3.5 animate-bounce" /> Start Diagnostic
+                        <Rocket className="w-3.5 h-3.5 animate-bounce text-amber-300" />
+                        <span>Start Diagnostic Level {user.level || 1}</span>
+                        <span className="text-[8px] bg-white/20 px-1.5 py-0.5 rounded font-mono font-bold ml-1 text-white/90">
+                          {getLevelDifficultyInfo(user.level || 1).name}
+                        </span>
                       </button>
                       <button 
                         onClick={launchClassroomBattleSetup}
@@ -3109,9 +3168,14 @@ export default function App() {
               <div className="flex justify-between items-center gap-3 border-b border-white/5 pb-4">
                 <div>
                   <h3 className="text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic flex items-center gap-1.5">
-                    <Rocket className="w-4 h-4 text-primary" /> Active Diagnose
+                    <Rocket className="w-4 h-4 text-primary" /> Active Diagnostic Level {activeQuiz?.profile.level || user.level || 1}
                   </h3>
-                  <p className="text-[10px] text-on-surface-variant font-body font-bold uppercase mt-1">Topic focus: {user.topic}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-[10px] text-on-surface-variant font-body font-bold uppercase">Topic: {user.topic}</p>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold bg-primary/10 text-primary border border-primary/20">
+                      {getLevelDifficultyInfo(activeQuiz?.profile.level || user.level || 1).name} Difficulty
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -3334,37 +3398,66 @@ export default function App() {
                     </div>
 
                     {/* Feedback description dialog */}
-                    {feedback && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-5 bg-surface rounded-2xl border border-white/10 space-y-3 shadow-2xl mt-1.5"
-                      >
-                        <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                          <p className="text-[10px] font-headline font-extrabold uppercase text-secondary tracking-widest italic">DIAGNOSTIC EXPLANATORY CORRELATION</p>
-                        </div>
-                        <p className={`font-body font-bold text-on-surface-variant leading-relaxed italic transition-all duration-300 ${
-                          fontSizeMode === 'normal' ? 'text-xs md:text-sm' : fontSizeMode === 'large' ? 'text-sm md:text-base' : 'text-base md:text-[1.3rem]'
-                        }`}>
-                          {currentQuestions[currentQuestionIndex].explanation}
-                        </p>
-
-                        {currentQuestions[currentQuestionIndex].inquiryPrompt && (
-                          <div className="mt-2.5 p-3.5 bg-primary/10 rounded-xl border border-primary/20 space-y-1">
-                            <p className="text-[9px] font-headline font-extrabold uppercase text-primary tracking-wider flex items-center gap-1.5 italic">
-                              <Sparkles className="w-3.5 h-3.5 text-primary" /> Future Diagnostic Exploration
-                            </p>
-                            <p className="text-xs font-body font-bold text-on-surface italic">
-                              {currentQuestions[currentQuestionIndex].inquiryPrompt}
-                            </p>
+                    <AnimatePresence mode="wait">
+                      {feedback && (
+                        <motion.div 
+                          key={`feedback_${currentQuestionIndex}`}
+                          initial={{ opacity: 0, y: 28, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -16, scale: 0.98 }}
+                          transition={{ 
+                            type: "spring", 
+                            stiffness: 350, 
+                            damping: 26, 
+                            mass: 0.8 
+                          }}
+                          className={`p-5 bg-surface rounded-2xl border space-y-3 shadow-2xl mt-1.5 overflow-hidden ${
+                            feedback.isCorrect 
+                              ? 'border-emerald-500/30 bg-emerald-950/20 shadow-emerald-950/30' 
+                              : 'border-rose-500/30 bg-rose-950/20 shadow-rose-950/30'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center border-b border-white/10 pb-2.5">
+                            <div className="flex items-center gap-2">
+                              {feedback.isCorrect ? (
+                                <span className="flex items-center gap-1.5 text-[10px] font-headline font-black uppercase text-emerald-400 tracking-wider">
+                                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> Correct Evaluation (+10 pts)
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1.5 text-[10px] font-headline font-black uppercase text-rose-400 tracking-wider">
+                                  <X className="w-3.5 h-3.5 text-rose-400" /> Solution & Conceptual Breakdown
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[9px] font-headline font-extrabold uppercase text-secondary tracking-widest italic opacity-80">
+                              DIAGNOSTIC EXPLANATION
+                            </span>
                           </div>
-                        )}
+                          
+                          <p className={`font-body font-bold text-on-surface leading-relaxed transition-all duration-300 ${
+                            fontSizeMode === 'normal' ? 'text-xs md:text-sm' : fontSizeMode === 'large' ? 'text-sm md:text-base' : 'text-base md:text-[1.3rem]'
+                          }`}>
+                            {currentQuestions[currentQuestionIndex].explanation}
+                          </p>
 
-                        <Button onClick={handleNextQuizQuestion} className="h-14 rounded-2xl text-[10px] font-headline font-extrabold uppercase tracking-widest shadow-2xl shadow-primary/30 neon-glow-primary">
-                          Next Challenge
-                        </Button>
-                      </motion.div>
-                    )}
+                          {currentQuestions[currentQuestionIndex].inquiryPrompt && (
+                            <div className="mt-2.5 p-3.5 bg-primary/10 rounded-xl border border-primary/20 space-y-1">
+                              <p className="text-[9px] font-headline font-extrabold uppercase text-primary tracking-wider flex items-center gap-1.5 italic">
+                                <Sparkles className="w-3.5 h-3.5 text-primary" /> Future Diagnostic Exploration
+                              </p>
+                              <p className="text-xs font-body font-bold text-on-surface italic">
+                                {currentQuestions[currentQuestionIndex].inquiryPrompt}
+                              </p>
+                            </div>
+                          )}
+
+                          <Button onClick={handleNextQuizQuestion} className="h-14 rounded-2xl text-[10px] font-headline font-extrabold uppercase tracking-widest shadow-2xl shadow-primary/30 neon-glow-primary flex items-center justify-center gap-2">
+                            <span>{currentQuestionIndex < 4 ? "Next Challenge" : "Complete Diagnostic"}</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                   </div>
 
@@ -3424,6 +3517,28 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Progressive Level Stepper Banner */}
+                <div className="bg-gradient-to-r from-amber-500/10 via-primary/10 to-indigo-500/10 border border-amber-500/20 rounded-2xl p-4 md:p-5 text-left flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-none">
+                      <Trophy className="w-6 h-6 text-amber-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-headline font-black text-amber-400 uppercase tracking-wider">
+                          Level {activeQuiz.profile.level || 1} Assessment Completed
+                        </span>
+                        <span className="text-[9px] px-2 py-0.5 rounded-md bg-white/10 text-white font-mono font-bold">
+                          Next: Level {(activeQuiz.profile.level || 1) + 1}
+                        </span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant font-medium mt-0.5">
+                        Progressing to Level {(activeQuiz.profile.level || 1) + 1} ({getLevelDifficultyInfo((activeQuiz.profile.level || 1) + 1).name}) increases question complexity and analytical depth.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-1.5 text-xs text-left">
                   <p className="font-headline font-extrabold text-on-surface uppercase tracking-wider">Expert Evaluator Recommendation</p>
                   <p className="font-body font-bold text-on-surface-variant leading-relaxed">
@@ -3465,13 +3580,32 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <Button onClick={initiateDiagnosis} className="h-14 rounded-2xl font-headline font-extrabold uppercase tracking-widest text-xs shadow-2xl shadow-primary/40 col-span-2">
-                  Retake Diagnosis
-                </Button>
-                <Button onClick={handleResetToMenu} variant="outline" className="h-14 rounded-2xl font-headline font-extrabold uppercase tracking-widest text-[10px]">
-                  Close Panel
-                </Button>
+              {/* Action Buttons: Next Progressive Level, Retake, and Return */}
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+                  <Button 
+                    onClick={() => initiateDiagnosis((activeQuiz?.profile.level || user.level || 1) + 1)} 
+                    className="h-14 rounded-2xl font-headline font-extrabold uppercase tracking-widest text-xs shadow-2xl shadow-primary/40 sm:col-span-2 flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-500"
+                  >
+                    <Zap className="w-4 h-4 text-amber-300 animate-bounce" />
+                    <span>Start Diagnostic Level {(activeQuiz?.profile.level || user.level || 1) + 1} (Next Level)</span>
+                  </Button>
+                  <Button 
+                    onClick={() => initiateDiagnosis(activeQuiz?.profile.level || user.level || 1)} 
+                    variant="outline" 
+                    className="h-14 rounded-2xl font-headline font-extrabold uppercase tracking-widest text-[10px] sm:col-span-1"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 mr-1" /> Retake Lv {activeQuiz?.profile.level || user.level || 1}
+                  </Button>
+                </div>
+                <div className="w-full flex justify-center pt-1">
+                  <button 
+                    onClick={handleResetToMenu} 
+                    className="text-xs font-headline font-bold text-on-surface-variant hover:text-on-surface uppercase tracking-wider py-1.5 px-4 hover:bg-white/5 rounded-xl transition-all flex items-center gap-1.5"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Return to Mastery Configurator
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}
