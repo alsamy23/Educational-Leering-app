@@ -114,7 +114,7 @@ const repairJson = (text: string): string => {
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-const generateOfflineQuizQuestions = (
+export const generateOfflineQuizQuestions = (
   profile: UserProfile,
   topic: string,
   sourceMaterial?: string
@@ -826,20 +826,38 @@ An academic group is investigating "${topic}" in a school laboratory. They obser
   }
 
   if (questions.length < 5) {
-    questions.push({
-      id: 5,
-      type: QuestionType.MCQ,
-      text: `Which student strategy is recommended by Board Exam toppers for achieving 100% mastery and top marks in "${capTopic}"?`,
-      options: [
-        `Thoroughly understanding textbook concepts, practicing board PYQs (Previous Year Questions), and applying step-wise formula derivations`,
-        `Relying exclusively on last-minute cramming without understanding underlying definitions`,
-        `Skipping numerical and case-based questions to focus only on 1-mark definitions`,
-        `Memorizing option letters (A, B, C, D) from past sample papers`
-      ],
-      correctIndex: 0,
-      explanation: `High performance in Board Examinations on topics like "${capTopic}" requires deep conceptual understanding, practicing board previous year questions, and clear step-by-step presentation.`,
-      inquiryPrompt: `What is one key formula or concept from "${capTopic}" that you will revise today?`
-    });
+    if (/assertion/i.test(profile.boardPattern || "")) {
+      questions.push({
+        id: 5,
+        type: QuestionType.MCQ,
+        text: `Assertion (A): Practicing previous year questions and solving conceptual step-wise problems in "${capTopic}" leads to high retention and top academic marks.
+Reason (R): Step-wise revision clarifies fundamental relationships and prevents common distractor traps in examination scenarios.`,
+        options: [
+          "Both Assertion (A) and Reason (R) are true and Reason (R) is the correct explanation of Assertion (A).",
+          "Both Assertion (A) and Reason (R) are true but Reason (R) is NOT the correct explanation of Assertion (A).",
+          "Assertion (A) is true but Reason (R) is false.",
+          "Assertion (A) is false but Reason (R) is true."
+        ],
+        correctIndex: 0,
+        explanation: `Both statements are factually true, and Reason (R) directly explains why practicing conceptual derivations and solving past questions reinforces retention in "${capTopic}".`,
+        inquiryPrompt: `What is one fundamental formula or theorem from "${capTopic}" that you will revise today?`
+      });
+    } else {
+      questions.push({
+        id: 5,
+        type: QuestionType.MCQ,
+        text: `Which student strategy is recommended by Board Exam toppers for achieving 100% mastery and top marks in "${capTopic}"?`,
+        options: [
+          `Thoroughly understanding textbook concepts, practicing board PYQs (Previous Year Questions), and applying step-wise formula derivations`,
+          `Relying exclusively on last-minute cramming without understanding underlying definitions`,
+          `Skipping numerical and case-based questions to focus only on 1-mark definitions`,
+          `Memorizing option letters (A, B, C, D) from past sample papers`
+        ],
+        correctIndex: 0,
+        explanation: `High performance in Board Examinations on topics like "${capTopic}" requires deep conceptual understanding, practicing board previous year questions, and clear step-by-step presentation.`,
+        inquiryPrompt: `What is one key formula or concept from "${capTopic}" that you will revise today?`
+      });
+    }
   }
 
   return questions;
@@ -933,9 +951,119 @@ const formatSingleQuestion = (q: any, index: number, topic: string = "this topic
   };
 };
 
+const validateAndFormatQuestions = (questions: any[], topic: string = "this topic"): QuizQuestion[] => {
+  if (!Array.isArray(questions)) return [];
+  return questions.map((q, index) => formatSingleQuestion(q, index, topic));
+};
+
+/**
+ * Construct specialized system and prompt directives based on the user's selected Board Pattern.
+ * This guarantees the AI strictly adheres to the requested format (e.g. Assertion-Reasoning, Case-Based)
+ * instead of defaulting to generic MCQs.
+ */
+export function getBoardPatternPromptDirectives(boardPattern?: string): {
+  formatName: string;
+  systemDirective: string;
+  promptDirective: string;
+} {
+  const normalized = (boardPattern || "Mixed Board Pattern").trim();
+
+  if (/assertion/i.test(normalized)) {
+    return {
+      formatName: "Assertion-Reasoning Focus",
+      systemDirective: `MANDATORY SYSTEM DIRECTIVE - STRICT ASSERTION-REASONING FORMAT:
+- The user has explicitly selected the 'Assertion-Reasoning' Board Exam format.
+- YOU ARE STRICTLY FORBIDDEN FROM GENERATING GENERIC MULTIPLE CHOICE QUESTIONS.
+- EVERY SINGLE QUESTION (all 5 questions) MUST be an authentic Assertion (A) and Reason (R) question.
+- The 'text' field of each question MUST be strictly formatted as:
+  "Assertion (A): [Factual or conceptual statement regarding the syllabus/topic]
+Reason (R): [Supporting, contradictory, or causal statement regarding the assertion]"
+- The 'options' array MUST STRICTLY contain these exact 4 standard options:
+  [
+    "Both Assertion (A) and Reason (R) are true and Reason (R) is the correct explanation of Assertion (A).",
+    "Both Assertion (A) and Reason (R) are true but Reason (R) is NOT the correct explanation of Assertion (A).",
+    "Assertion (A) is true but Reason (R) is false.",
+    "Assertion (A) is false but Reason (R) is true."
+  ]
+- 'correctIndex' (0, 1, 2, or 3) MUST reflect the true scientific/logical relationship between Assertion (A) and Reason (R).
+- 'explanation' MUST clearly evaluate both Assertion and Reason statements individually and explain why the selected option is correct.`,
+      promptDirective: `MANDATORY FORMAT ENFORCEMENT (ASSERTION-REASONING ONLY):
+- Selected Board Format: ASSERTION-REASONING (Strict).
+- YOU MUST FORMAT ALL 5 QUESTIONS EXCLUSIVELY AS ASSERTION (A) AND REASON (R) STATEMENTS.
+- The 'text' field MUST contain "Assertion (A): ..." and "Reason (R): ...".
+- The 4 options MUST strictly match the standard 4 board choices (Option 0: Both true & correct explanation, Option 1: Both true but NOT correct explanation, Option 2: A is true R is false, Option 3: A is false R is true).
+- DO NOT generate regular or standard standalone MCQs.`
+    };
+  }
+
+  if (/case/i.test(normalized) || /passage/i.test(normalized)) {
+    return {
+      formatName: "Case Study & Passage-Based Focus",
+      systemDirective: `MANDATORY SYSTEM DIRECTIVE - STRICT CASE STUDY / PASSAGE-BASED FORMAT:
+- The user has explicitly selected the 'Case Study / Passage-Based' Board Exam format.
+- YOU ARE STRICTLY FORBIDDEN FROM GENERATING ISOLATED, SHORT STANDALONE MCQs WITHOUT CONTEXT.
+- EVERY SINGLE QUESTION (all 5 questions) MUST be of type 'CASE_STUDY'.
+- The 'contextMaterial' field MUST contain a detailed, realistic paragraph (60 to 120 words) describing a practical scenario, scientific experiment, laboratory setup, historical excerpt, case study, or real-world problem.
+- The 'text' field MUST pose an analytical question directly derived from and requiring critical reasoning based on the 'contextMaterial'.
+- The 4 options must be thoughtful analytical deductions, calculations, or evaluations testing deep conceptual comprehension.
+- 'explanation' MUST reference specific facts and data from the provided case scenario.`,
+      promptDirective: `MANDATORY FORMAT ENFORCEMENT (CASE STUDY / PASSAGE-BASED ONLY):
+- Selected Board Format: CASE STUDY & PASSAGE-BASED (Strict).
+- YOU MUST PROVIDE RICH CONTEXTUAL SCENARIOS (60-120 words) in 'contextMaterial' for ALL 5 questions (type: 'CASE_STUDY').
+- The question text and options must test deep analytical deduction from the case passage.
+- DO NOT generate bare MCQs without context scenarios.`
+    };
+  }
+
+  if (/competency|numerical|application/i.test(normalized)) {
+    return {
+      formatName: "Competency & Application Focus",
+      systemDirective: `MANDATORY SYSTEM DIRECTIVE - STRICT COMPETENCY & NUMERICAL APPLICATION FORMAT:
+- The user has explicitly selected the 'Competency & Application' Board Exam format.
+- YOU ARE STRICTLY FORBIDDEN FROM GENERATING ROTE-MEMORIZATION OR DEFINITION-ONLY MCQs.
+- All 5 questions must be higher-order competency assessments (types: 'WORD_PROBLEM' or 'VISUAL_ANALYSIS').
+- Focus on practical real-world applications, quantitative calculations, experimental variable analysis, and graph/data interpretation.
+- If testing visual or experimental concepts, describe the experimental apparatus or graph setup in 'contextMaterial'.
+- 'explanation' MUST include complete step-by-step mathematical calculations or rigorous logical derivations.`,
+      promptDirective: `MANDATORY FORMAT ENFORCEMENT (COMPETENCY & NUMERICAL APPLICATION):
+- Selected Board Format: COMPETENCY & NUMERICAL APPLICATION (Strict).
+- You MUST generate analytical problem-solving and application questions with multi-step derivations (type: 'WORD_PROBLEM' or 'VISUAL_ANALYSIS').
+- Avoid simple rote recall questions.`
+    };
+  }
+
+  if (/mcq/i.test(normalized)) {
+    return {
+      formatName: "MCQ Focus",
+      systemDirective: `MANDATORY SYSTEM DIRECTIVE - STRICT MULTIPLE CHOICE FORMAT:
+- The user has explicitly selected the 'MCQ Focus' Board Exam format.
+- Generate high-quality, syllabus-aligned Multiple Choice Questions (type: 'MCQ') testing conceptual accuracy, terminology, and core principles.
+- Ensure all 4 options are plausible, unambiguous, and realistic distractors.`,
+      promptDirective: `MANDATORY FORMAT ENFORCEMENT (MCQ FOCUS):
+- Selected Board Format: MCQ ONLY.
+- Generate 5 high-yield Multiple Choice Questions with 4 well-calibrated option choices.`
+    };
+  }
+
+  // Mixed Board Pattern (Default)
+  return {
+    formatName: "Mixed Board Pattern",
+    systemDirective: `MANDATORY SYSTEM DIRECTIVE - OFFICIAL BOARD MIXED PATTERN:
+- The user has selected the official 'Mixed Board Pattern' blueprint.
+- Generate an authentic, official board examination distribution across the 5 questions:
+  1. Question 1 & 2: Standard Conceptual MCQs (type: 'MCQ')
+  2. Question 3: Assertion-Reasoning Question formatted with Assertion (A) & Reason (R) and the 4 standard options.
+  3. Question 4: Competency / Real-World Applied Word Problem (type: 'WORD_PROBLEM')
+  4. Question 5: Case Study / Passage-Based Question with a rich scenario in 'contextMaterial' (type: 'CASE_STUDY').`,
+    promptDirective: `MANDATORY FORMAT ENFORCEMENT (MIXED BOARD PATTERN):
+- Selected Board Format: MIXED BOARD PATTERN.
+- Generate an authentic distribution: 2 MCQs, 1 Assertion-Reasoning, 1 Applied Problem, and 1 Case Study.`
+  };
+}
+
 export const generateQuizQuestions = async (
-  profile: UserProfile, 
-  isMockMode: boolean = false, 
+  profile: UserProfile,
+  isMockMode = false,
   groupName?: string,
   topicOverride?: string,
   difficulty?: DifficultyLevel,
@@ -1037,20 +1165,7 @@ export const generateQuizQuestions = async (
     2. Focus on the core pillars of the syllabus/topic for the subject "${profile.subject}".
     3. Refer to standard academic structures matching ${profile.gradeLevel}.`;
 
-  const boardPatternFormat = profile.boardPattern || "Mixed Board Pattern";
-  const boardPatternInstruction = `
-  BOARD PATTERN INSTRUCTION (${boardPatternFormat.toUpperCase()}):
-  - Selected Format Strategy: "${boardPatternFormat}".
-  - If "MCQ Focus": Generate 100% Multiple Choice Questions (type: "MCQ") with 4 clear, plausible option distractors testing conceptual accuracy and textbook facts.
-  - If "Assertion-Reasoning Focus": Generate questions formatted as Assertion (A) and Reason (R) statements in 'text' or 'contextMaterial'. The 4 options must strictly be:
-      Option 0: Both Assertion (A) and Reason (R) are true and Reason (R) is the correct explanation of Assertion (A).
-      Option 1: Both Assertion (A) and Reason (R) are true but Reason (R) is NOT the correct explanation of Assertion (A).
-      Option 2: Assertion (A) is true but Reason (R) is false.
-      Option 3: Assertion (A) is false but Reason (R) is true.
-  - If "Case Study & Passage-Based Focus": Include detailed contextual scenarios, laboratory case studies, or reading passages in 'contextMaterial' for the questions (type: "CASE_STUDY").
-  - If "Competency & Application Focus": Focus heavily on numerical problem-solving, real-world application, data interpretation, and quantitative calculations.
-  - If "Mixed Board Pattern": Include a balanced mix of MCQs, Assertion-Reasoning, Word Problems, and Case Studies.
-  `;
+  const { formatName: boardPatternFormat, systemDirective: boardPatternSystemDirective, promptDirective: boardPatternPromptDirective } = getBoardPatternPromptDirectives(profile.boardPattern);
 
   const progressiveLevelInstruction = `
   PROGRESSIVE LEVEL & DIFFICULTY CALIBRATION (CURRENT LEVEL: ${profile.level || 1}):
@@ -1077,10 +1192,11 @@ export const generateQuizQuestions = async (
   RandomSeed: ${seed}.
   
   ${groundedInstruction}
-  ${boardPatternInstruction}
+  ${boardPatternPromptDirective}
+  ${boardPatternSystemDirective}
   ${progressiveLevelInstruction}
   
-  TASK: Generate exactly 5 questions for this Batch. 
+  TASK: Generate exactly 5 questions for this Batch following the required '${boardPatternFormat}' format. 
   
   PEDAGOGICAL GOAL (EXAM EXCELLENCE):
   - PRIMARY OBJECTIVE: ${sourceMaterial ? "Synthesize the source material into high-quality assessments aligned with exam patterns." : "Strictly follow curriculum and textbook standards to ensure exam readiness."}
@@ -1101,7 +1217,7 @@ export const generateQuizQuestions = async (
   - Group ${groupName || "N/A"} must receive an entirely distinct set of 5 questions than any other group. DO NOT recycle common starter questions.
   
   QUESTION TYPES DISTRIBUTION:
-  - Follow the requested format (${boardPatternFormat}). Match question complexity with the target educational tier (${eduLevel}).
+  - Strictly enforce the requested format (${boardPatternFormat}). Match question complexity with the target educational tier (${eduLevel}).
   
   GUIDELINES:
   - CASE_STUDY: Provide a short paragraph (50-100 words) in 'contextMaterial' that the student must analyze to answer the question.
@@ -1131,7 +1247,13 @@ export const generateQuizQuestions = async (
               model: modelName,
               contents: prompt,
               config: {
-                systemInstruction: `You are a Senior Board Examination Author and Academic Curriculum Master. Output valid JSON only. Generate authentic, board-pattern questions matching official examination standards for ${profile.board || "CBSE/NCERT"} following the requested format pattern: "${boardPatternFormat}". Never output generic placeholders or abstract phrases like "Core Dynamics" or "Process Controls". Every question must use exact, realistic academic terminology for the requested subject and topic. ${groupName ? `This batch is specifically for Group ${groupName}. Ensure 100% uniqueness.` : ''}`,
+                systemInstruction: `You are a Senior Board Examination Author and Academic Curriculum Master for ${profile.board || "CBSE/NCERT"}.
+Output valid JSON only.
+
+${boardPatternSystemDirective}
+
+Never output generic placeholders or abstract phrases like "Core Dynamics" or "Process Controls". Every question must use exact, realistic academic terminology for the requested subject (${profile.subject}) and topic (${topic}).
+${groupName ? `This batch is specifically for Group ${groupName}. Ensure 100% uniqueness.` : ''}`,
                 responseMimeType: "application/json",
                 responseSchema: {
                   type: Type.ARRAY,
@@ -1213,8 +1335,10 @@ export const generateQuizQuestions = async (
       }
 
       console.log(`Calling Fallback AI (${fallback.type})...`);
-      const systemPrompt = `You are an AI Tutor. Output valid JSON only. Return a JSON array of 5 questions. ${groupName ? `This batch is for Group ${groupName}.` : ''}`;
-      const userPrompt = prompt + "\n\nIMPORTANT: Return ONLY a raw JSON array of 5 items. No markdown wrapper, no extra explanations.";
+      const systemPrompt = `You are a Senior Board Examination Author and Academic Curriculum Master for ${profile.board || "CBSE/NCERT"}. Output valid JSON only. Return a JSON array of 5 questions.
+${boardPatternSystemDirective}
+${groupName ? `This batch is for Group ${groupName}.` : ''}`;
+      const userPrompt = prompt + "\n\nIMPORTANT: Return ONLY a raw JSON array of 5 items formatted according to the required Board Pattern. No markdown wrapper, no extra explanations.";
       
       let content = "[]";
       if (fallback.type === 'groq') {
@@ -1318,11 +1442,6 @@ export const generateQuizQuestions = async (
     for (const q of offlineList) emitQuestion(q);
     return deliveredQuestions;
   }
-};
-
-const validateAndFormatQuestions = (parsed: any[], topic: string = "this topic"): QuizQuestion[] => {
-  if (!Array.isArray(parsed)) throw new Error("Response is not an array");
-  return parsed.map((q: any, index: number) => formatSingleQuestion(q, index, topic));
 };
 
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {

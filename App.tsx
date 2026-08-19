@@ -18,7 +18,7 @@ import { Button } from './components/Button';
 import { db, auth, loginWithGoogle, loginAnonymously, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { generateQuizQuestions, speakTextLocal } from './services/geminiService';
+import { generateQuizQuestions, speakTextLocal, generateOfflineQuizQuestions } from './services/geminiService';
 import * as pdfjsLib from 'pdfjs-dist';
 import { get as get_idb, set as set_idb } from 'idb-keyval';
 
@@ -950,7 +950,7 @@ export default function App() {
 
   // --- Core Domain State ---
   const [user, setUser] = useState<UserProfile>({
-    name: '',
+    name: 'Scholar Student',
     gradeLevel: '10',
     board: 'CBSE',
     subject: 'Science',
@@ -1351,25 +1351,29 @@ export default function App() {
       autoAdvanceTimeoutRef.current = null;
     }
 
-    if (!user.name.trim()) {
-      alert("Please configure your Student Name before starting the diagnose course.");
-      return;
-    }
-
     const currentLevel = targetLevel !== undefined ? targetLevel : (user.level || 1);
     const difficultyInfo = getLevelDifficultyInfo(currentLevel);
+    const studentName = user.name?.trim() || 'Scholar Student';
+    const activeTopic = user.topic?.trim() || 'Light - Reflection and Refraction';
+
     const activeUserProfile: UserProfile = {
       ...user,
+      name: studentName,
+      topic: activeTopic,
       level: currentLevel
     };
 
-    // Keep user state in sync with current level
-    if (user.level !== currentLevel) {
-      syncLocalUserProfile(activeUserProfile);
-    }
+    // Keep user state in sync with current level and safe student name
+    syncLocalUserProfile(activeUserProfile);
     
     // Stop any speech
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {
+        console.warn("Speech synthesis cancel ignored:", e);
+      }
+    }
     setIsReadingAloud(false);
 
     setLoadingProgress(25);
@@ -1435,26 +1439,58 @@ export default function App() {
         handleQuestionGenerated
       );
 
-      setCurrentQuestions(questionsFetched);
-      setActiveQuiz(prev => prev ? { ...prev, profile: activeUserProfile, questions: questionsFetched } : {
-        profile: activeUserProfile,
-        questions: questionsFetched,
-        userAnswers: new Array(questionsFetched.length).fill(null),
-        score: 0,
-        questionTimer: testTimer
-      });
+      if (questionsFetched && questionsFetched.length > 0) {
+        setCurrentQuestions(questionsFetched);
+        setActiveQuiz(prev => prev ? { ...prev, profile: activeUserProfile, questions: questionsFetched } : {
+          profile: activeUserProfile,
+          questions: questionsFetched,
+          userAnswers: new Array(questionsFetched.length).fill(null),
+          score: 0,
+          questionTimer: testTimer
+        });
 
-      if (!hasSwitchedToQuiz && questionsFetched.length > 0) {
+        if (!hasSwitchedToQuiz) {
+          hasSwitchedToQuiz = true;
+          setTimeLeft(testTimer);
+          setIsTimerRunning(testTimer > 0);
+          setCurrentScreen(AppScreen.QUIZ);
+        }
+      } else {
+        // Fallback to offline questions
+        const offlineQuestions = generateOfflineQuizQuestions(activeUserProfile, activeUserProfile.topic, activeMaterial?.content);
+        setCurrentQuestions(offlineQuestions);
+        setActiveQuiz({
+          profile: activeUserProfile,
+          questions: offlineQuestions,
+          userAnswers: new Array(offlineQuestions.length).fill(null),
+          score: 0,
+          questionTimer: testTimer
+        });
+        if (!hasSwitchedToQuiz) {
+          hasSwitchedToQuiz = true;
+          setTimeLeft(testTimer);
+          setIsTimerRunning(testTimer > 0);
+          setCurrentScreen(AppScreen.QUIZ);
+        }
+      }
+
+    } catch (error: any) {
+      console.warn("Quiz synthesis error, fallback activated:", error);
+      if (!hasSwitchedToQuiz) {
+        const activeMaterial = materials.find(m => m.id === selectedMaterialId);
+        const offlineQuestions = generateOfflineQuizQuestions(activeUserProfile, activeUserProfile.topic, activeMaterial?.content);
+        setCurrentQuestions(offlineQuestions);
+        setActiveQuiz({
+          profile: activeUserProfile,
+          questions: offlineQuestions,
+          userAnswers: new Array(offlineQuestions.length).fill(null),
+          score: 0,
+          questionTimer: testTimer
+        });
         hasSwitchedToQuiz = true;
         setTimeLeft(testTimer);
         setIsTimerRunning(testTimer > 0);
         setCurrentScreen(AppScreen.QUIZ);
-      }
-
-    } catch (error: any) {
-      if (!hasSwitchedToQuiz) {
-        alert(error.message || "Synthesizer failed. Check API Keys in settings.");
-        setCurrentScreen(AppScreen.ENTRY);
       }
     } finally {
       setIsQuizGenerating(false);
@@ -1473,13 +1509,20 @@ export default function App() {
       autoAdvanceTimeoutRef.current = null;
     }
 
-    if (!user.topic.trim()) {
-      alert("Please select or type a Topic focus first.");
-      return;
-    }
+    const activeTopic = user.topic?.trim() || 'General Science Diagnostic';
+    const activeUserProfile: UserProfile = {
+      ...user,
+      topic: activeTopic
+    };
 
     // Stop speech
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {
+        console.warn("Speech synthesis cancel ignored:", e);
+      }
+    }
     setIsReadingAloud(false);
 
     setLoadingProgress(20);
@@ -1509,10 +1552,10 @@ export default function App() {
           id: 'arena_' + Date.now(),
           groups: groupsList.map(g => ({ ...g, score: 0 })),
           currentGroupIndex: 0,
-          subject: user.subject,
-          gradeLevel: user.gradeLevel,
-          section: user.section || 'A',
-          topic: user.topic,
+          subject: activeUserProfile.subject,
+          gradeLevel: activeUserProfile.gradeLevel,
+          section: activeUserProfile.section || 'A',
+          topic: activeTopic,
           isStarted: true,
           questionTimer: timerDuration
         });
@@ -1526,10 +1569,10 @@ export default function App() {
     try {
       const activeMaterial = materials.find(m => m.id === selectedMaterialId);
       const questionsFetched = await generateQuizQuestions(
-        user, 
+        activeUserProfile, 
         false, 
         'Multi-Team Arena', 
-        user.topic, 
+        activeTopic, 
         DifficultyLevel.DEFAULT, 
         0, 
         undefined, 
@@ -1537,18 +1580,22 @@ export default function App() {
         handleQuestionGenerated
       );
 
-      setCurrentQuestions(questionsFetched);
+      const finalQuestions = (questionsFetched && questionsFetched.length > 0) 
+        ? questionsFetched 
+        : generateOfflineQuizQuestions(activeUserProfile, activeTopic, activeMaterial?.content);
 
-      if (!hasSwitchedToQuiz && questionsFetched.length > 0) {
+      setCurrentQuestions(finalQuestions);
+
+      if (!hasSwitchedToQuiz) {
         hasSwitchedToQuiz = true;
         setClassroomSession({
           id: 'arena_' + Date.now(),
           groups: groupsList.map(g => ({ ...g, score: 0 })),
           currentGroupIndex: 0,
-          subject: user.subject,
-          gradeLevel: user.gradeLevel,
-          section: user.section || 'A',
-          topic: user.topic,
+          subject: activeUserProfile.subject,
+          gradeLevel: activeUserProfile.gradeLevel,
+          section: activeUserProfile.section || 'A',
+          topic: activeTopic,
           isStarted: true,
           questionTimer: timerDuration
         });
@@ -1559,9 +1606,27 @@ export default function App() {
       }
 
     } catch (e: any) {
+      console.warn("Classroom session question generation error, using offline fallback:", e);
       if (!hasSwitchedToQuiz) {
-        alert(e.message || "Failed to organize battle questions.");
-        setCurrentScreen(AppScreen.CLASSROOM_SETUP);
+        const activeMaterial = materials.find(m => m.id === selectedMaterialId);
+        const offlineQuestions = generateOfflineQuizQuestions(activeUserProfile, activeTopic, activeMaterial?.content);
+        setCurrentQuestions(offlineQuestions);
+        hasSwitchedToQuiz = true;
+        setClassroomSession({
+          id: 'arena_' + Date.now(),
+          groups: groupsList.map(g => ({ ...g, score: 0 })),
+          currentGroupIndex: 0,
+          subject: activeUserProfile.subject,
+          gradeLevel: activeUserProfile.gradeLevel,
+          section: activeUserProfile.section || 'A',
+          topic: activeTopic,
+          isStarted: true,
+          questionTimer: timerDuration
+        });
+
+        setTimeLeft(timerDuration);
+        setIsTimerRunning(timerDuration > 0);
+        setCurrentScreen(AppScreen.QUIZ);
       }
     } finally {
       setIsQuizGenerating(false);
