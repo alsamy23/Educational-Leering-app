@@ -10,9 +10,13 @@
         "gradeLevel": { "type": "string" },
         "section": { "type": "string" },
         "subject": { "type": "string" },
+        "board": { "type": "string" },
+        "boardPattern": { "type": "string" },
+        "educationLevel": { "type": "string" },
         "focus": { "type": "string" },
         "topic": { "type": "string" },
         "level": { "type": "number" },
+        "highestLevel": { "type": "number" },
         "totalQuizzes": { "type": "number" },
         "totalPoints": { "type": "number" },
         "progressMap": { 

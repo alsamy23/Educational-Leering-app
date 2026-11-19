@@ -38,7 +38,8 @@ export interface UserProfile {
   boardPattern?: string; // e.g. 'Mixed Board Pattern', 'MCQ Focus', 'Assertion-Reasoning Focus', 'Case Study & Passage-Based Focus', 'Competency & Application Focus'
   focus: StudyFocus;
   topic: string;
-  level: number; // Progressive level (1, 2, 3...)
+  level: number; // Progressive level for current active session (starts at 1)
+  highestLevel?: number; // Highest progressive level achieved across sessions
   totalQuizzes: number;
   totalPoints: number;
   testHistory?: TestRecord[];

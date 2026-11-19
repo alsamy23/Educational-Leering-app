@@ -18,7 +18,7 @@ import { Button } from './components/Button';
 import { db, auth, loginWithGoogle, loginAnonymously, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { generateQuizQuestions, speakTextLocal, generateOfflineQuizQuestions } from './services/geminiService';
+import { generateQuizQuestions, speakTextLocal, generateOfflineQuizQuestions, QuizGenerationError } from './services/geminiService';
 import * as pdfjsLib from 'pdfjs-dist';
 import { get as get_idb, set as set_idb } from 'idb-keyval';
 
@@ -826,6 +826,7 @@ const StudyLibraryInlinePanel: React.FC<{
 // --- Sub-Component: ProgressScreen ---
 const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ user, onBack }) => {
   const history = user.testHistory || [];
+  const masteryLevel = Math.max(user.highestLevel || 1, user.level || 1);
 
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
@@ -843,34 +844,34 @@ const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ u
           <p className="text-2xl font-headline font-extrabold tracking-tighter mt-1">{user.totalPoints.toLocaleString() || 0} pts</p>
         </div>
         <div className="bg-secondary/10 border border-secondary/20 p-5 rounded-2xl text-on-surface shadow-md">
-          <p className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-secondary italic">Current Mastery Level</p>
-          <p className="text-2xl font-headline font-extrabold tracking-tighter mt-1">Level {user.level}</p>
+          <p className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-secondary italic">Highest Mastery Level</p>
+          <p className="text-2xl font-headline font-extrabold tracking-tighter mt-1">Level {masteryLevel}</p>
           
           {/* Rank Progress Bar */}
           <div className="mt-4 pt-3 border-t border-secondary/20">
-            {user.level < 5 ? (
+            {masteryLevel < 5 ? (
               <>
                 <div className="flex justify-between items-center text-[9px] font-bold text-secondary uppercase tracking-wider mb-1.5">
                   <span>Next: Scholar</span>
-                  <span>{Math.max(0, 5 - user.level)} levels to go</span>
+                  <span>{Math.max(0, 5 - masteryLevel)} levels to go</span>
                 </div>
                 <div className="h-2 w-full bg-secondary/20 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-secondary transition-all duration-1000 ease-out"
-                    style={{ width: `${(user.level / 5) * 100}%` }}
+                    style={{ width: `${(masteryLevel / 5) * 100}%` }}
                   />
                 </div>
               </>
-            ) : user.level < 10 ? (
+            ) : masteryLevel < 10 ? (
               <>
                 <div className="flex justify-between items-center text-[9px] font-bold text-secondary uppercase tracking-wider mb-1.5">
                   <span>Next: Elite</span>
-                  <span>{Math.max(0, 10 - user.level)} levels to go</span>
+                  <span>{Math.max(0, 10 - masteryLevel)} levels to go</span>
                 </div>
                 <div className="h-2 w-full bg-secondary/20 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-secondary transition-all duration-1000 ease-out"
-                    style={{ width: `${((user.level - 5) / 5) * 100}%` }}
+                    style={{ width: `${((masteryLevel - 5) / 5) * 100}%` }}
                   />
                 </div>
               </>
@@ -903,7 +904,7 @@ const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ u
                   <p className="text-[10px] text-on-surface-variant/80 mt-1 font-body font-bold">{record.date} • {record.subject} • Grade {record.grade || 'N/A'} • {record.score * 10} pts</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-base font-headline font-extrabold text-on-surface">{record.score}/5</p>
+                  <p className="text-base font-headline font-extrabold text-on-surface">{record.score}/{record.total || 5}</p>
                   <p className="text-[8px] font-bold uppercase tracking-wider text-primary">Points Earned</p>
                 </div>
               </div>
@@ -949,18 +950,39 @@ export default function App() {
   };
 
   // --- Core Domain State ---
-  const [user, setUser] = useState<UserProfile>({
-    name: 'Scholar Student',
-    gradeLevel: '10',
-    board: 'CBSE',
-    subject: 'Science',
-    focus: StudyFocus.SYLLABUS,
-    topic: 'Light - Reflection and Refraction',
-    level: 1,
-    totalQuizzes: 0,
-    totalPoints: 0,
-    testHistory: [],
-    educationLevel: 'School'
+  const sanitizeLoadedProfile = (raw: Partial<UserProfile>, forceLevelOne = true): UserProfile => {
+    const computedHighest = Math.max(Number(raw.highestLevel) || 1, Number(raw.level) || 1);
+    return {
+      name: (raw.name || '').trim() || 'Scholar Student',
+      gradeLevel: (raw.gradeLevel || '10').trim() || '10',
+      section: raw.section,
+      board: raw.board || 'CBSE',
+      boardPattern: raw.boardPattern || 'Mixed Board Pattern',
+      subject: raw.subject || 'Science',
+      focus: raw.focus || StudyFocus.SYLLABUS,
+      topic: raw.topic || 'Light - Reflection and Refraction',
+      level: forceLevelOne ? 1 : Math.max(1, Number(raw.level) || 1),
+      highestLevel: computedHighest,
+      totalQuizzes: Math.max(0, Number(raw.totalQuizzes) || 0),
+      totalPoints: Math.max(0, Number(raw.totalPoints) || 0),
+      testHistory: Array.isArray(raw.testHistory) ? raw.testHistory : [],
+      progressMap: raw.progressMap || {},
+      role: raw.role,
+      isGuest: raw.isGuest,
+      educationLevel: raw.educationLevel || 'School'
+    };
+  };
+
+  const [user, setUser] = useState<UserProfile>(() => {
+    try {
+      const cached = localStorage.getItem('scholar_earn_user');
+      if (cached) {
+        return sanitizeLoadedProfile(JSON.parse(cached), true);
+      }
+    } catch {
+      // Ignore invalid localStorage cache
+    }
+    return sanitizeLoadedProfile({}, true);
   });
 
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.ENTRY);
@@ -971,6 +993,15 @@ export default function App() {
   const [activeQuiz, setActiveQuiz] = useState<QuizSession | null>(null);
   const [feedback, setFeedback] = useState<{ selected: number; isCorrect: boolean } | null>(null);
   const [isQuizGenerating, setIsQuizGenerating] = useState<boolean>(false);
+  const [quizError, setQuizError] = useState<{
+    message: string;
+    code: string;
+    pendingLevel: number;
+    isClassroom?: boolean;
+    groups?: Group[];
+    timerDuration?: number;
+  } | null>(null);
+  const sessionAskedQuestionsRef = useRef<string[]>([]);
 
   const tipOfTheDay = useMemo(() => {
     const tips = [
@@ -1185,6 +1216,21 @@ export default function App() {
   // --- Classroom Multiplayer Battle stats ---
   const [classroomSession, setClassroomSession] = useState<ClassroomSession | null>(null);
 
+  // Refs to prevent stale closures in auto-advance timers & async streams
+  const userRef = useRef(user);
+  const currentQuestionsRef = useRef(currentQuestions);
+  const currentQuestionIndexRef = useRef(currentQuestionIndex);
+  const userAnswersRef = useRef(userAnswers);
+  const activeQuizRef = useRef(activeQuiz);
+  const classroomSessionRef = useRef(classroomSession);
+
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { currentQuestionsRef.current = currentQuestions; }, [currentQuestions]);
+  useEffect(() => { currentQuestionIndexRef.current = currentQuestionIndex; }, [currentQuestionIndex]);
+  useEffect(() => { userAnswersRef.current = userAnswers; }, [userAnswers]);
+  useEffect(() => { activeQuizRef.current = activeQuiz; }, [activeQuiz]);
+  useEffect(() => { classroomSessionRef.current = classroomSession; }, [classroomSession]);
+
   // --- Source Ingest Materials Storage ---
   const [materials, setMaterials] = useState<StudyMaterial[]>([
     { id: '1', title: 'CBSE Physics Ch-1 Syllabus Guideline', content: 'Reflection of light by curved surfaces; Images formed by spherical mirrors, centre of curvature, principal axis, principal focus, focal length, mirror formula, magnification, Refraction; Laws of refraction, refractive index.', timestamp: Date.now() }
@@ -1225,46 +1271,66 @@ export default function App() {
   const [showMotivationalPopup, setShowMotivationalPopup] = useState<boolean>(false);
   const [motivationText, setMotivationText] = useState<string>('Extraordinary!');
 
+  const buildFirestoreUserPayload = (uid: string, profile: UserProfile) => {
+    const safeName = ((profile.name || '').trim() || 'Scholar Student').slice(0, 50);
+    const safeGrade = ((profile.gradeLevel || '10').trim() || '10').slice(0, 10);
+    return {
+      uid,
+      name: safeName,
+      gradeLevel: safeGrade,
+      ...(profile.section ? { section: String(profile.section).slice(0, 10) } : {}),
+      subject: String(profile.subject || 'Science').slice(0, 50),
+      board: String(profile.board || 'CBSE').slice(0, 60),
+      boardPattern: String(profile.boardPattern || 'Mixed Board Pattern').slice(0, 60),
+      educationLevel: profile.educationLevel || 'School',
+      focus: String(profile.focus || StudyFocus.SYLLABUS).slice(0, 50),
+      topic: String(profile.topic || 'Light - Reflection and Refraction').slice(0, 100),
+      level: Math.max(1, Number(profile.level) || 1),
+      highestLevel: Math.max(1, Number(profile.highestLevel) || 1, Number(profile.level) || 1),
+      totalQuizzes: Math.max(0, Number(profile.totalQuizzes) || 0),
+      totalPoints: Math.max(0, Number(profile.totalPoints) || 0),
+      progressMap: profile.progressMap || {},
+      testHistory: Array.isArray(profile.testHistory) ? profile.testHistory.slice(0, 50) : []
+    };
+  };
+
   // --- Auth state change listener ---
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       setCurrentUser(fbUser);
       if (fbUser) {
-        // Fetch cloud settings
         try {
           const userDocRef = doc(db, 'users', fbUser.uid);
           const userSnap = await getDoc(userDocRef);
           if (userSnap.exists()) {
             const cloudUser = userSnap.data() as UserProfile;
-            setUser(cloudUser);
+            // Always start a fresh browser session at Level 1 while preserving lifetime stats & highestLevel
+            const sessionReady = sanitizeLoadedProfile(cloudUser, true);
+            setUser(sessionReady);
+            userRef.current = sessionReady;
+            localStorage.setItem('scholar_earn_user', JSON.stringify(sessionReady));
           } else {
-            // Write initial layout
-            const initialUser: UserProfile = {
-              name: fbUser.displayName || '',
-              gradeLevel: '10',
-              board: 'CBSE',
-              subject: 'Science',
-              focus: StudyFocus.SYLLABUS,
-              topic: 'Light - Reflection and Refraction',
-              level: 1,
-              totalQuizzes: 0,
-              totalPoints: 0,
-              testHistory: [],
-              educationLevel: 'School'
-            };
-            await setDoc(userDocRef, initialUser);
+            const initialUser = sanitizeLoadedProfile({
+              name: fbUser.displayName || 'Scholar Student'
+            }, true);
+            await setDoc(userDocRef, buildFirestoreUserPayload(fbUser.uid, initialUser));
             setUser(initialUser);
+            userRef.current = initialUser;
+            localStorage.setItem('scholar_earn_user', JSON.stringify(initialUser));
           }
         } catch (e) {
-          console.error("Failed to load user document", e);
+          console.warn("Failed to load/initialize user document:", e);
         }
       } else {
-        // Fall back to localStorage profile if anonymous
         const cached = localStorage.getItem('scholar_earn_user');
         if (cached) {
           try {
-            setUser(JSON.parse(cached));
-          } catch (_) {}
+            const sessionReady = sanitizeLoadedProfile(JSON.parse(cached), true);
+            setUser(sessionReady);
+            userRef.current = sessionReady;
+          } catch {
+            // Ignore malformed local cache
+          }
         }
       }
       setAuthLoading(false);
@@ -1274,13 +1340,29 @@ export default function App() {
 
   // --- Trigger Profile Offline Cache Sync ---
   const syncLocalUserProfile = (updated: UserProfile) => {
-    setUser(updated);
-    localStorage.setItem('scholar_earn_user', JSON.stringify(updated));
+    const normalized: UserProfile = {
+      ...updated,
+      level: Math.max(1, Number(updated.level) || 1),
+      highestLevel: Math.max(Number(updated.highestLevel) || 1, Number(updated.level) || 1)
+    };
+    setUser(normalized);
+    userRef.current = normalized;
+    localStorage.setItem('scholar_earn_user', JSON.stringify(normalized));
     if (currentUser) {
-      setDoc(doc(db, 'users', currentUser.uid), updated).catch(err => {
-        handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
+      setDoc(doc(db, 'users', currentUser.uid), buildFirestoreUserPayload(currentUser.uid, normalized)).catch(err => {
+        console.warn("Firestore sync warning:", err?.message || err);
       });
     }
+  };
+
+  const updateAcademicConfig = (patch: Partial<UserProfile>) => {
+    // Switching topic, subject, grade, board, stream, or board pattern always resets the session back to Level 1
+    sessionAskedQuestionsRef.current = [];
+    syncLocalUserProfile({
+      ...userRef.current,
+      ...patch,
+      level: 1
+    });
   };
 
   // --- Countdown Clock Hook ---
@@ -1344,29 +1426,95 @@ export default function App() {
     );
   };
 
+  // --- Launch Explicit Offline Practice Mode ---
+  const launchOfflinePractice = (targetLevel: number, isClassroom = false, groupsList?: Group[], timerDuration?: number) => {
+    const latestUser = userRef.current;
+    const activeTopic = latestUser.topic?.trim() || 'Light - Reflection and Refraction';
+    const activeUserProfile: UserProfile = {
+      ...latestUser,
+      name: latestUser.name?.trim() || 'Scholar Student',
+      topic: activeTopic,
+      level: Math.max(1, targetLevel || 1)
+    };
+    const activeMaterial = materials.find(m => m.id === selectedMaterialId);
+    const offlineQuestions = generateOfflineQuizQuestions(activeUserProfile, activeTopic, activeMaterial?.content);
+
+    setQuizError(null);
+    setCurrentQuestions(offlineQuestions);
+    currentQuestionsRef.current = offlineQuestions;
+    setCurrentQuestionIndex(0);
+    currentQuestionIndexRef.current = 0;
+    const emptyAnswers = new Array(offlineQuestions.length).fill(null);
+    setUserAnswers(emptyAnswers);
+    userAnswersRef.current = emptyAnswers;
+    setFeedback(null);
+
+    if (isClassroom && groupsList) {
+      const duration = timerDuration ?? 45;
+      const sessionObj: ClassroomSession = {
+        id: 'arena_' + Date.now(),
+        groups: groupsList.map(g => ({ ...g, score: 0 })),
+        currentGroupIndex: 0,
+        subject: activeUserProfile.subject,
+        gradeLevel: activeUserProfile.gradeLevel,
+        section: activeUserProfile.section || 'A',
+        topic: activeTopic,
+        isStarted: true,
+        questionTimer: duration
+      };
+      setClassroomSession(sessionObj);
+      classroomSessionRef.current = sessionObj;
+      setTimeLeft(duration);
+      setIsTimerRunning(duration > 0);
+    } else {
+      setClassroomSession(null);
+      classroomSessionRef.current = null;
+      const quizObj: QuizSession = {
+        profile: activeUserProfile,
+        questions: offlineQuestions,
+        userAnswers: emptyAnswers,
+        score: 0,
+        questionTimer: individualTimer
+      };
+      setActiveQuiz(quizObj);
+      activeQuizRef.current = quizObj;
+      setTimeLeft(individualTimer);
+      setIsTimerRunning(individualTimer > 0);
+    }
+    setCurrentScreen(AppScreen.QUIZ);
+  };
+
   // --- Load and synthesize questions ---
   const initiateDiagnosis = async (targetLevel?: number) => {
+    if (isQuizGenerating) return;
+
     if (autoAdvanceTimeoutRef.current) {
       clearTimeout(autoAdvanceTimeoutRef.current);
       autoAdvanceTimeoutRef.current = null;
     }
 
-    const currentLevel = targetLevel !== undefined ? targetLevel : (user.level || 1);
+    const latestUser = userRef.current;
+    const currentLevel = Math.max(1, targetLevel !== undefined ? targetLevel : (latestUser.level || 1));
+    if (currentLevel === 1) {
+      sessionAskedQuestionsRef.current = [];
+    }
+
     const difficultyInfo = getLevelDifficultyInfo(currentLevel);
-    const studentName = user.name?.trim() || 'Scholar Student';
-    const activeTopic = user.topic?.trim() || 'Light - Reflection and Refraction';
+    const studentName = latestUser.name?.trim() || 'Scholar Student';
+    const activeTopic = latestUser.topic?.trim() || 'Light - Reflection and Refraction';
 
     const activeUserProfile: UserProfile = {
-      ...user,
+      ...latestUser,
       name: studentName,
       topic: activeTopic,
       level: currentLevel
     };
 
-    // Keep user state in sync with current level and safe student name
     syncLocalUserProfile(activeUserProfile);
-    
-    // Stop any speech
+    setClassroomSession(null);
+    classroomSessionRef.current = null;
+    setQuizError(null);
+
     if (window.speechSynthesis) {
       try {
         window.speechSynthesis.cancel();
@@ -1381,40 +1529,50 @@ export default function App() {
     setCurrentScreen(AppScreen.LOADING);
 
     setCurrentQuestions([]);
+    currentQuestionsRef.current = [];
     setCurrentQuestionIndex(0);
-    setUserAnswers(new Array(5).fill(null));
+    currentQuestionIndexRef.current = 0;
+    const initAnswers = new Array(5).fill(null);
+    setUserAnswers(initAnswers);
+    userAnswersRef.current = initAnswers;
     setFeedback(null);
+    setActiveQuiz(null);
+    activeQuizRef.current = null;
     setIsQuizGenerating(true);
 
     let hasSwitchedToQuiz = false;
-    const testTimer = individualTimer; // selected individual countdown
+    const testTimer = individualTimer;
 
     const handleQuestionGenerated = (newQuestion: QuizQuestion) => {
-      setCurrentQuestions(prev => {
-        if (prev.some(q => q.id === newQuestion.id || q.text === newQuestion.text)) {
-          return prev;
-        }
-        const updated = [...prev, newQuestion];
+      const normNew = newQuestion.text.trim().toLowerCase();
+      if (currentQuestionsRef.current.some(q => q.text.trim().toLowerCase() === normNew)) {
+        return;
+      }
 
-        setActiveQuiz(activeQuizPrev => {
-          if (!activeQuizPrev) {
-            return {
-              profile: activeUserProfile,
-              questions: updated,
-              userAnswers: new Array(5).fill(null),
-              score: 0,
-              questionTimer: testTimer
-            };
-          }
-          return {
-            ...activeQuizPrev,
+      const updated = [...currentQuestionsRef.current, newQuestion];
+      currentQuestionsRef.current = updated;
+      setCurrentQuestions(updated);
+
+      if (!sessionAskedQuestionsRef.current.includes(newQuestion.text)) {
+        sessionAskedQuestionsRef.current = [...sessionAskedQuestionsRef.current, newQuestion.text].slice(-30);
+      }
+
+      const prevQuiz = activeQuizRef.current;
+      const nextQuiz: QuizSession = prevQuiz
+        ? {
+            ...prevQuiz,
             profile: activeUserProfile,
             questions: updated
+          }
+        : {
+            profile: activeUserProfile,
+            questions: updated,
+            userAnswers: new Array(5).fill(null),
+            score: 0,
+            questionTimer: testTimer
           };
-        });
-
-        return updated;
-      });
+      activeQuizRef.current = nextQuiz;
+      setActiveQuiz(nextQuiz);
 
       if (!hasSwitchedToQuiz) {
         hasSwitchedToQuiz = true;
@@ -1428,44 +1586,39 @@ export default function App() {
     try {
       const activeMaterial = materials.find(m => m.id === selectedMaterialId);
       const questionsFetched = await generateQuizQuestions(
-        activeUserProfile, 
-        false, 
-        undefined, 
-        activeUserProfile.topic, 
-        difficultyInfo.difficulty, 
-        0, 
-        undefined, 
+        activeUserProfile,
+        false,
+        undefined,
+        activeUserProfile.topic,
+        difficultyInfo.difficulty,
+        0,
+        undefined,
         activeMaterial?.content,
-        handleQuestionGenerated
+        handleQuestionGenerated,
+        sessionAskedQuestionsRef.current
       );
 
       if (questionsFetched && questionsFetched.length > 0) {
+        currentQuestionsRef.current = questionsFetched;
         setCurrentQuestions(questionsFetched);
-        setActiveQuiz(prev => prev ? { ...prev, profile: activeUserProfile, questions: questionsFetched } : {
+        const syncedAnswers =
+          userAnswersRef.current.length === questionsFetched.length
+            ? userAnswersRef.current
+            : questionsFetched.map((_, idx) => userAnswersRef.current[idx] ?? null);
+        userAnswersRef.current = syncedAnswers;
+        setUserAnswers(syncedAnswers);
+
+        const currentActiveQuiz = activeQuizRef.current as QuizSession | null;
+        const nextQuiz: QuizSession = {
           profile: activeUserProfile,
           questions: questionsFetched,
-          userAnswers: new Array(questionsFetched.length).fill(null),
-          score: 0,
+          userAnswers: syncedAnswers,
+          score: currentActiveQuiz?.score || 0,
           questionTimer: testTimer
-        });
+        };
+        activeQuizRef.current = nextQuiz;
+        setActiveQuiz(nextQuiz);
 
-        if (!hasSwitchedToQuiz) {
-          hasSwitchedToQuiz = true;
-          setTimeLeft(testTimer);
-          setIsTimerRunning(testTimer > 0);
-          setCurrentScreen(AppScreen.QUIZ);
-        }
-      } else {
-        // Fallback to offline questions
-        const offlineQuestions = generateOfflineQuizQuestions(activeUserProfile, activeUserProfile.topic, activeMaterial?.content);
-        setCurrentQuestions(offlineQuestions);
-        setActiveQuiz({
-          profile: activeUserProfile,
-          questions: offlineQuestions,
-          userAnswers: new Array(offlineQuestions.length).fill(null),
-          score: 0,
-          questionTimer: testTimer
-        });
         if (!hasSwitchedToQuiz) {
           hasSwitchedToQuiz = true;
           setTimeLeft(testTimer);
@@ -1473,24 +1626,20 @@ export default function App() {
           setCurrentScreen(AppScreen.QUIZ);
         }
       }
-
     } catch (error: any) {
-      console.warn("Quiz synthesis error, fallback activated:", error);
+      console.error("Quiz synthesis error:", error);
       if (!hasSwitchedToQuiz) {
-        const activeMaterial = materials.find(m => m.id === selectedMaterialId);
-        const offlineQuestions = generateOfflineQuizQuestions(activeUserProfile, activeUserProfile.topic, activeMaterial?.content);
-        setCurrentQuestions(offlineQuestions);
-        setActiveQuiz({
-          profile: activeUserProfile,
-          questions: offlineQuestions,
-          userAnswers: new Array(offlineQuestions.length).fill(null),
-          score: 0,
-          questionTimer: testTimer
+        const msg =
+          error instanceof QuizGenerationError
+            ? error.message
+            : error?.message || "Could not connect to the AI question generator.";
+        const code = error instanceof QuizGenerationError ? error.code : "GENERATION_FAILED";
+        setQuizError({
+          message: msg,
+          code,
+          pendingLevel: currentLevel,
+          isClassroom: false
         });
-        hasSwitchedToQuiz = true;
-        setTimeLeft(testTimer);
-        setIsTimerRunning(testTimer > 0);
-        setCurrentScreen(AppScreen.QUIZ);
       }
     } finally {
       setIsQuizGenerating(false);
@@ -1504,18 +1653,20 @@ export default function App() {
 
   // --- Trigger Classroom Battle ---
   const startClassroomSession = async (groupsList: Group[], timerDuration: number) => {
+    if (isQuizGenerating) return;
+
     if (autoAdvanceTimeoutRef.current) {
       clearTimeout(autoAdvanceTimeoutRef.current);
       autoAdvanceTimeoutRef.current = null;
     }
 
-    const activeTopic = user.topic?.trim() || 'General Science Diagnostic';
+    const latestUser = userRef.current;
+    const activeTopic = latestUser.topic?.trim() || 'General Science Diagnostic';
     const activeUserProfile: UserProfile = {
-      ...user,
+      ...latestUser,
       topic: activeTopic
     };
 
-    // Stop speech
     if (window.speechSynthesis) {
       try {
         window.speechSynthesis.cancel();
@@ -1524,31 +1675,41 @@ export default function App() {
       }
     }
     setIsReadingAloud(false);
+    setQuizError(null);
 
     setLoadingProgress(20);
     setLoadingMessage("Fortifying Classroom Arena...");
     setCurrentScreen(AppScreen.LOADING);
 
     setCurrentQuestions([]);
+    currentQuestionsRef.current = [];
     setCurrentQuestionIndex(0);
-    setUserAnswers(new Array(5).fill(null));
+    currentQuestionIndexRef.current = 0;
+    const initAnswers = new Array(5).fill(null);
+    setUserAnswers(initAnswers);
+    userAnswersRef.current = initAnswers;
     setFeedback(null);
     setIsQuizGenerating(true);
 
     let hasSwitchedToQuiz = false;
 
     const handleQuestionGenerated = (newQuestion: QuizQuestion) => {
-      setCurrentQuestions(prev => {
-        if (prev.some(q => q.id === newQuestion.id || q.text === newQuestion.text)) {
-          return prev;
-        }
-        return [...prev, newQuestion];
-      });
+      const normNew = newQuestion.text.trim().toLowerCase();
+      if (currentQuestionsRef.current.some(q => q.text.trim().toLowerCase() === normNew)) {
+        return;
+      }
+      const updated = [...currentQuestionsRef.current, newQuestion];
+      currentQuestionsRef.current = updated;
+      setCurrentQuestions(updated);
+
+      if (!sessionAskedQuestionsRef.current.includes(newQuestion.text)) {
+        sessionAskedQuestionsRef.current = [...sessionAskedQuestionsRef.current, newQuestion.text].slice(-30);
+      }
 
       if (!hasSwitchedToQuiz) {
         hasSwitchedToQuiz = true;
         setLoadingProgress(100);
-        setClassroomSession({
+        const sessionObj: ClassroomSession = {
           id: 'arena_' + Date.now(),
           groups: groupsList.map(g => ({ ...g, score: 0 })),
           currentGroupIndex: 0,
@@ -1558,8 +1719,9 @@ export default function App() {
           topic: activeTopic,
           isStarted: true,
           questionTimer: timerDuration
-        });
-
+        };
+        classroomSessionRef.current = sessionObj;
+        setClassroomSession(sessionObj);
         setTimeLeft(timerDuration);
         setIsTimerRunning(timerDuration > 0);
         setCurrentScreen(AppScreen.QUIZ);
@@ -1569,78 +1731,67 @@ export default function App() {
     try {
       const activeMaterial = materials.find(m => m.id === selectedMaterialId);
       const questionsFetched = await generateQuizQuestions(
-        activeUserProfile, 
-        false, 
-        'Multi-Team Arena', 
-        activeTopic, 
-        DifficultyLevel.DEFAULT, 
-        0, 
-        undefined, 
+        activeUserProfile,
+        false,
+        'Multi-Team Arena',
+        activeTopic,
+        DifficultyLevel.DEFAULT,
+        0,
+        undefined,
         activeMaterial?.content,
-        handleQuestionGenerated
+        handleQuestionGenerated,
+        sessionAskedQuestionsRef.current
       );
 
-      const finalQuestions = (questionsFetched && questionsFetched.length > 0) 
-        ? questionsFetched 
-        : generateOfflineQuizQuestions(activeUserProfile, activeTopic, activeMaterial?.content);
-
-      setCurrentQuestions(finalQuestions);
-
-      if (!hasSwitchedToQuiz) {
-        hasSwitchedToQuiz = true;
-        setClassroomSession({
-          id: 'arena_' + Date.now(),
-          groups: groupsList.map(g => ({ ...g, score: 0 })),
-          currentGroupIndex: 0,
-          subject: activeUserProfile.subject,
-          gradeLevel: activeUserProfile.gradeLevel,
-          section: activeUserProfile.section || 'A',
-          topic: activeTopic,
-          isStarted: true,
-          questionTimer: timerDuration
-        });
-
-        setTimeLeft(timerDuration);
-        setIsTimerRunning(timerDuration > 0);
-        setCurrentScreen(AppScreen.QUIZ);
+      if (questionsFetched && questionsFetched.length > 0) {
+        currentQuestionsRef.current = questionsFetched;
+        setCurrentQuestions(questionsFetched);
+        if (!hasSwitchedToQuiz) {
+          hasSwitchedToQuiz = true;
+          const sessionObj: ClassroomSession = {
+            id: 'arena_' + Date.now(),
+            groups: groupsList.map(g => ({ ...g, score: 0 })),
+            currentGroupIndex: 0,
+            subject: activeUserProfile.subject,
+            gradeLevel: activeUserProfile.gradeLevel,
+            section: activeUserProfile.section || 'A',
+            topic: activeTopic,
+            isStarted: true,
+            questionTimer: timerDuration
+          };
+          classroomSessionRef.current = sessionObj;
+          setClassroomSession(sessionObj);
+          setTimeLeft(timerDuration);
+          setIsTimerRunning(timerDuration > 0);
+          setCurrentScreen(AppScreen.QUIZ);
+        }
       }
-
     } catch (e: any) {
-      console.warn("Classroom session question generation error, using offline fallback:", e);
+      console.error("Classroom session question generation error:", e);
       if (!hasSwitchedToQuiz) {
-        const activeMaterial = materials.find(m => m.id === selectedMaterialId);
-        const offlineQuestions = generateOfflineQuizQuestions(activeUserProfile, activeTopic, activeMaterial?.content);
-        setCurrentQuestions(offlineQuestions);
-        hasSwitchedToQuiz = true;
-        setClassroomSession({
-          id: 'arena_' + Date.now(),
-          groups: groupsList.map(g => ({ ...g, score: 0 })),
-          currentGroupIndex: 0,
-          subject: activeUserProfile.subject,
-          gradeLevel: activeUserProfile.gradeLevel,
-          section: activeUserProfile.section || 'A',
-          topic: activeTopic,
-          isStarted: true,
-          questionTimer: timerDuration
+        setQuizError({
+          message: e?.message || "Could not generate classroom battle questions.",
+          code: e?.code || "GENERATION_FAILED",
+          pendingLevel: activeUserProfile.level || 1,
+          isClassroom: true,
+          groups: groupsList,
+          timerDuration
         });
-
-        setTimeLeft(timerDuration);
-        setIsTimerRunning(timerDuration > 0);
-        setCurrentScreen(AppScreen.QUIZ);
       }
     } finally {
       setIsQuizGenerating(false);
     }
   };
 
-  // --- Option click evaluator with dyn key shifting fixes ---
+  // --- Option click evaluator with ref synchronization ---
   const handleOptionClick = (optionIdx: number) => {
-    if (feedback !== null) return; // Prevent multiple clicks
-    setIsTimerRunning(false); // Pause clock feedback
-    if (window.speechSynthesis) window.speechSynthesis.cancel(); // Stop read alouds
+    if (feedback !== null) return;
+    setIsTimerRunning(false);
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
     setIsReadingAloud(false);
 
-    const currentQ = currentQuestions[currentQuestionIndex];
+    const qIdx = currentQuestionIndexRef.current;
+    const currentQ = currentQuestionsRef.current[qIdx];
     if (!currentQ) return;
 
     const correct = optionIdx === currentQ.correctIndex;
@@ -1653,18 +1804,45 @@ export default function App() {
       playAudioFeedback(correct);
     }
 
-    // Update ongoing answers
-    const nextAnswers = [...userAnswers];
-    nextAnswers[currentQuestionIndex] = optionIdx;
+    const nextAnswers = [...userAnswersRef.current];
+    nextAnswers[qIdx] = optionIdx;
+    userAnswersRef.current = nextAnswers;
     setUserAnswers(nextAnswers);
 
-    // Dynamic positive words mapping
+    const activeClassSession = classroomSessionRef.current;
+    const activeQuizSnap = activeQuizRef.current;
+
+    if (activeClassSession) {
+      if (correct) {
+        const updatedGroups = activeClassSession.groups.map((g, idx) =>
+          idx === activeClassSession.currentGroupIndex ? { ...g, score: g.score + 1 } : g
+        );
+        const nextClassSession = {
+          ...activeClassSession,
+          groups: updatedGroups
+        };
+        classroomSessionRef.current = nextClassSession;
+        setClassroomSession(nextClassSession);
+      }
+    } else if (activeQuizSnap) {
+      const computedScore = nextAnswers.reduce<number>(
+        (acc, ans, idx) => acc + (ans !== null && ans === currentQuestionsRef.current[idx]?.correctIndex ? 1 : 0),
+        0
+      );
+      const nextQuizObj: QuizSession = {
+        ...activeQuizSnap,
+        score: computedScore,
+        userAnswers: nextAnswers
+      };
+      activeQuizRef.current = nextQuizObj;
+      setActiveQuiz(nextQuizObj);
+    }
+
     if (correct) {
       const niceWords = ['Excellent!', 'Outstanding!', 'Phenomenal!', 'Impeccable!', 'Strategic Mind!', 'Elite Master!', 'Brilliant!', 'Perfect!'];
       setMotivationText(niceWords[Math.floor(Math.random() * niceWords.length)]);
       setShowMotivationalPopup(true);
 
-      // Instantly clear any old timeout, set the automatic next answer transition to 2500ms
       if (autoAdvanceTimeoutRef.current) {
         clearTimeout(autoAdvanceTimeoutRef.current);
       }
@@ -1672,122 +1850,108 @@ export default function App() {
         handleNextQuizQuestion();
       }, 4000);
     }
-
-    // Adapt states
-    if (classroomSession) {
-      // If correct, point scored for active team
-      if (correct) {
-        const activeGroup = classroomSession.groups[classroomSession.currentGroupIndex];
-        const updatedGroups = classroomSession.groups.map((g, idx) => 
-          idx === classroomSession.currentGroupIndex 
-            ? { ...g, score: g.score + 1 } 
-            : g
-        );
-        setClassroomSession({
-          ...classroomSession,
-          groups: updatedGroups
-        });
-      }
-    } else if (activeQuiz) {
-      // Standard score sync
-      if (correct) {
-        setActiveQuiz({
-          ...activeQuiz,
-          score: activeQuiz.score + 1,
-          userAnswers: nextAnswers
-        });
-      } else {
-        setActiveQuiz({
-          ...activeQuiz,
-          userAnswers: nextAnswers
-        });
-      }
-    }
   };
 
-  // --- Advance inside Quiz ---
+  // --- Advance inside Quiz (reads latest refs so auto-advance never drops final question score) ---
   const handleNextQuizQuestion = () => {
     if (autoAdvanceTimeoutRef.current) {
       clearTimeout(autoAdvanceTimeoutRef.current);
       autoAdvanceTimeoutRef.current = null;
     }
 
-    // Reset voice recording results
     setSpokenAnswerText("");
     setSpeechError("");
 
-    if (currentQuestionIndex + 1 < currentQuestions.length) {
-      setCurrentQuestionIndex(prev => prev + 1);
+    const qIdx = currentQuestionIndexRef.current;
+    const questionsList = currentQuestionsRef.current;
+    const activeClassSession = classroomSessionRef.current;
+    const activeQuizSnap = activeQuizRef.current;
+    const latestUser = userRef.current;
+
+    if (qIdx + 1 < questionsList.length) {
+      const nextIdx = qIdx + 1;
+      currentQuestionIndexRef.current = nextIdx;
+      setCurrentQuestionIndex(nextIdx);
       setFeedback(null);
-      
-      const nextTimer = classroomSession ? (classroomSession.questionTimer || 45) : individualTimer;
+
+      const nextTimer = activeClassSession ? (activeClassSession.questionTimer ?? 45) : individualTimer;
       setTimeLeft(nextTimer);
       setIsTimerRunning(nextTimer > 0);
 
-      if (classroomSession) {
-        // Rotate classroom team
-        const nextGroupIdx = (classroomSession.currentGroupIndex + 1) % classroomSession.groups.length;
-        setClassroomSession({
-          ...classroomSession,
+      if (activeClassSession) {
+        const nextGroupIdx = (activeClassSession.currentGroupIndex + 1) % activeClassSession.groups.length;
+        const rotated = {
+          ...activeClassSession,
           currentGroupIndex: nextGroupIdx
-        });
+        };
+        classroomSessionRef.current = rotated;
+        setClassroomSession(rotated);
       }
     } else {
-      // Finish Session
       setIsTimerRunning(false);
-      if (classroomSession) {
-        // Log multiplayer battle
+      const totalQ = questionsList.length || 5;
+
+      if (activeClassSession) {
         const parsedTime = new Date().toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' });
         const record: TestRecord = {
-          topic: classroomSession.topic,
-          score: Math.max(...classroomSession.groups.map(g => g.score)),
-          total: 5,
+          topic: activeClassSession.topic,
+          score: Math.max(...activeClassSession.groups.map(g => g.score)),
+          total: totalQ,
           date: parsedTime,
           type: 'classroom',
-          subject: classroomSession.subject,
-          grade: classroomSession.gradeLevel
+          subject: activeClassSession.subject,
+          grade: activeClassSession.gradeLevel
         };
 
         const updatedUser: UserProfile = {
-          ...user,
-          totalPoints: user.totalPoints + 30, // reward code
-          totalQuizzes: user.totalQuizzes + 1,
-          testHistory: [record, ...(user.testHistory || [])]
+          ...latestUser,
+          totalPoints: latestUser.totalPoints + 30,
+          totalQuizzes: latestUser.totalQuizzes + 1,
+          testHistory: [record, ...(latestUser.testHistory || [])]
         };
 
         syncLocalUserProfile(updatedUser);
         setCurrentScreen(AppScreen.LEADERBOARD);
-      } else if (activeQuiz) {
-        // Log individual adaptive
-        const finalScore = activeQuiz.score;
+      } else if (activeQuizSnap) {
+        const latestAnswers = userAnswersRef.current;
+        const finalScore = latestAnswers.reduce<number>(
+          (acc, ans, idx) => acc + (ans !== null && ans === questionsList[idx]?.correctIndex ? 1 : 0),
+          0
+        );
         const rewardPoints = finalScore * 10;
         const parsedTime = new Date().toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        const completedLevel = activeQuizSnap.profile.level || latestUser.level || 1;
+        const passThreshold = Math.max(1, Math.ceil(totalQ * 0.6));
+        const nextProgressiveLevel = finalScore >= passThreshold ? completedLevel + 1 : completedLevel;
 
         const record: TestRecord = {
-          topic: user.topic,
+          topic: activeQuizSnap.profile.topic || latestUser.topic,
           score: finalScore,
-          total: 5,
+          total: totalQ,
           date: parsedTime,
           type: 'individual',
-          subject: user.subject,
-          grade: user.gradeLevel
+          subject: activeQuizSnap.profile.subject || latestUser.subject,
+          grade: activeQuizSnap.profile.gradeLevel || latestUser.gradeLevel
         };
 
-        const progressiveLevel = finalScore >= 3 ? user.level + 1 : user.level;
-
         const updatedUser: UserProfile = {
-          ...user,
-          level: progressiveLevel,
-          totalPoints: user.totalPoints + rewardPoints,
-          totalQuizzes: user.totalQuizzes + 1,
-          testHistory: [record, ...(user.testHistory || [])]
+          ...latestUser,
+          level: nextProgressiveLevel,
+          highestLevel: Math.max(latestUser.highestLevel || 1, nextProgressiveLevel),
+          totalPoints: latestUser.totalPoints + rewardPoints,
+          totalQuizzes: latestUser.totalQuizzes + 1,
+          testHistory: [record, ...(latestUser.testHistory || [])]
         };
 
         syncLocalUserProfile(updatedUser);
-        setActiveQuiz({
-          ...activeQuiz,
+        const finalizedQuiz: QuizSession = {
+          ...activeQuizSnap,
+          questions: questionsList,
+          userAnswers: latestAnswers,
           score: finalScore
-        });
+        };
+        activeQuizRef.current = finalizedQuiz;
+        setActiveQuiz(finalizedQuiz);
         setCurrentScreen(AppScreen.RESULTS);
       }
     }
@@ -2497,17 +2661,28 @@ export default function App() {
     isDragging.current = false;
   };
 
-  // --- Reset to profile launch ---
+  // --- Reset to profile launch (always resets active session back to Level 1) ---
   const handleResetToMenu = () => {
     if (autoAdvanceTimeoutRef.current) {
       clearTimeout(autoAdvanceTimeoutRef.current);
       autoAdvanceTimeoutRef.current = null;
     }
+    sessionAskedQuestionsRef.current = [];
+    setQuizError(null);
     setCurrentScreen(AppScreen.ENTRY);
     setCurrentQuestions([]);
+    currentQuestionsRef.current = [];
     setCurrentQuestionIndex(0);
+    currentQuestionIndexRef.current = 0;
     setFeedback(null);
     setClassroomSession(null);
+    classroomSessionRef.current = null;
+    setActiveQuiz(null);
+    activeQuizRef.current = null;
+    syncLocalUserProfile({
+      ...userRef.current,
+      level: 1
+    });
   };
 
   return (
@@ -2817,8 +2992,7 @@ export default function App() {
                                   defaultSubject = 'Creative Writing';
                                   defaultTopic = 'Plot Structure and Narrative Arc';
                                 }
-                                syncLocalUserProfile({
-                                  ...user,
+                                updateAcademicConfig({
                                   educationLevel: tab.id as any,
                                   board: defaultBoard,
                                   gradeLevel: defaultGrade,
@@ -2863,7 +3037,7 @@ export default function App() {
                           </label>
                           <select
                             value={user.board || 'CBSE'}
-                            onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                            onChange={e => updateAcademicConfig({ board: e.target.value })}
                             className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
                           >
                             <option value="CBSE">CBSE Board (Academic Year 2026-2027)</option>
@@ -2882,7 +3056,7 @@ export default function App() {
                           <input
                             type="text"
                             value={user.board || ''}
-                            onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                            onChange={e => updateAcademicConfig({ board: e.target.value })}
                             placeholder="e.g. Computer Science, Medicine"
                             className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
                           />
@@ -2897,7 +3071,7 @@ export default function App() {
                           <input
                             type="text"
                             value={user.board || ''}
-                            onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                            onChange={e => updateAcademicConfig({ board: e.target.value })}
                             placeholder="e.g. UPSC, IIT JEE, NEET"
                             className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
                           />
@@ -2911,7 +3085,7 @@ export default function App() {
                           </label>
                           <select
                             value={user.board || 'Advanced Masterclass'}
-                            onChange={e => syncLocalUserProfile({ ...user, board: e.target.value })}
+                            onChange={e => updateAcademicConfig({ board: e.target.value })}
                             className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
                           >
                             <option value="Beginner Theory">Beginner Theory</option>
@@ -2931,7 +3105,7 @@ export default function App() {
                           {(user.educationLevel || 'School') === 'School' ? (
                             <select
                               value={user.gradeLevel}
-                              onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
+                              onChange={e => updateAcademicConfig({ gradeLevel: e.target.value })}
                               className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
                             >
                               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(g => (
@@ -2942,7 +3116,7 @@ export default function App() {
                             <input 
                               type="text"
                               value={user.gradeLevel}
-                              onChange={e => syncLocalUserProfile({ ...user, gradeLevel: e.target.value })}
+                              onChange={e => updateAcademicConfig({ gradeLevel: e.target.value })}
                               className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
                               placeholder="e.g. Grade 10, Final Year"
                             />
@@ -2955,7 +3129,7 @@ export default function App() {
                           </label>
                           <select
                             value={user.focus}
-                            onChange={e => syncLocalUserProfile({ ...user, focus: e.target.value as StudyFocus })}
+                            onChange={e => updateAcademicConfig({ focus: e.target.value as StudyFocus })}
                             className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
                           >
                             <option value={StudyFocus.SYLLABUS}>Core Syllabus</option>
@@ -2970,7 +3144,7 @@ export default function App() {
                           </label>
                           <select
                             value={user.boardPattern || 'Mixed Board Pattern'}
-                            onChange={e => syncLocalUserProfile({ ...user, boardPattern: e.target.value })}
+                            onChange={e => updateAcademicConfig({ boardPattern: e.target.value })}
                             className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
                           >
                             <option value="Mixed Board Pattern">Mixed Pattern</option>
@@ -2991,7 +3165,7 @@ export default function App() {
                           <input 
                             type="text" 
                             value={user.subject}
-                            onChange={e => syncLocalUserProfile({ ...user, subject: e.target.value })}
+                            onChange={e => updateAcademicConfig({ subject: e.target.value })}
                             className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
                             placeholder="Subject (e.g. Science)"
                           />
@@ -3004,39 +3178,58 @@ export default function App() {
                           <input 
                             type="text" 
                             value={user.topic}
-                            onChange={e => syncLocalUserProfile({ ...user, topic: e.target.value })}
+                            onChange={e => updateAcademicConfig({ topic: e.target.value })}
                             className="w-full px-3 py-2 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
                             placeholder="Topic (e.g. Lenses)"
                           />
                         </div>
                       </div>
 
-                      {/* Diagnostic Timer Selection */}
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-[#1e3a8a]" /> Individual Diagnostic Timer
-                        </label>
-                        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                          {[
-                            { label: '45s', value: 45 },
-                            { label: '1 min', value: 60 },
-                            { label: '2 min', value: 120 },
-                            { label: '3 min', value: 180 },
-                            { label: 'No Time', value: 0 }
-                          ].map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => setIndividualTimer(opt.value)}
-                              className={`flex-1 min-w-[50px] py-1.5 px-2 rounded-xl text-[10px] font-headline font-extrabold border transition-all ${
-                                individualTimer === opt.value
-                                  ? 'bg-[#1e3a8a] border-[#1e3a8a] text-white shadow-md'
-                                  : 'bg-[#fcfaf4] border-[#e4dcc4] text-[#7c755d] hover:bg-[#f5efe0]'
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
+                      {/* Diagnostic Timer & Starting Level Selection */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+                        <div className="space-y-1 md:col-span-2">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-[#1e3a8a]" /> Individual Diagnostic Timer
+                          </label>
+                          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                            {[
+                              { label: '45s', value: 45 },
+                              { label: '1 min', value: 60 },
+                              { label: '2 min', value: 120 },
+                              { label: '3 min', value: 180 },
+                              { label: 'No Time', value: 0 }
+                            ].map((opt) => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => setIndividualTimer(opt.value)}
+                                className={`flex-1 min-w-[46px] py-1.5 px-2 rounded-xl text-[10px] font-headline font-extrabold border transition-all ${
+                                  individualTimer === opt.value
+                                    ? 'bg-[#1e3a8a] border-[#1e3a8a] text-white shadow-md'
+                                    : 'bg-[#fcfaf4] border-[#e4dcc4] text-[#7c755d] hover:bg-[#f5efe0]'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 pb-1">
+                          <label className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-[#7c755d] flex items-center gap-1">
+                            <Rocket className="w-3 h-3 text-[#1e3a8a]" /> Starting Level
+                          </label>
+                          <select
+                            value={user.level || 1}
+                            onChange={e => syncLocalUserProfile({ ...user, level: Number(e.target.value) || 1 })}
+                            className="w-full px-3 py-1.5 text-xs rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#1e3a8a] font-bold"
+                          >
+                            {[1, 2, 3, 4, 5].map(lvl => (
+                              <option key={lvl} value={lvl}>
+                                Lv {lvl} · {getLevelDifficultyInfo(lvl).name}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                     </div>
@@ -3052,8 +3245,8 @@ export default function App() {
                           { id: 'first-quiz', name: 'First Steps', desc: '1 Quiz', unlocked: user.totalQuizzes >= 1, icon: Play },
                           { id: '10-quizzes', name: 'Quiz Master', desc: '10 Quizzes', unlocked: user.totalQuizzes >= 10, icon: BookOpen },
                           { id: '100-points', name: 'Centurion', desc: '100 Mastery Pts', unlocked: user.totalPoints >= 100, icon: Sparkles },
-                          { id: 'level-5', name: 'Scholar', desc: 'Level 5', unlocked: user.level >= 5, icon: GraduationCap },
-                          { id: 'level-10', name: 'Elite', desc: 'Level 10', unlocked: user.level >= 10, icon: Trophy }
+                          { id: 'level-5', name: 'Scholar', desc: 'Level 5', unlocked: Math.max(user.highestLevel || 1, user.level || 1) >= 5, icon: GraduationCap },
+                          { id: 'level-10', name: 'Elite', desc: 'Level 10', unlocked: Math.max(user.highestLevel || 1, user.level || 1) >= 10, icon: Trophy }
                         ].map(b => {
                           const Icon = b.icon;
                           return (
@@ -3115,8 +3308,8 @@ export default function App() {
                       {/* Rank credentials stats */}
                       <div className="grid grid-cols-2 gap-2 text-center">
                         <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200">
-                          <p className="text-[8px] uppercase font-black text-amber-800 tracking-wider">Level Rank</p>
-                          <p className="text-base font-headline font-black text-[#b45309] mt-0.5">Lv {user.level}</p>
+                          <p className="text-[8px] uppercase font-black text-amber-800 tracking-wider">Best Level</p>
+                          <p className="text-base font-headline font-black text-[#b45309] mt-0.5">Lv {Math.max(user.highestLevel || 1, user.level || 1)}</p>
                         </div>
                         <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-200">
                           <p className="text-[8px] uppercase font-black text-indigo-800 tracking-wider">Total Score</p>
@@ -3140,7 +3333,7 @@ export default function App() {
                                   </p>
                                 </div>
                                 <div className="text-right flex-shrink-0 ml-2">
-                                  <span className="font-headline font-black text-xs text-[#047857]">{record.score}/5</span>
+                                  <span className="font-headline font-black text-xs text-[#047857]">{record.score}/{record.total || 5}</span>
                                   <p className="text-[7px] text-[#7c755d] font-bold uppercase tracking-tight">Score</p>
                                 </div>
                               </div>
@@ -3200,23 +3393,74 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full py-16 flex flex-col items-center justify-center text-center space-y-8"
+              className="w-full py-12 flex flex-col items-center justify-center text-center space-y-6"
             >
-              <div className="relative">
-                <div className="w-24 h-24 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-                <GraduationCap className="w-10 h-10 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-bounce" />
-              </div>
-              
-              <div className="space-y-3 max-w-md mx-auto">
-                <h3 className="text-xl font-headline font-extrabold text-on-surface tracking-tighter italic">{loadingMessage}</h3>
-                <div className="w-full h-2.5 bg-surface-container-lowest rounded-full overflow-hidden">
-                  <div 
-                    style={{ width: `${loadingProgress}%` }}
-                    className="h-full bg-primary transition-all duration-300 rounded-full neon-glow-primary"
-                  />
+              {quizError ? (
+                <div className="bg-surface-container-lowest/90 glass-card border border-error/30 rounded-3xl p-8 max-w-lg w-full space-y-5 shadow-2xl">
+                  <div className="w-14 h-14 mx-auto rounded-2xl bg-error/15 border border-error/30 flex items-center justify-center">
+                    <Info className="w-7 h-7 text-error" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-headline font-extrabold text-on-surface tracking-tight">
+                      Live Question Generation Unavailable
+                    </h3>
+                    <p className="text-xs font-body text-on-surface-variant leading-relaxed">
+                      {quizError.message}
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                    <Button
+                      onClick={() =>
+                        quizError.isClassroom && quizError.groups
+                          ? startClassroomSession(quizError.groups, quizError.timerDuration ?? 45)
+                          : initiateDiagnosis(quizError.pendingLevel)
+                      }
+                      className="h-11 rounded-xl text-[10px] font-headline font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Retry Live AI
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        launchOfflinePractice(
+                          quizError.pendingLevel,
+                          quizError.isClassroom,
+                          quizError.groups,
+                          quizError.timerDuration
+                        )
+                      }
+                      variant="outline"
+                      className="h-11 rounded-xl text-[10px] font-headline font-extrabold uppercase tracking-wider"
+                    >
+                      Use Offline Practice Set
+                    </Button>
+                  </div>
+                  <button
+                    onClick={handleResetToMenu}
+                    type="button"
+                    className="text-xs font-headline font-bold text-on-surface-variant hover:text-on-surface uppercase tracking-wider py-1 px-3 inline-flex items-center gap-1"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Return to Configurator
+                  </button>
                 </div>
-                <p className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant">Step: {loadingProgress}% Completed</p>
-              </div>
+              ) : (
+                <>
+                  <div className="relative">
+                    <div className="w-24 h-24 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    <GraduationCap className="w-10 h-10 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-bounce" />
+                  </div>
+                  
+                  <div className="space-y-3 max-w-md mx-auto">
+                    <h3 className="text-xl font-headline font-extrabold text-on-surface tracking-tighter italic">{loadingMessage}</h3>
+                    <div className="w-full h-2.5 bg-surface-container-lowest rounded-full overflow-hidden">
+                      <div 
+                        style={{ width: `${loadingProgress}%` }}
+                        className="h-full bg-primary transition-all duration-300 rounded-full neon-glow-primary"
+                      />
+                    </div>
+                    <p className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant">Step: {loadingProgress}% Completed</p>
+                  </div>
+                </>
+              )}
             </motion.div>
           )}
 
@@ -3257,7 +3501,7 @@ export default function App() {
                     </div>
                   )}
                   <span className="text-xs font-headline font-extrabold text-on-surface bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
-                    Question {currentQuestionIndex + 1}/5
+                    Question {currentQuestionIndex + 1}/{Math.max(currentQuestions.length, 5)}
                   </span>
                 </div>
               </div>
@@ -3517,7 +3761,7 @@ export default function App() {
                           )}
 
                           <Button onClick={handleNextQuizQuestion} className="h-14 rounded-2xl text-[10px] font-headline font-extrabold uppercase tracking-widest shadow-2xl shadow-primary/30 neon-glow-primary flex items-center justify-center gap-2">
-                            <span>{currentQuestionIndex < 4 ? "Next Challenge" : "Complete Diagnostic"}</span>
+                            <span>{currentQuestionIndex < currentQuestions.length - 1 ? "Next Challenge" : "Complete Diagnostic"}</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </Button>
                         </motion.div>
@@ -3574,7 +3818,7 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-primary/10 border border-primary/25 rounded-2xl p-4 md:p-6 text-center">
                     <p className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-primary italic">Correct Evaluations</p>
-                    <p className="text-3xl md:text-5xl font-headline font-extrabold text-on-surface mt-1">{activeQuiz.score}<span className="text-xs md:text-lg text-primary/50">/5</span></p>
+                    <p className="text-3xl md:text-5xl font-headline font-extrabold text-on-surface mt-1">{activeQuiz.score}<span className="text-xs md:text-lg text-primary/50">/{activeQuiz.questions.length}</span></p>
                   </div>
                   <div className="bg-tertiary/10 border border-tertiary/25 rounded-2xl p-4 md:p-6 text-center">
                     <p className="text-[10px] font-headline font-extrabold uppercase tracking-widest text-tertiary italic">Diagnose Accrual</p>
