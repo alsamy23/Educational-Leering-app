@@ -402,6 +402,35 @@ export const generateQuizQuestions = async (
   const seenTexts = new Set<string>();
   let streamError: QuizGenerationError | null = null;
 
+  const processSseLine = (rawLine: string) => {
+    const line = rawLine.trim();
+    if (!line.startsWith('data:')) return;
+    const jsonStr = line.slice(5).trim();
+    if (!jsonStr) return;
+
+    try {
+      const evt = JSON.parse(jsonStr);
+      if (evt.type === 'question' && evt.question) {
+        const q: QuizQuestion = evt.question;
+        const norm = (q.text || '').trim().toLowerCase();
+        if (norm && !seenTexts.has(norm)) {
+          seenTexts.add(norm);
+          delivered.push(q);
+          if (onQuestionGenerated) {
+            onQuestionGenerated(q, delivered.length - 1);
+          }
+        }
+      } else if (evt.type === 'error') {
+        streamError = new QuizGenerationError(
+          evt.message || 'AI failed to generate questions.',
+          evt.code || 'GENERATION_FAILED'
+        );
+      }
+    } catch {
+      // Ignore malformed SSE chunk line
+    }
+  };
+
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -409,34 +438,15 @@ export const generateQuizQuestions = async (
 
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
-
     for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line.startsWith('data:')) continue;
-      const jsonStr = line.slice(5).trim();
-      if (!jsonStr) continue;
+      processSseLine(rawLine);
+    }
+  }
 
-      try {
-        const evt = JSON.parse(jsonStr);
-        if (evt.type === 'question' && evt.question) {
-          const q: QuizQuestion = evt.question;
-          const norm = (q.text || '').trim().toLowerCase();
-          if (norm && !seenTexts.has(norm)) {
-            seenTexts.add(norm);
-            delivered.push(q);
-            if (onQuestionGenerated) {
-              onQuestionGenerated(q, delivered.length - 1);
-            }
-          }
-        } else if (evt.type === 'error') {
-          streamError = new QuizGenerationError(
-            evt.message || 'AI failed to generate questions.',
-            evt.code || 'GENERATION_FAILED'
-          );
-        }
-      } catch {
-        // Ignore malformed SSE chunk line
-      }
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    for (const rawLine of buffer.split('\n')) {
+      processSseLine(rawLine);
     }
   }
 

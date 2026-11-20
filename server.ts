@@ -503,7 +503,17 @@ async function createApp() {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
+    if (!res.writableEnded) {
+      res.write(': connected\n\n');
+    }
+
+    const heartbeat = setInterval(() => {
+      if (!res.writableEnded) {
+        res.write(': keep-alive\n\n');
+      }
+    }, 4000);
 
     const sendEvent = (payload: Record<string, unknown>) => {
       if (!res.writableEnded) {
@@ -566,6 +576,7 @@ async function createApp() {
           if (deliveredQuestions.length >= 5) break;
 
           for (let attempt = 0; attempt < 2; attempt++) {
+            const tStart = Date.now();
             try {
               const config: Record<string, any> = {
                 systemInstruction,
@@ -628,16 +639,16 @@ async function createApp() {
                 }
               }
 
+              console.log(`[Gemini] ${modelName} attempt ${attempt + 1} delivered ${deliveredQuestions.length} questions in ${Date.now() - tStart}ms`);
               if (deliveredQuestions.length >= 5) {
                 break;
               }
-              // If fewer than 5 questions came back, don't immediately fail; break attempt loop to try next model or fallback if 0
               if (deliveredQuestions.length > 0) {
                 break;
               }
             } catch (mErr: any) {
               lastError = mErr;
-              console.warn(`[Gemini] ${modelName} attempt ${attempt + 1} failed:`, mErr?.message || mErr);
+              console.warn(`[Gemini] ${modelName} attempt ${attempt + 1} failed after ${Date.now() - tStart}ms:`, mErr?.message || mErr);
               if (isRateLimitError(mErr) && attempt === 0) {
                 await sleep(1500);
                 continue;
@@ -757,6 +768,7 @@ async function createApp() {
         message: err?.message || 'Unexpected server error while generating questions.'
       });
     } finally {
+      clearInterval(heartbeat);
       if (!res.writableEnded) {
         res.end();
       }
