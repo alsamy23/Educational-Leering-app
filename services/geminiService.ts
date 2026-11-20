@@ -388,10 +388,11 @@ export const generateQuizQuestions = async (
   });
 
   if (!response.ok || !response.body) {
-    throw new QuizGenerationError(
-      `Server returned HTTP ${response.status} while generating questions.`,
-      'SERVER_HTTP_ERROR'
-    );
+    const msg =
+      response.status === 404
+        ? 'The Live AI server endpoint (/api/generate-questions) was not found (HTTP 404). Make sure the app is running with its full-stack Node server (re-open or re-deploy the app), or use the Offline Practice Set below.'
+        : `Server returned HTTP ${response.status} while generating questions.`;
+    throw new QuizGenerationError(msg, response.status === 404 ? 'BACKEND_NOT_FOUND' : 'SERVER_HTTP_ERROR');
   }
 
   const reader = response.body.getReader();

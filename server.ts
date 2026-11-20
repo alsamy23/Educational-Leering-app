@@ -9,7 +9,22 @@ import type { UserProfile, QuizQuestion } from './types.ts';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = Number(process.env.PORT) || 3000;
+const resolvePort = (): number => {
+  const argv = process.argv.slice(2);
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--port' && argv[i + 1]) {
+      const p = Number(argv[i + 1]);
+      if (Number.isFinite(p) && p > 0) return p;
+    } else if (arg.startsWith('--port=')) {
+      const p = Number(arg.slice('--port='.length));
+      if (Number.isFinite(p) && p > 0) return p;
+    }
+  }
+  return Number(process.env.PORT) || 3000;
+};
+
+const PORT = resolvePort();
 const IS_PROD = process.env.NODE_ENV === 'production';
 
 const getAIKeys = (): string[] => {
@@ -787,19 +802,27 @@ async function createApp() {
     }
   });
 
-  if (!IS_PROD) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa'
-    });
-    app.use(vite.middlewares);
-  } else {
+  const serveStaticDist = () => {
     const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('/{*splat}', (_req: Request, res: Response) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
+  };
+
+  if (!IS_PROD) {
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa'
+      });
+      app.use(vite.middlewares);
+    } catch {
+      serveStaticDist();
+    }
+  } else {
+    serveStaticDist();
   }
 
   app.listen(PORT, '0.0.0.0', () => {

@@ -7,7 +7,7 @@
     "dev": "tsx server.ts",
     "start": "node server.ts",
     "build": "tsc && vite build",
-    "preview": "vite preview",
+    "preview": "NODE_ENV=production node server.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
