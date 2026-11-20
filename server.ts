@@ -561,7 +561,10 @@ async function createApp() {
       const geminiKeys = getAIKeys();
       let lastError: any = null;
 
-      // Primary path: Gemini 4 Hydrogen -> Gemini 3.1 Flash Lite across available keys
+      const currentLevel = Math.max(1, Number(profile.level) || 1);
+      // Prioritize gemini-3.1-flash-lite for fast (~2-4s) streaming across all levels, falling back to gemini-4-hydrogen
+      const candidateModels = ['gemini-3.1-flash-lite', 'gemini-4-hydrogen'];
+
       for (let kIdx = 0; kIdx < geminiKeys.length && deliveredQuestions.length < 5; kIdx++) {
         const key = geminiKeys[kIdx];
         const ai = new GoogleGenAI({
@@ -569,18 +572,26 @@ async function createApp() {
           httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
         });
 
-        const currentLevel = Math.max(1, Number(profile.level) || 1);
-        const candidateModels = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'];
-
         for (const modelName of candidateModels) {
           if (deliveredQuestions.length >= 5) break;
 
           for (let attempt = 0; attempt < 2; attempt++) {
             const tStart = Date.now();
+            const abortController = new AbortController();
+            let gotAnyChunk = false;
+            const firstChunkTimer = setTimeout(() => {
+              if (!gotAnyChunk) {
+                abortController.abort(new Error(`${modelName} timed out after 18s waiting for first chunk`));
+              }
+            }, 18000);
+
             try {
+              sendEvent({ type: 'status', model: modelName, keyIndex: kIdx, attempt: attempt + 1 });
+
               const config: Record<string, any> = {
                 systemInstruction,
                 responseMimeType: 'application/json',
+                abortSignal: abortController.signal,
                 responseSchema: {
                   type: Type.ARRAY,
                   items: {
@@ -618,6 +629,10 @@ async function createApp() {
 
               let accumulatedText = '';
               for await (const chunk of responseStream) {
+                if (!gotAnyChunk) {
+                  gotAnyChunk = true;
+                  clearTimeout(firstChunkTimer);
+                }
                 accumulatedText += chunk.text || '';
                 const rawObjects = extractJsonObjects(accumulatedText);
                 for (const rawObj of rawObjects) {
@@ -639,7 +654,7 @@ async function createApp() {
                 }
               }
 
-              console.log(`[Gemini] ${modelName} attempt ${attempt + 1} delivered ${deliveredQuestions.length} questions in ${Date.now() - tStart}ms`);
+              console.log(`[Gemini] ${modelName} (key ${kIdx}) attempt ${attempt + 1} delivered ${deliveredQuestions.length} questions in ${Date.now() - tStart}ms`);
               if (deliveredQuestions.length >= 5) {
                 break;
               }
@@ -648,12 +663,15 @@ async function createApp() {
               }
             } catch (mErr: any) {
               lastError = mErr;
-              console.warn(`[Gemini] ${modelName} attempt ${attempt + 1} failed after ${Date.now() - tStart}ms:`, mErr?.message || mErr);
+              console.warn(`[Gemini] ${modelName} (key ${kIdx}) attempt ${attempt + 1} failed after ${Date.now() - tStart}ms:`, mErr?.message || mErr);
+              sendEvent({ type: 'status', model: modelName, keyIndex: kIdx, error: String(mErr?.message || mErr).slice(0, 120), elapsedMs: Date.now() - tStart });
               if (isRateLimitError(mErr) && attempt === 0) {
-                await sleep(1500);
+                await sleep(1000);
                 continue;
               }
               break;
+            } finally {
+              clearTimeout(firstChunkTimer);
             }
           }
         }
