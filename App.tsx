@@ -1627,7 +1627,11 @@ export default function App() {
         }
       }
     } catch (error: any) {
-      console.error("Quiz synthesis error:", error);
+      if (error instanceof QuizGenerationError) {
+        console.info("Quiz generation notice:", error.code, error.message);
+      } else {
+        console.warn("Quiz synthesis issue:", error);
+      }
       if (!hasSwitchedToQuiz) {
         const msg =
           error instanceof QuizGenerationError
@@ -1767,7 +1771,11 @@ export default function App() {
         }
       }
     } catch (e: any) {
-      console.error("Classroom session question generation error:", e);
+      if (e instanceof QuizGenerationError) {
+        console.info("Classroom quiz notice:", e.code, e.message);
+      } else {
+        console.warn("Classroom session question generation issue:", e);
+      }
       if (!hasSwitchedToQuiz) {
         setQuizError({
           message: e?.message || "Could not generate classroom battle questions.",
