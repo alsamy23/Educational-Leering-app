@@ -1,4 +1,4 @@
-import { handleGenerateQuestions } from './_lib/quizService.ts';
+import { handleGenerateQuestions } from './_lib/quizService.js';
 
 export const maxDuration = 60;
 

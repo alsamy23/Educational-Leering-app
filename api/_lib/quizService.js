@@ -1,25 +1,20 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import { GoogleGenAI, Modality, Type, ThinkingLevel } from '@google/genai';
 import Groq from 'groq-sdk';
-import type { UserProfile, QuizQuestion } from '../../types.ts';
 
-type ApiRequest = IncomingMessage & { body?: any; method?: string };
-type ApiResponse = ServerResponse & { flushHeaders?: () => void };
+const invalidGeminiKeys = new Set();
+const invalidFallbackKeys = new Set();
+const unavailableFallbackModels = new Set();
+let cachedGroqModels = null;
 
-const invalidGeminiKeys = new Set<string>();
-const invalidFallbackKeys = new Set<string>();
-const unavailableFallbackModels = new Set<string>();
-let cachedGroqModels: { apiKey: string; models: string[]; fetchedAt: number } | null = null;
-
-const isUsableKey = (k?: string): k is string => {
-  if (!k) return false;
+const isUsableKey = (k) => {
+  if (!k || typeof k !== 'string') return false;
   const trimmed = k.trim();
   if (trimmed.length < 20) return false;
   if (/placeholder|your_|insert|example|changeme|<|>/i.test(trimmed)) return false;
   return true;
 };
 
-const getAIKeys = (): string[] => {
+const getAIKeys = () => {
   const rawKeys = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_SECONDARY,
@@ -35,18 +30,14 @@ const getAIKeys = (): string[] => {
     process.env.VITE_GEMINI_API_KEY,
     process.env.VITE_API_KEY
   ]
-    .map(k => k?.trim())
-    .filter((k): k is string => isUsableKey(k) && !invalidGeminiKeys.has(k!));
+    .map((k) => (typeof k === 'string' ? k.trim() : ''))
+    .filter((k) => isUsableKey(k) && !invalidGeminiKeys.has(k));
 
   return Array.from(new Set(rawKeys));
 };
 
-type FallbackProvider =
-  | { type: 'groq'; apiKey: string; client: Groq; models: string[] }
-  | { type: 'grok'; apiKey: string; baseURL: string; models: string[] };
-
-const getFallbackProviders = (): FallbackProvider[] => {
-  const providers: FallbackProvider[] = [];
+const getFallbackProviders = () => {
+  const providers = [];
   const groqKey = (process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || '').trim();
   const grokKey = (process.env.GROK_API_KEY || process.env.XAI_API_KEY || '').trim();
 
@@ -56,7 +47,9 @@ const getFallbackProviders = (): FallbackProvider[] => {
         type: 'grok',
         apiKey: groqKey,
         baseURL: 'https://api.x.ai/v1',
-        models: ['grok-2-1212', 'grok-beta']
+        models: ['grok-3-mini', 'grok-2-1212', 'grok-beta'].filter(
+          (m) => !unavailableFallbackModels.has(`grok:${m}`)
+        )
       });
     } else {
       const envModel = (process.env.GROQ_MODEL || '').trim();
@@ -87,7 +80,7 @@ const getFallbackProviders = (): FallbackProvider[] => {
 
   if (isUsableKey(grokKey) && !invalidFallbackKeys.has(grokKey)) {
     const grokModels = ['grok-3-mini', 'grok-2-1212', 'grok-beta'].filter(
-      m => !unavailableFallbackModels.has(`grok:${m}`)
+      (m) => !unavailableFallbackModels.has(`grok:${m}`)
     );
     if (grokModels.length > 0) {
       providers.push({
@@ -102,13 +95,13 @@ const getFallbackProviders = (): FallbackProvider[] => {
   return providers;
 };
 
-const sendJson = (res: ApiResponse, statusCode: number, payload: Record<string, unknown>) => {
+const sendJson = (res, statusCode, payload) => {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.end(JSON.stringify(payload));
 };
 
-const readJsonBody = async (req: ApiRequest): Promise<Record<string, any>> => {
+const readJsonBody = async (req) => {
   if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
     return req.body;
   }
@@ -126,7 +119,10 @@ const readJsonBody = async (req: ApiRequest): Promise<Record<string, any>> => {
       return {};
     }
   }
-  const chunks: Buffer[] = [];
+  if (req.readableEnded) {
+    return {};
+  }
+  const chunks = [];
   for await (const chunk of req) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
@@ -139,10 +135,10 @@ const readJsonBody = async (req: ApiRequest): Promise<Record<string, any>> => {
   }
 };
 
-const isRateLimitError = (err: any): boolean => {
+const isRateLimitError = (err) => {
   if (!err) return false;
   const status = err.status || err.statusCode || err.code || (err.error && err.error.code);
-  const message = (err.message || '').toLowerCase();
+  const message = String(err.message || '').toLowerCase();
   const statusString = String(status);
 
   return (
@@ -158,9 +154,9 @@ const isRateLimitError = (err: any): boolean => {
   );
 };
 
-const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
-const repairJson = (text: string): string => {
+const repairJson = (text) => {
   let cleaned = text.trim();
   if (cleaned.includes('```')) {
     cleaned = cleaned.replace(/```(?:json)?/g, '').replace(/```/g, '');
@@ -168,8 +164,8 @@ const repairJson = (text: string): string => {
   return cleaned.trim();
 };
 
-const extractJsonObjects = (text: string): any[] => {
-  const results: any[] = [];
+const extractJsonObjects = (text) => {
+  const results = [];
   let depth = 0;
   let start = -1;
   let inString = false;
@@ -211,20 +207,20 @@ const extractJsonObjects = (text: string): any[] => {
   return results;
 };
 
-const extractRawOptions = (q: any): string[] | null => {
+const extractRawOptions = (q) => {
   const candidate = q?.options ?? q?.choices ?? q?.answers;
   if (Array.isArray(candidate) && candidate.length === 4) {
-    const cleaned = candidate.map((o: unknown) => String(o ?? '').trim()).filter(Boolean);
+    const cleaned = candidate.map((o) => String(o ?? '').trim()).filter(Boolean);
     return cleaned.length === 4 ? cleaned : null;
   }
   if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
-    const vals = Object.values(candidate).map((o: unknown) => String(o ?? '').trim()).filter(Boolean);
+    const vals = Object.values(candidate).map((o) => String(o ?? '').trim()).filter(Boolean);
     return vals.length === 4 ? vals : null;
   }
   return null;
 };
 
-const resolveCorrectIndex = (q: any, rawOptions: string[]): number => {
+const resolveCorrectIndex = (q, rawOptions) => {
   const numCandidate = q?.correctIndex ?? q?.correct_index ?? q?.answerIndex ?? q?.answer_index;
   if (typeof numCandidate === 'number' && Number.isFinite(numCandidate) && numCandidate >= 0 && numCandidate < 4) {
     return Math.floor(numCandidate);
@@ -236,13 +232,13 @@ const resolveCorrectIndex = (q: any, rawOptions: string[]): number => {
   if (ansStr) {
     const letterIdx = ['A', 'B', 'C', 'D'].indexOf(ansStr.toUpperCase());
     if (letterIdx !== -1) return letterIdx;
-    const exactIdx = rawOptions.findIndex(o => o.toLowerCase() === ansStr.toLowerCase());
+    const exactIdx = rawOptions.findIndex((o) => o.toLowerCase() === ansStr.toLowerCase());
     if (exactIdx !== -1) return exactIdx;
   }
   return 0;
 };
 
-const formatSingleQuestion = (q: any, index: number, topic: string): QuizQuestion | null => {
+const formatSingleQuestion = (q, index, topic) => {
   if (!q || typeof q !== 'object') return null;
 
   const rawText = String(q.text ?? q.question ?? q.stem ?? q.prompt ?? '').trim();
@@ -256,7 +252,7 @@ const formatSingleQuestion = (q: any, index: number, topic: string): QuizQuestio
   const isAssertionReason =
     /assertion\s*\(a\)/i.test(rawText) &&
     /reason\s*\(r\)/i.test(rawText) &&
-    rawOptions.some(o => /both assertion/i.test(o));
+    rawOptions.some((o) => /both assertion/i.test(o));
 
   let finalOptions = rawOptions;
   let finalCorrectIndex = rawCorrectIndex;
@@ -274,13 +270,13 @@ const formatSingleQuestion = (q: any, index: number, topic: string): QuizQuestio
       mappedOptions[j] = temp;
     }
 
-    finalOptions = mappedOptions.map(item => item.text);
-    finalCorrectIndex = Math.max(0, mappedOptions.findIndex(item => item.isCorrect));
+    finalOptions = mappedOptions.map((item) => item.text);
+    finalCorrectIndex = Math.max(0, mappedOptions.findIndex((item) => item.isCorrect));
   }
 
   return {
     id: Number(q.id) || index + 1,
-    type: (q.type || 'MCQ') as QuizQuestion['type'],
+    type: q.type || 'MCQ',
     text: rawText,
     contextMaterial: q.contextMaterial ? String(q.contextMaterial).trim() : undefined,
     options: finalOptions,
@@ -292,18 +288,12 @@ const formatSingleQuestion = (q: any, index: number, topic: string): QuizQuestio
   };
 };
 
-const validateAndFormatQuestions = (questions: any[], topic: string): QuizQuestion[] => {
+const validateAndFormatQuestions = (questions, topic) => {
   if (!Array.isArray(questions)) return [];
-  return questions
-    .map((q, index) => formatSingleQuestion(q, index, topic))
-    .filter((q): q is QuizQuestion => q !== null);
+  return questions.map((q, index) => formatSingleQuestion(q, index, topic)).filter(Boolean);
 };
 
-function getBoardPatternPromptDirectives(boardPattern?: string): {
-  formatName: string;
-  systemDirective: string;
-  promptDirective: string;
-} {
+function getBoardPatternPromptDirectives(boardPattern) {
   const normalized = (boardPattern || 'Mixed Board Pattern').trim();
 
   if (/assertion/i.test(normalized)) {
@@ -398,14 +388,7 @@ Reason (R): [Supporting, contradictory, or causal statement regarding the assert
   };
 }
 
-function buildDifficultyCalibrationPrompt(
-  level: number,
-  eduLevel: string,
-  board: string,
-  gradeLevel: string,
-  subject: string,
-  topic: string
-): string {
+function buildDifficultyCalibrationPrompt(level, eduLevel, board, gradeLevel, subject, topic) {
   const safeLevel = Math.max(1, Number(level) || 1);
 
   const tierDescription =
@@ -444,16 +427,7 @@ ${tierDescription}
 `;
 }
 
-function buildQuizPrompt(params: {
-  profile: UserProfile;
-  isMockMode: boolean;
-  groupName?: string;
-  topic: string;
-  difficulty?: string;
-  seed: string;
-  sourceMaterial?: string;
-  previousQuestions?: string[];
-}) {
+function buildQuizPrompt(params) {
   const { profile, isMockMode, groupName, topic, difficulty, seed, sourceMaterial, previousQuestions = [] } = params;
   const gradeInt = parseInt(profile.gradeLevel) || 10;
   const eduLevel = profile.educationLevel || 'School';
@@ -523,7 +497,7 @@ Generate questions anchored directly to the official ${eduLevel} ${board} Grade 
   );
 
   const cleanPrev = previousQuestions
-    .map(q => String(q || '').trim())
+    .map((q) => String(q || '').trim())
     .filter(Boolean)
     .slice(-25);
 
@@ -578,7 +552,7 @@ ${groupName ? `This batch is specifically for Group ${groupName}. Ensure 100% un
   return { prompt, systemInstruction, boardPatternFormat };
 }
 
-export async function handleHealth(_req: ApiRequest, res: ApiResponse) {
+export async function handleHealth(_req, res) {
   sendJson(res, 200, {
     ok: true,
     geminiConfigured: getAIKeys().length > 0,
@@ -586,7 +560,7 @@ export async function handleHealth(_req: ApiRequest, res: ApiResponse) {
   });
 }
 
-export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse) {
+export async function handleGenerateQuestions(req, res) {
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     res.end();
@@ -613,7 +587,7 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
     }
   }, 4000);
 
-  const sendEvent = (payload: Record<string, unknown>) => {
+  const sendEvent = (payload) => {
     if (!res.writableEnded) {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     }
@@ -621,14 +595,14 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
 
   try {
     const body = await readJsonBody(req);
-    const profile: UserProfile = body.profile || ({} as UserProfile);
+    const profile = body.profile || {};
     const isMockMode = Boolean(body.isMockMode);
     const groupName = body.groupName ? String(body.groupName) : undefined;
     const topic = String(body.topicOverride || profile.topic || 'General Science').trim();
     const difficulty = body.difficulty ? String(body.difficulty) : undefined;
     const seed = String(body.seedOverride || Math.random().toString(36).substring(7) + Date.now());
     const sourceMaterial = body.sourceMaterial ? String(body.sourceMaterial) : undefined;
-    const previousQuestions: string[] = Array.isArray(body.previousQuestions) ? body.previousQuestions : [];
+    const previousQuestions = Array.isArray(body.previousQuestions) ? body.previousQuestions : [];
 
     const { prompt, systemInstruction } = buildQuizPrompt({
       profile,
@@ -641,25 +615,25 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
       previousQuestions
     });
 
-    const deliveredQuestions: QuizQuestion[] = [];
-    const seenNormalizedTexts = new Set<string>(
-      previousQuestions.map(q => String(q || '').trim().toLowerCase()).filter(Boolean)
+    const deliveredQuestions = [];
+    const seenNormalizedTexts = new Set(
+      previousQuestions.map((q) => String(q || '').trim().toLowerCase()).filter(Boolean)
     );
 
-    const emitQuestion = (q: QuizQuestion) => {
+    const emitQuestion = (q) => {
       if (deliveredQuestions.length >= 5) return;
       const norm = q.text.trim().toLowerCase();
       if (!norm || seenNormalizedTexts.has(norm)) return;
       seenNormalizedTexts.add(norm);
-      const numbered: QuizQuestion = { ...q, id: deliveredQuestions.length + 1 };
+      const numbered = { ...q, id: deliveredQuestions.length + 1 };
       deliveredQuestions.push(numbered);
       sendEvent({ type: 'question', question: numbered, index: deliveredQuestions.length - 1 });
     };
 
     const geminiKeys = getAIKeys();
-    let lastError: any = null;
-    let quotaError: any = null;
-    const validGeminiKeys: string[] = [];
+    let lastError = null;
+    let quotaError = null;
+    const validGeminiKeys = [];
 
     const currentLevel = Math.max(1, Number(profile.level) || 1);
     const candidateModels = ['gemini-3.1-flash-lite', 'gemini-4-hydrogen'];
@@ -712,7 +686,7 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
           try {
             sendEvent({ type: 'status', model: modelName, keyIndex: kIdx, attempt: attempt + 1 });
 
-            const config: Record<string, any> = {
+            const config = {
               systemInstruction,
               responseMimeType: 'application/json',
               abortSignal: abortController.signal,
@@ -764,7 +738,7 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
               console.log(`[Gemini] ${modelName} (key ${kIdx}) delivered ${deliveredQuestions.length} questions in ${Date.now() - tStart}ms`);
               break;
             }
-          } catch (mErr: any) {
+          } catch (mErr) {
             lastError = mErr;
             const errStr = String(mErr?.message || mErr);
             if (/api_key_invalid|api key not valid/i.test(errStr)) {
@@ -815,9 +789,9 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
         const fallbackSystemPrompt = `${systemInstruction}\n\n${jsonShapeSpec}\nReturn ONLY a JSON object containing a "questions" array of 5 items matching those exact keys.`;
         const fallbackUserPrompt = `${prompt}\n\n${jsonShapeSpec}\nIMPORTANT: Return ONLY valid JSON with all 5 syllabus questions in the "questions" array using keys "id", "type", "contextMaterial", "text", "options" (4 strings), "correctIndex" (0-3), "explanation", "inquiryPrompt".`;
 
-        const tryEmitPayload = (rawText: string): number => {
+        const tryEmitPayload = (rawText) => {
           let added = 0;
-          const emitList = (list: any[]) => {
+          const emitList = (list) => {
             const formattedBatch = validateAndFormatQuestions(list, topic);
             for (const q of formattedBatch) {
               const before = deliveredQuestions.length;
@@ -826,9 +800,9 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
             }
           };
 
-          const tryParseObject = (candidateStr: string): boolean => {
+          const tryParseObject = (candidateStr) => {
             try {
-              let parsed: any = JSON.parse(repairJson(candidateStr));
+              let parsed = JSON.parse(repairJson(candidateStr));
               if (parsed && !Array.isArray(parsed)) {
                 if (Array.isArray(parsed.questions)) {
                   parsed = parsed.questions;
@@ -841,7 +815,7 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
                 } else if (parsed.text || parsed.question) {
                   parsed = [parsed];
                 } else {
-                  parsed = Object.values(parsed).find(v => Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') || [];
+                  parsed = Object.values(parsed).find((v) => Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') || [];
                 }
               }
               if (Array.isArray(parsed) && parsed.length > 0) {
@@ -883,9 +857,9 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
             try {
               const listResp = await fallback.client.models.list();
               const ids = (listResp?.data || [])
-                .map((m: any) => String(m?.id || ''))
+                .map((m) => String(m?.id || ''))
                 .filter(
-                  id =>
+                  (id) =>
                     id &&
                     !/whisper|guard|tts|playai|distil|compound-beta|allam/i.test(id) &&
                     !unavailableFallbackModels.has(`groq:${id}`)
@@ -902,8 +876,8 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
                   'llama-3.1-8b-instant'
                 ].filter(Boolean);
                 const sorted = [
-                  ...priority.filter(p => ids.includes(p)),
-                  ...ids.filter(id => !priority.includes(id))
+                  ...priority.filter((p) => ids.includes(p)),
+                  ...ids.filter((id) => !priority.includes(id))
                 ];
                 cachedGroqModels = { apiKey: fallback.apiKey, models: sorted.slice(0, 4), fetchedAt: now };
                 activeGroqModels = cachedGroqModels.models;
@@ -912,7 +886,7 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
               // Keep default candidate list if models.list() is unavailable
             }
           } else if (cachedGroqModels.models.length > 0) {
-            activeGroqModels = cachedGroqModels.models.filter(m => !unavailableFallbackModels.has(`groq:${m}`));
+            activeGroqModels = cachedGroqModels.models.filter((m) => !unavailableFallbackModels.has(`groq:${m}`));
           }
 
           for (const groqModel of activeGroqModels) {
@@ -932,7 +906,7 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
                 console.log(`[Fallback:groq] ${groqModel} delivered ${deliveredQuestions.length} questions`);
                 break;
               }
-            } catch (gErr: any) {
+            } catch (gErr) {
               lastError = gErr;
               let gMsg = String(gErr?.message || gErr);
               const failedGen =
@@ -952,7 +926,6 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
               if (/404|model_not_found|does not exist/i.test(gMsg)) {
                 unavailableFallbackModels.add(`groq:${groqModel}`);
               } else if (/json_validate_failed|failed to (generate|validate) json/i.test(gMsg)) {
-                // Retry once without strict json_object mode for reasoning models like gpt-oss-20b
                 try {
                   const plainResp = await fallback.client.chat.completions.create({
                     messages: [
@@ -968,7 +941,7 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
                     break;
                   }
                   gMsg = `Plain mode unparseable (${plainContent.length} chars): ${plainContent.slice(0, 80)}`;
-                } catch (plainErr: any) {
+                } catch (plainErr) {
                   lastError = plainErr;
                   gMsg = `Plain retry failed: ${String(plainErr?.message || plainErr)}`;
                 }
@@ -1007,13 +980,13 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
                 sendEvent({ type: 'status', model: grokModel, provider: 'grok', error: `HTTP ${resp.status}` });
                 continue;
               }
-              const data = (await resp.json()) as any;
+              const data = await resp.json();
               const content = data.choices?.[0]?.message?.content || '';
               if (content && tryEmitPayload(content) > 0) {
                 console.log(`[Fallback:grok] ${grokModel} delivered ${deliveredQuestions.length} questions`);
                 break;
               }
-            } catch (xErr: any) {
+            } catch (xErr) {
               lastError = xErr;
               sendEvent({ type: 'status', model: grokModel, provider: 'grok', error: String(xErr?.message || xErr).slice(0, 120) });
             }
@@ -1046,7 +1019,7 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
             emitQuestion(q);
           }
         }
-      } catch (recErr: any) {
+      } catch (recErr) {
         quotaError = recErr;
       }
     }
@@ -1078,7 +1051,7 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
     } else {
       sendEvent({ type: 'done', count: deliveredQuestions.length });
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error('Server generation error:', err);
     sendEvent({
       type: 'error',
@@ -1093,7 +1066,7 @@ export async function handleGenerateQuestions(req: ApiRequest, res: ApiResponse)
   }
 }
 
-export async function handleGenerateSpeech(req: ApiRequest, res: ApiResponse) {
+export async function handleGenerateSpeech(req, res) {
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     res.end();
@@ -1132,7 +1105,7 @@ export async function handleGenerateSpeech(req: ApiRequest, res: ApiResponse) {
           sendJson(res, 200, { audioBase64: base64 });
           return;
         }
-      } catch (err: any) {
+      } catch (err) {
         const msg = String(err?.message || err);
         if (/api_key_invalid|api key not valid/i.test(msg)) {
           invalidGeminiKeys.add(key);
@@ -1143,7 +1116,7 @@ export async function handleGenerateSpeech(req: ApiRequest, res: ApiResponse) {
     }
 
     sendJson(res, 503, { error: 'Speech synthesis unavailable' });
-  } catch (err: any) {
+  } catch (err) {
     sendJson(res, 500, { error: err?.message || 'TTS server error' });
   }
 }

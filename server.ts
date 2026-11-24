@@ -2,7 +2,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handleHealth, handleGenerateQuestions, handleGenerateSpeech } from './api/_lib/quizService.ts';
+import { handleHealth, handleGenerateQuestions, handleGenerateSpeech } from './api/_lib/quizService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

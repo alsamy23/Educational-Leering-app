@@ -1,4 +1,4 @@
-import { handleGenerateSpeech } from './_lib/quizService.ts';
+import { handleGenerateSpeech } from './_lib/quizService.js';
 
 export const maxDuration = 30;
 
