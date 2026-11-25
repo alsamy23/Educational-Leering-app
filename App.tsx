@@ -870,6 +870,7 @@ const StudyLibraryInlinePanel: React.FC<{
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
             <button
               type="button"
+              data-testid="library-start-diagnostic-btn"
               onClick={onStartDiagnosticFromSelected}
               className="py-2.5 px-3 rounded-xl bg-[#1e3a8a] hover:bg-[#172554] text-white font-headline font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
             >
@@ -878,6 +879,7 @@ const StudyLibraryInlinePanel: React.FC<{
             </button>
             <button
               type="button"
+              data-testid="library-classroom-battle-btn"
               onClick={onStartClassroomFromSelected}
               className="py-2.5 px-3 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-headline font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
             >
@@ -1495,6 +1497,8 @@ export default function App() {
   const [materials, setMaterials] = useState<StudyMaterial[]>([
     { id: '1', title: 'CBSE Physics Ch-1 Syllabus Guideline', content: 'Reflection of light by curved surfaces; Images formed by spherical mirrors, centre of curvature, principal axis, principal focus, focal length, mirror formula, magnification, Refraction; Laws of refraction, refractive index.', timestamp: Date.now() }
   ]);
+  const materialsRef = useRef<StudyMaterial[]>(materials);
+  useEffect(() => { materialsRef.current = materials; }, [materials]);
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
   const selectedMaterialIdsRef = useRef<string[]>([]);
   useEffect(() => { selectedMaterialIdsRef.current = selectedMaterialIds; }, [selectedMaterialIds]);
@@ -1520,12 +1524,23 @@ export default function App() {
 
   const getActiveStudyMaterials = () => {
     const activeIds = selectedMaterialIdsRef.current;
-    const activeList = materials.filter(m => activeIds.includes(m.id));
+    const activeList = materialsRef.current.filter(m => activeIds.includes(m.id));
     const sourceTitles = activeList.map(m => m.title.trim()).filter(Boolean);
+    const MAX_TOTAL_SOURCE_CHARS = 45000;
+    const perNoteLimit = activeList.length > 0
+      ? Math.max(2000, Math.floor(MAX_TOTAL_SOURCE_CHARS / activeList.length))
+      : MAX_TOTAL_SOURCE_CHARS;
     const sourceMaterial = activeList.length > 0
       ? activeList
-          .map((m, idx) => `=== STUDY LIBRARY SOURCE ${idx + 1}: ${m.title} ===\n${m.content}`)
+          .map((m, idx) => {
+            const cleanContent = (m.content || '').trim();
+            const clipped = cleanContent.length > perNoteLimit
+              ? `${cleanContent.slice(0, perNoteLimit)}\n[Excerpt trimmed for length]`
+              : cleanContent;
+            return `=== STUDY LIBRARY SOURCE ${idx + 1}: ${m.title} ===\n${clipped}`;
+          })
           .join('\n\n')
+          .slice(0, MAX_TOTAL_SOURCE_CHARS)
       : undefined;
     return { activeList, sourceTitles, sourceMaterial };
   };
@@ -1536,6 +1551,7 @@ export default function App() {
       try {
         const stored = await get_idb<StudyMaterial[]>('scholarearn_custom_materials');
         if (stored && stored.length > 0) {
+          materialsRef.current = stored;
           setMaterials(stored);
         }
       } catch (err) {
@@ -1547,6 +1563,7 @@ export default function App() {
 
   // Helper to persist materials to IndexedDB
   const saveMaterialsToIndexedDb = async (updated: StudyMaterial[]) => {
+    materialsRef.current = updated;
     setMaterials(updated);
     try {
       await set_idb('scholarearn_custom_materials', updated);
@@ -2128,6 +2145,7 @@ export default function App() {
         console.warn("Quiz synthesis issue:", error);
       }
       setIsTimerRunning(false);
+      setIsQuizGenerating(false);
       const msg =
         error instanceof QuizGenerationError
           ? error.message
@@ -2284,6 +2302,7 @@ export default function App() {
         console.warn("Classroom session question generation issue:", e);
       }
       setIsTimerRunning(false);
+      setIsQuizGenerating(false);
       setQuizError({
         message: e?.message || "Could not generate classroom battle questions.",
         code: e?.code || "GENERATION_FAILED",

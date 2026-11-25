@@ -25,9 +25,10 @@ export const stopAudio = () => {
 
 const shuffleQuestionOptions = (q: QuizQuestion): QuizQuestion => {
   const isAssertionReason =
-    /assertion\s*\(a\)/i.test(q.text) &&
-    /reason\s*\(r\)/i.test(q.text) &&
-    q.options.some(o => /both assertion/i.test(o));
+    /assertion/i.test(String(q.type || '')) ||
+    (/assertion\s*\(?a\)?/i.test(q.text) &&
+      /reason\s*\(?r\)?/i.test(q.text) &&
+      q.options.some(o => /both\s+(assertion|a)\s+and\s+(reason|r)/i.test(o)));
 
   if (isAssertionReason) return q;
 
@@ -490,22 +491,33 @@ export const generateQuizQuestions = async (
       }
     };
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
 
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const rawLine of lines) {
-        processSseLine(rawLine);
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const rawLine of lines) {
+          processSseLine(rawLine);
+        }
+        if (streamError && delivered.length === 0) {
+          throw streamError;
+        }
       }
-    }
 
-    buffer += decoder.decode();
-    if (buffer.trim()) {
-      for (const rawLine of buffer.split('\n')) {
-        processSseLine(rawLine);
+      buffer += decoder.decode();
+      if (buffer.trim()) {
+        for (const rawLine of buffer.split('\n')) {
+          processSseLine(rawLine);
+        }
+      }
+    } finally {
+      try {
+        await reader.cancel();
+      } catch {
+        // Ignore stream cancel error
       }
     }
 

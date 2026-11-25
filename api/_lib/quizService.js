@@ -860,10 +860,25 @@ export async function handleGenerateQuestions(req, res) {
 }`;
 
       const providers = getFallbackProviders();
+      const compactFallbackBuild =
+        prompt.length > 16000
+          ? buildQuizPrompt({
+              profile,
+              isMockMode,
+              groupName,
+              topic,
+              difficulty,
+              seed,
+              sourceMaterial: sourceMaterial ? String(sourceMaterial).trim().slice(0, 10000) : undefined,
+              sourceTitles,
+              previousQuestions: previousQuestions.slice(-10)
+            })
+          : { prompt, systemInstruction };
+
       for (const fallback of providers) {
         if (deliveredQuestions.length > 0) break;
-        const safeFallbackUserPrompt = prompt.length > 18000 ? prompt.slice(0, 18000) : prompt;
-        const fallbackSystemPrompt = `${systemInstruction}\n\n${jsonShapeSpec}\nReturn ONLY a JSON object containing a "questions" array of 5 items matching those exact keys.`;
+        const safeFallbackUserPrompt = compactFallbackBuild.prompt;
+        const fallbackSystemPrompt = `${compactFallbackBuild.systemInstruction}\n\n${jsonShapeSpec}\nReturn ONLY a JSON object containing a "questions" array of 5 items matching those exact keys.`;
         const fallbackUserPrompt = `${safeFallbackUserPrompt}\n\n${jsonShapeSpec}\nIMPORTANT: Return ONLY valid JSON with all 5 questions in the "questions" array using keys "id", "type", "topicTag", "chapterTag", "contextMaterial", "question", "options" (4 strings), "correctIndex" (0-3), "explanation", "stepByStepSolution", "commonMistakeNote", "inquiryPrompt".`;
 
         const tryEmitPayload = (rawText) => {
