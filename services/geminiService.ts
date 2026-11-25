@@ -61,6 +61,19 @@ export const generateOfflineQuizQuestions = (
   const isTamil = /tamil/i.test(subject) || /tamil/i.test(topicLower);
   const isAssertionMode = /assertion/i.test(profile.boardPattern || '');
 
+  const enrichQuestion = (q: QuizQuestion): QuizQuestion => ({
+    ...q,
+    question: q.question || q.text,
+    topicTag: q.topicTag || topic,
+    chapterTag: q.chapterTag || `${profile.subject || 'Syllabus'} · ${topic}`,
+    stepByStepSolution:
+      q.stepByStepSolution ||
+      `Step 1: Identify the key concept in ${topic}.\nStep 2: ${q.explanation}`,
+    commonMistakeNote:
+      q.commonMistakeNote ||
+      'Other options swap signs, skip unit conversions, or confuse related textbook rules—verify against the core definition.'
+  });
+
   if (isTamil) {
     return [
       {
@@ -135,7 +148,7 @@ export const generateOfflineQuizQuestions = (
         explanation: `${topic} பற்றிய முறையான புரிதல் மொழித் திறனையும், பகுத்தறிவையும், இதர அறிவியல் சிந்தனைகளையும் ஒருசேர வளர்க்க உதவுகிறது.`,
         inquiryPrompt: `உமது சொந்தப் பயில்வு முறையை விவரி.`
       }
-    ].map(shuffleQuestionOptions);
+    ].map(q => enrichQuestion(shuffleQuestionOptions(q)));
   }
 
   // Built-in curriculum banks with level-scaled variations
@@ -312,7 +325,7 @@ export const generateOfflineQuizQuestions = (
 
   if (chosenBank) {
     if (isAssertionMode) {
-      return chosenBank.map((q, idx) => ({
+      return chosenBank.map((q, idx) => enrichQuestion({
         id: idx + 1,
         type: QuestionType.MCQ,
         text: `Assertion (A): ${q.explanation.split('.')[0]}.\nReason (R): ${q.text}`,
@@ -322,7 +335,7 @@ export const generateOfflineQuizQuestions = (
         inquiryPrompt: q.inquiryPrompt
       }));
     }
-    return chosenBank.map(shuffleQuestionOptions);
+    return chosenBank.map(q => enrichQuestion(shuffleQuestionOptions(q)));
   }
 
   // Extract meaningful excerpts from user-uploaded sourceMaterial if provided
@@ -333,7 +346,7 @@ export const generateOfflineQuizQuestions = (
       .filter(s => s.length > 30 && s.length < 220);
 
     if (sentences.length >= 3) {
-      const extracted: QuizQuestion[] = sentences.slice(0, 5).map((sentence, idx) => ({
+      const extracted: QuizQuestion[] = sentences.slice(0, 5).map((sentence, idx) => enrichQuestion({
         id: idx + 1,
         type: idx === 2 ? QuestionType.CASE_STUDY : QuestionType.MCQ,
         contextMaterial: `Textbook Excerpt (${topic}): "${sentence}."`,
@@ -352,13 +365,15 @@ export const generateOfflineQuizQuestions = (
         explanation: `Derived directly from your uploaded material on "${topic}": "${sentence}."`,
         inquiryPrompt: `How does this excerpt connect to numerical or board problems in "${topic}"?`
       }));
-      return isAssertionMode ? extracted : extracted.map(shuffleQuestionOptions);
+      return isAssertionMode ? extracted : extracted.map(q => enrichQuestion(shuffleQuestionOptions(q)));
     }
   }
 
   // Last-resort minimal offline bank when no AI key and no built-in match exist
-  return lightBankLv1.map(shuffleQuestionOptions);
+  return lightBankLv1.map(q => enrichQuestion(shuffleQuestionOptions(q)));
 };
+
+const GENERATION_TIMEOUT_MS = 25000;
 
 export const generateQuizQuestions = async (
   profile: UserProfile,
@@ -370,92 +385,172 @@ export const generateQuizQuestions = async (
   seedOverride?: string,
   sourceMaterial?: string,
   onQuestionGenerated?: (question: QuizQuestion, index: number) => void,
-  previousQuestions: string[] = []
+  previousQuestions: string[] = [],
+  sourceTitles: string[] = [],
+  externalSignal?: AbortSignal
 ): Promise<QuizQuestion[]> => {
-  const response = await fetch('/api/generate-questions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      profile,
-      isMockMode,
-      groupName,
-      topicOverride,
-      difficulty,
-      seedOverride,
-      sourceMaterial,
-      previousQuestions
-    })
-  });
+  const controller = new AbortController();
+  let timedOut = false;
+  let cancelledByUser = false;
 
-  if (!response.ok || !response.body) {
-    const msg =
-      response.status === 404
-        ? 'The Live AI server endpoint (/api/generate-questions) was not found (HTTP 404). Make sure the app is running with its full-stack Node server (re-open or re-deploy the app), or use the Offline Practice Set below.'
-        : `Server returned HTTP ${response.status} while generating questions.`;
-    throw new QuizGenerationError(msg, response.status === 404 ? 'BACKEND_NOT_FOUND' : 'SERVER_HTTP_ERROR');
+  const onExternalAbort = () => {
+    cancelledByUser = true;
+    controller.abort(new Error('Diagnostic cancelled by user'));
+  };
+
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      throw new QuizGenerationError('Diagnostic cancelled by user.', 'CANCELLED');
+    }
+    externalSignal.addEventListener('abort', onExternalAbort, { once: true });
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new Error('Generation timed out after 25 seconds'));
+      reject(
+        new QuizGenerationError(
+          'Live question generation timed out after 25 seconds. Please tap Retry to try again, or use the Offline Practice Set.',
+          'TIMEOUT'
+        )
+      );
+    }, GENERATION_TIMEOUT_MS);
+  });
+
   const delivered: QuizQuestion[] = [];
   const seenTexts = new Set<string>();
   let streamError: QuizGenerationError | null = null;
 
-  const processSseLine = (rawLine: string) => {
-    const line = rawLine.trim();
-    if (!line.startsWith('data:')) return;
-    const jsonStr = line.slice(5).trim();
-    if (!jsonStr) return;
+  const runStream = async (): Promise<QuizQuestion[]> => {
+    const response = await fetch('/api/generate-questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        profile,
+        isMockMode,
+        groupName,
+        topicOverride,
+        difficulty,
+        seedOverride,
+        sourceMaterial,
+        sourceTitles,
+        previousQuestions
+      })
+    });
 
-    try {
-      const evt = JSON.parse(jsonStr);
-      if (evt.type === 'question' && evt.question) {
-        const q: QuizQuestion = evt.question;
-        const norm = (q.text || '').trim().toLowerCase();
-        if (norm && !seenTexts.has(norm)) {
-          seenTexts.add(norm);
-          delivered.push(q);
-          if (onQuestionGenerated) {
-            onQuestionGenerated(q, delivered.length - 1);
-          }
-        }
-      } else if (evt.type === 'error') {
-        streamError = new QuizGenerationError(
-          evt.message || 'AI failed to generate questions.',
-          evt.code || 'GENERATION_FAILED'
-        );
-      }
-    } catch {
-      // Ignore malformed SSE chunk line
+    if (!response.ok || !response.body) {
+      const msg =
+        response.status === 404
+          ? 'The Live AI server endpoint (/api/generate-questions) was not found (HTTP 404). Make sure the app is running with its full-stack Node server (re-open or re-deploy the app), or use the Offline Practice Set below.'
+          : `Server returned HTTP ${response.status} while generating questions.`;
+      throw new QuizGenerationError(msg, response.status === 404 ? 'BACKEND_NOT_FOUND' : 'SERVER_HTTP_ERROR');
     }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const processSseLine = (rawLine: string) => {
+      const line = rawLine.trim();
+      if (!line.startsWith('data:')) return;
+      const jsonStr = line.slice(5).trim();
+      if (!jsonStr) return;
+
+      try {
+        const evt = JSON.parse(jsonStr);
+        if (evt.type === 'question' && evt.question) {
+          const rawQ = evt.question;
+          const q: QuizQuestion = {
+            ...rawQ,
+            text: rawQ.text || rawQ.question || '',
+            question: rawQ.question || rawQ.text || '',
+            chapterTag: rawQ.chapterTag || rawQ.topicTag || topicOverride || profile.topic,
+            stepByStepSolution: rawQ.stepByStepSolution || rawQ.explanation || '',
+            commonMistakeNote: rawQ.commonMistakeNote || ''
+          };
+          const norm = q.text.trim().toLowerCase();
+          if (norm && !seenTexts.has(norm)) {
+            seenTexts.add(norm);
+            delivered.push(q);
+            if (onQuestionGenerated) {
+              onQuestionGenerated(q, delivered.length - 1);
+            }
+          }
+        } else if (evt.type === 'error') {
+          streamError = new QuizGenerationError(
+            evt.message || 'AI failed to generate questions.',
+            evt.code || 'GENERATION_FAILED'
+          );
+        }
+      } catch {
+        // Ignore malformed SSE chunk line
+      }
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const rawLine of lines) {
+        processSseLine(rawLine);
+      }
+    }
+
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      for (const rawLine of buffer.split('\n')) {
+        processSseLine(rawLine);
+      }
+    }
+
+    if (delivered.length === 0) {
+      if (streamError) throw streamError;
+      throw new QuizGenerationError('No questions were returned by the AI service.', 'EMPTY_RESPONSE');
+    }
+
+    return delivered;
   };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-    for (const rawLine of lines) {
-      processSseLine(rawLine);
+  try {
+    return await Promise.race([runStream(), timeoutPromise]);
+  } catch (err: any) {
+    if (cancelledByUser) {
+      throw new QuizGenerationError('Diagnostic cancelled by user.', 'CANCELLED');
+    }
+    if (timedOut) {
+      if (delivered.length > 0) {
+        return delivered;
+      }
+      throw new QuizGenerationError(
+        'Live question generation timed out after 25 seconds. Please tap Retry to try again, or use the Offline Practice Set.',
+        'TIMEOUT'
+      );
+    }
+    if (err instanceof QuizGenerationError) {
+      throw err;
+    }
+    if (err?.name === 'AbortError') {
+      throw new QuizGenerationError(
+        'Live question generation timed out after 25 seconds. Please tap Retry to try again, or use the Offline Practice Set.',
+        'TIMEOUT'
+      );
+    }
+    throw new QuizGenerationError(
+      err?.message || 'Unable to connect to the AI question generator. Please tap Retry.',
+      'NETWORK_ERROR'
+    );
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (externalSignal) {
+      externalSignal.removeEventListener('abort', onExternalAbort);
     }
   }
-
-  buffer += decoder.decode();
-  if (buffer.trim()) {
-    for (const rawLine of buffer.split('\n')) {
-      processSseLine(rawLine);
-    }
-  }
-
-  if (delivered.length === 0) {
-    if (streamError) throw streamError;
-    throw new QuizGenerationError('No questions were returned by the AI service.', 'EMPTY_RESPONSE');
-  }
-
-  return delivered;
 };
 
 export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {

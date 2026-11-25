@@ -29,6 +29,24 @@ export interface StudyMaterial {
   timestamp: number;
 }
 
+export interface MissedQuestionRecord {
+  id: string;
+  question: QuizQuestion;
+  selectedOptionIndex: number | null;
+  topic: string;
+  subject: string;
+  gradeLevel?: string;
+  chapterTag?: string;
+  missedAt: string;
+  attempts: number;
+}
+
+export interface TopicAccuracyStat {
+  topic: string;
+  correct: number;
+  total: number;
+}
+
 export interface UserProfile {
   name: string;
   gradeLevel: string;
@@ -43,6 +61,8 @@ export interface UserProfile {
   totalQuizzes: number;
   totalPoints: number;
   testHistory?: TestRecord[];
+  missedQuestions?: MissedQuestionRecord[];
+  topicStats?: Record<string, TopicAccuracyStat>;
   progressMap?: Record<string, number>;
   role?: 'admin' | 'user';
   isGuest?: boolean;
@@ -53,10 +73,15 @@ export interface QuizQuestion {
   id: number;
   type: QuestionType;
   text: string;
+  question?: string;
+  topicTag?: string;
+  chapterTag?: string;
   contextMaterial?: string; // Holds the Case Study text or Image Description
   options: string[];
   correctIndex: number;
   explanation: string;
+  stepByStepSolution?: string;
+  commonMistakeNote?: string;
   inquiryPrompt?: string; // A challenge or question for the student to explore further
 }
 
@@ -66,6 +91,8 @@ export interface QuizSession {
   userAnswers: (number | null)[];
   score: number;
   questionTimer?: number; // in seconds
+  sourceTitles?: string[];
+  isMistakeRetry?: boolean;
 }
 
 export enum DifficultyLevel {
@@ -93,6 +120,7 @@ export interface ClassroomSession {
   topic: string;
   isStarted: boolean;
   questionTimer?: number; // in seconds
+  sourceTitles?: string[];
 }
 
 export enum AppScreen {

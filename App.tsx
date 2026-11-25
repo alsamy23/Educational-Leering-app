@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   QuestionType, StudyFocus, TestRecord, StudyMaterial,
   UserProfile, QuizQuestion, QuizSession, DifficultyLevel,
-  Group, ClassroomSession, AppScreen
+  Group, ClassroomSession, AppScreen, MissedQuestionRecord, TopicAccuracyStat
 } from './types';
 import { Button } from './components/Button';
 import { db, auth, loginWithGoogle, loginAnonymously, logout, handleFirestoreError, OperationType } from './firebase';
@@ -26,43 +26,48 @@ import { get as get_idb, set as set_idb } from 'idb-keyval';
 const pdfjsVersion = pdfjsLib.version || '5.6.205';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.mjs`;
 
-// --- Progressive Level & Difficulty Evaluator Helper ---
+// --- Progressive Level & Bloom's Taxonomy Difficulty Evaluator Helper ---
 export const getLevelDifficultyInfo = (lvl: number) => {
   const levelNum = Math.max(1, lvl || 1);
   if (levelNum === 1) {
     return {
       name: 'Foundational',
+      bloomStage: 'Recall & Comprehension',
       difficulty: DifficultyLevel.LOW,
       badgeColor: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
-      description: 'Core definitions, basic formulas & direct conceptual questions'
+      description: 'Bloom Lv 1-2: Core definitions, formulas, units & direct conceptual recall'
     };
   } else if (levelNum === 2) {
     return {
       name: 'Intermediate',
+      bloomStage: 'Conceptual Understanding',
       difficulty: DifficultyLevel.MEDIUM,
       badgeColor: 'bg-blue-500/15 text-blue-700 border-blue-500/30',
-      description: 'Multi-step logic, practical scenarios & applied problems'
+      description: 'Bloom Lv 2-3: Conceptual understanding, unit checks & two-step application'
     };
   } else if (levelNum === 3) {
     return {
       name: 'Board Rigor',
+      bloomStage: 'Multi-step Application',
       difficulty: DifficultyLevel.HIGH,
       badgeColor: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
-      description: 'Official Board standards, case-studies & assertion-reasoning'
+      description: 'Bloom Lv 3-4: Multi-step application, case-based & assertion-reasoning rigor'
     };
   } else if (levelNum === 4) {
     return {
       name: 'Advanced HOTS',
+      bloomStage: 'Analysis & Synthesis',
       difficulty: DifficultyLevel.HIGH,
       badgeColor: 'bg-purple-500/15 text-purple-700 border-purple-500/30',
-      description: 'Higher-Order Thinking Skills & multi-concept synthesis'
+      description: 'Bloom Lv 4-5: Higher-Order Thinking Skills (HOTS) & multi-concept analysis'
     };
   } else {
     return {
       name: `Mastery Lv ${levelNum}`,
+      bloomStage: 'Evaluation & HOTS',
       difficulty: DifficultyLevel.HIGH,
       badgeColor: 'bg-rose-500/15 text-rose-700 border-rose-500/30',
-      description: 'Exemplar & Olympiad complexity with deep analytical depth'
+      description: 'Bloom Lv 5-6: Inverse problem solving, evaluation & exemplar HOTS depth'
     };
   }
 };
@@ -188,11 +193,15 @@ interface MaterialManagerProps {
   materials: StudyMaterial[];
   onAdd: (title: string, content: string) => void;
   onDelete: (id: string) => void;
-  onSelect: (id: string | null) => void;
-  selectedId: string | null;
+  onToggleSelect: (id: string) => void;
+  selectedIds: string[];
+  onClearSelection?: () => void;
+  onStartDiagnosticFromSelected?: () => void;
+  onStartClassroomFromSelected?: () => void;
 }
 const MaterialManager: React.FC<MaterialManagerProps> = ({
-  isOpen, onClose, materials, onAdd, onDelete, onSelect, selectedId
+  isOpen, onClose, materials, onAdd, onDelete, onToggleSelect, selectedIds,
+  onClearSelection, onStartDiagnosticFromSelected, onStartClassroomFromSelected
 }) => {
   const [activeTab, setActiveTab] = useState<'text' | 'pdf'>('text');
 
@@ -422,33 +431,79 @@ const MaterialManager: React.FC<MaterialManagerProps> = ({
           )}
 
           <div className="space-y-3">
-            <p className="text-xs font-headline font-extrabold uppercase text-on-surface-variant tracking-wider">Your Source Library ({materials.length})</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-headline font-extrabold uppercase text-on-surface-variant tracking-wider">
+                Your Source Library ({materials.length}) {selectedIds.length > 0 ? `• ${selectedIds.length} Selected` : ''}
+              </p>
+              {selectedIds.length > 0 && onClearSelection && (
+                <button
+                  type="button"
+                  onClick={onClearSelection}
+                  className="text-[10px] font-headline font-bold text-primary hover:underline uppercase tracking-wider"
+                >
+                  Clear Selected
+                </button>
+              )}
+            </div>
             {materials.length === 0 ? (
               <p className="text-xs text-on-surface-variant/70 italic text-center py-6">No custom reading materials added yet. The AI Tutor is operating in default Curriculum mode.</p>
             ) : (
               <div className="space-y-2">
-                {materials.map(m => (
-                  <div key={m.id} className={`flex items-center justify-between p-4 rounded-xl border ${selectedId === m.id ? 'bg-primary/10 border-primary/40' : 'bg-surface-container-lowest border-white/5'} transition-all`}>
-                    <button 
-                      onClick={() => onSelect(selectedId === m.id ? null : m.id)}
-                      disabled={pdfParsing}
-                      className="flex-1 text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <p className="text-sm font-headline font-extrabold text-on-surface flex items-center gap-2">
-                        {selectedId === m.id && <Check className="w-4 h-4 text-primary" />}
-                        {m.title}
-                      </p>
-                      <p className="text-xs text-on-surface-variant line-clamp-1 mt-0.5">{m.content}</p>
-                    </button>
-                    <button 
-                      onClick={() => onDelete(m.id)}
-                      disabled={pdfParsing}
-                      className="text-error/70 hover:text-error p-2 hover:bg-white/5 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                {materials.map(m => {
+                  const isChecked = selectedIds.includes(m.id);
+                  return (
+                    <div key={m.id} className={`flex items-center justify-between p-4 rounded-xl border ${isChecked ? 'bg-primary/10 border-primary/40' : 'bg-surface-container-lowest border-white/5'} transition-all`}>
+                      <button 
+                        type="button"
+                        onClick={() => onToggleSelect(m.id)}
+                        disabled={pdfParsing}
+                        className="flex-1 text-left disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
+                      >
+                        <span className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-none transition-colors ${isChecked ? 'bg-primary border-primary text-on-primary' : 'border-white/30 bg-white/5'}`}>
+                          {isChecked && <Check className="w-3 h-3" />}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-headline font-extrabold text-on-surface truncate">
+                            {m.title}
+                          </p>
+                          <p className="text-xs text-on-surface-variant line-clamp-1 mt-0.5">{m.content}</p>
+                        </div>
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => onDelete(m.id)}
+                        disabled={pdfParsing}
+                        className="text-error/70 hover:text-error p-2 hover:bg-white/5 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {selectedIds.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+                {onStartDiagnosticFromSelected && (
+                  <Button
+                    type="button"
+                    onClick={() => { onClose(); onStartDiagnosticFromSelected(); }}
+                    className="py-2.5 text-[10px] font-headline font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5"
+                  >
+                    <Rocket className="w-3.5 h-3.5" /> Start Diagnostic from Selected
+                  </Button>
+                )}
+                {onStartClassroomFromSelected && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => { onClose(); onStartClassroomFromSelected(); }}
+                    className="py-2.5 text-[10px] font-headline font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5"
+                  >
+                    <Users className="w-3.5 h-3.5" /> Classroom Battle from Selected
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -463,8 +518,12 @@ interface ClassroomSetupViewProps {
   onStart: (groups: Group[], timer: number) => void;
   onCancel: () => void;
   initialTimer?: number;
+  selectedSourceTitles?: string[];
+  onClearSources?: () => void;
 }
-const ClassroomSetupView: React.FC<ClassroomSetupViewProps> = ({ onStart, onCancel, initialTimer = 45 }) => {
+const ClassroomSetupView: React.FC<ClassroomSetupViewProps> = ({
+  onStart, onCancel, initialTimer = 45, selectedSourceTitles = [], onClearSources
+}) => {
   const [groups, setGroups] = useState<Group[]>([
     { id: '1', name: 'Alpha Squad', score: 0, members: [] },
     { id: '2', name: 'Beta Brains', score: 0, members: [] },
@@ -524,6 +583,31 @@ const ClassroomSetupView: React.FC<ClassroomSetupViewProps> = ({ onStart, onCanc
             <X className="w-5 h-5" />
           </Button>
         </div>
+
+        {selectedSourceTitles.length > 0 && (
+          <div className="bg-primary/10 border border-primary/25 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <BookOpen className="w-4 h-4 text-primary flex-none" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-headline font-extrabold uppercase tracking-wider text-primary">
+                  Active Study Library Notes ({selectedSourceTitles.length})
+                </p>
+                <p className="text-xs font-body font-bold text-on-surface truncate">
+                  {selectedSourceTitles.join(' • ')}
+                </p>
+              </div>
+            </div>
+            {onClearSources && (
+              <button
+                type="button"
+                onClick={onClearSources}
+                className="text-[10px] font-headline font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-on-surface-variant"
+              >
+                Use Topic Instead
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex justify-between items-center">
           <h3 className="text-xs md:text-sm font-headline font-extrabold text-on-surface-variant uppercase tracking-widest italic">Group Configuration</h3>
@@ -620,11 +704,17 @@ const ClassroomSetupView: React.FC<ClassroomSetupViewProps> = ({ onStart, onCanc
 // --- Sub-Component: StudyLibraryInlinePanel ---
 const StudyLibraryInlinePanel: React.FC<{
   materials: StudyMaterial[];
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
+  selectedIds: string[];
+  onToggleSelect: (id: string) => void;
+  onClearSelection: () => void;
   onAdd: (title: string, content: string) => void;
   onDelete: (id: string) => void;
-}> = ({ materials, selectedId, onSelect, onAdd, onDelete }) => {
+  onStartDiagnosticFromSelected: () => void;
+  onStartClassroomFromSelected: () => void;
+}> = ({
+  materials, selectedIds, onToggleSelect, onClearSelection,
+  onAdd, onDelete, onStartDiagnosticFromSelected, onStartClassroomFromSelected
+}) => {
   const [activeTab, setActiveTab] = useState<'text' | 'pdf'>('text');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -696,55 +786,106 @@ const StudyLibraryInlinePanel: React.FC<{
   return (
     <div className="bg-[#faf6eb] text-[#1e293b] border border-[#e4dcc4] shadow-xl rounded-[2rem] p-5 space-y-4 relative overflow-hidden border-t-[10px] border-[#b45309] h-full flex flex-col justify-between">
       <div className="space-y-3">
-        <div className="flex items-center gap-2 border-b border-[#e4dcc4] pb-2">
-          <BookOpen className="w-4.5 h-4.5 text-[#b45309]" />
-          <div>
-            <h3 className="text-sm font-headline font-black text-[#1e3a8a] tracking-tight">Study Library</h3>
-            <p className="text-[8px] text-[#7c755d] uppercase tracking-wider font-extrabold mt-0.5">Academic Syllabus & Book References</p>
+        <div className="flex items-center justify-between gap-2 border-b border-[#e4dcc4] pb-2">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4.5 h-4.5 text-[#b45309]" />
+            <div>
+              <h3 className="text-sm font-headline font-black text-[#1e3a8a] tracking-tight">Study Library</h3>
+              <p className="text-[8px] text-[#7c755d] uppercase tracking-wider font-extrabold mt-0.5">Select Notes or Syllabus for Direct Question Generation</p>
+            </div>
           </div>
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-none">
+              <span className="text-[9px] font-headline font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md">
+                {selectedIds.length} Checked
+              </span>
+              <button
+                type="button"
+                onClick={onClearSelection}
+                className="text-[9px] font-headline font-bold uppercase text-[#7c755d] hover:text-[#1e3a8a] underline"
+              >
+                Clear
+              </button>
+            </div>
+          )}
         </div>
 
         {error && <p className="text-[10px] text-red-600 font-bold bg-red-50 p-2 rounded-xl border border-red-100">{error}</p>}
 
-        <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-0.5 no-scrollbar">
+        <div className="space-y-1.5 max-h-[190px] overflow-y-auto pr-0.5 no-scrollbar">
           {materials.length === 0 ? (
             <p className="text-[10px] text-[#7c755d]/80 italic text-center py-4 bg-[#f5efe0]/40 rounded-xl border border-dashed border-[#e4dcc4]">No custom syllabus text added. Evaluating using standard curriculum standards.</p>
           ) : (
-            materials.map(m => (
-              <div 
-                key={m.id} 
-                className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
-                  selectedId === m.id 
-                    ? 'bg-[#1e3a8a]/5 border-[#1e3a8a]/30 shadow-sm' 
-                    : 'bg-[#fcfaf4] border-[#e4dcc4] hover:bg-[#f5efe0]'
-                }`}
-              >
-                <button 
-                  onClick={() => onSelect(selectedId === m.id ? null : m.id)}
-                  disabled={pdfParsing}
-                  className="flex-1 text-left min-w-0"
+            materials.map(m => {
+              const isChecked = selectedIds.includes(m.id);
+              return (
+                <div 
+                  key={m.id} 
+                  className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                    isChecked
+                      ? 'bg-[#1e3a8a]/10 border-[#1e3a8a]/40 shadow-sm' 
+                      : 'bg-[#fcfaf4] border-[#e4dcc4] hover:bg-[#f5efe0]'
+                  }`}
                 >
-                  <span className="text-[11px] font-headline font-extrabold text-[#1e3a8a] flex items-center gap-1">
-                    {selectedId === m.id ? (
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                    ) : (
-                      <span className="w-3 h-3 rounded-full border border-[#cbd5e1] flex-shrink-0" />
-                    )}
-                    <span className="truncate">{m.title}</span>
-                  </span>
-                </button>
-                <button 
-                  onClick={() => onDelete(m.id)}
-                  disabled={pdfParsing}
-                  className="text-red-700 hover:text-red-900 p-1 hover:bg-red-50 rounded-lg transition-colors ml-1"
-                  title="Remove material"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))
+                  <button 
+                    type="button"
+                    onClick={() => onToggleSelect(m.id)}
+                    disabled={pdfParsing}
+                    className="flex-1 text-left min-w-0 flex items-start gap-2"
+                    aria-pressed={isChecked}
+                  >
+                    <span className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-none transition-colors ${
+                      isChecked
+                        ? 'bg-[#1e3a8a] border-[#1e3a8a] text-white'
+                        : 'bg-white border-[#94a3b8]'
+                    }`}>
+                      {isChecked && <Check className="w-3 h-3" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[11px] font-headline font-extrabold text-[#1e3a8a] block truncate">
+                        {m.title}
+                      </span>
+                      <span className="text-[9px] font-body text-[#64748b] block truncate">
+                        {m.content}
+                      </span>
+                    </div>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => onDelete(m.id)}
+                    disabled={pdfParsing}
+                    className="text-red-700 hover:text-red-900 p-1 hover:bg-red-50 rounded-lg transition-colors ml-1 flex-none"
+                    title="Remove material"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })
           )}
         </div>
+
+        {/* Direct Launch Controls when 1 or more Study Library items are selected */}
+        {selectedIds.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onStartDiagnosticFromSelected}
+              className="py-2.5 px-3 rounded-xl bg-[#1e3a8a] hover:bg-[#172554] text-white font-headline font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
+            >
+              <Rocket className="w-3.5 h-3.5 text-amber-300" />
+              <span>Start Diagnostic from Selected</span>
+            </button>
+            <button
+              type="button"
+              onClick={onStartClassroomFromSelected}
+              className="py-2.5 px-3 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-headline font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Classroom Battle from Selected</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="space-y-3 pt-3 border-t border-[#e4dcc4]">
@@ -824,9 +965,16 @@ const StudyLibraryInlinePanel: React.FC<{
 };
 
 // --- Sub-Component: ProgressScreen ---
-const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ user, onBack }) => {
+const ProgressScreen: React.FC<{
+  user: UserProfile;
+  onBack: () => void;
+  onRetryMistakes: () => void;
+  onClearMistakes: () => void;
+}> = ({ user, onBack, onRetryMistakes, onClearMistakes }) => {
   const history = user.testHistory || [];
   const masteryLevel = Math.max(user.highestLevel || 1, user.level || 1);
+  const missedList = user.missedQuestions || [];
+  const topicAccuracyList = Object.values(user.topicStats || {}).sort((a, b) => b.total - a.total);
 
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
@@ -883,6 +1031,96 @@ const ProgressScreen: React.FC<{ user: UserProfile, onBack: () => void }> = ({ u
             )}
           </div>
         </div>
+      </div>
+
+      {/* Topic-Wise Accuracy Summary */}
+      <div className="bg-surface-container-lowest border border-white/10 p-5 rounded-2xl space-y-3">
+        <p className="text-xs font-headline font-extrabold uppercase tracking-wider text-on-surface-variant">
+          Topic-Wise Accuracy Summary ({topicAccuracyList.length})
+        </p>
+        {topicAccuracyList.length === 0 ? (
+          <p className="text-xs text-on-surface-variant/70 italic text-center py-4">
+            Answer diagnostic questions to build your topic-wise accuracy profile.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {topicAccuracyList.map(stat => {
+              const pct = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0;
+              const barColor = pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-400' : 'bg-rose-500';
+              return (
+                <div key={stat.topic} className="p-3.5 rounded-xl bg-surface border border-white/5 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-headline font-extrabold text-on-surface truncate">{stat.topic}</span>
+                    <span className="text-xs font-mono font-black text-primary flex-none">{pct}% ({stat.correct}/{stat.total})</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Mistake Ledger */}
+      <div className="bg-surface-container-lowest border border-rose-500/20 p-5 rounded-2xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-headline font-extrabold uppercase tracking-wider text-rose-400">
+              Mistake Ledger ({missedList.length})
+            </p>
+            <p className="text-[11px] text-on-surface-variant font-body mt-0.5">
+              Missed questions are saved for targeted revision. Retry and answer correctly to master and clear them.
+            </p>
+          </div>
+          {missedList.length > 0 && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onRetryMistakes}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-headline font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-md cursor-pointer"
+              >
+                <ListRestart className="w-3.5 h-3.5" />
+                <span>Review &amp; Retry Missed Questions</span>
+              </button>
+              <button
+                type="button"
+                onClick={onClearMistakes}
+                className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-on-surface-variant font-headline font-bold text-[10px] uppercase tracking-wider cursor-pointer"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
+
+        {missedList.length === 0 ? (
+          <p className="text-xs text-on-surface-variant/70 italic text-center py-4">
+            No missed questions logged right now. Keep practicing!
+          </p>
+        ) : (
+          <div className="space-y-2.5 max-h-[38vh] overflow-y-auto no-scrollbar">
+            {missedList.map(item => (
+              <div key={item.id} className="p-3.5 rounded-xl bg-surface border border-white/10 space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/20">
+                    {item.chapterTag || item.topic}
+                  </span>
+                  <span className="text-[10px] text-on-surface-variant font-body">
+                    Missed {item.attempts}x • {item.missedAt}
+                  </span>
+                </div>
+                <p className="text-xs font-body font-bold text-on-surface leading-snug">
+                  {item.question.text || item.question.question}
+                </p>
+                <p className="text-[11px] font-body text-emerald-400">
+                  Correct Answer: {item.question.options?.[item.question.correctIndex]}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="bg-surface-container-lowest border border-white/10 p-5 rounded-2xl space-y-4">
@@ -950,8 +1188,26 @@ export default function App() {
   };
 
   // --- Core Domain State ---
+  const MISTAKE_LEDGER_STORAGE_KEY = 'scholarearn_mistake_ledger';
+
+  const loadLocalMissedQuestions = (): MissedQuestionRecord[] => {
+    try {
+      const raw = localStorage.getItem(MISTAKE_LEDGER_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // Ignore malformed mistake ledger cache
+    }
+    return [];
+  };
+
   const sanitizeLoadedProfile = (raw: Partial<UserProfile>, forceLevelOne = true): UserProfile => {
     const computedHighest = Math.max(Number(raw.highestLevel) || 1, Number(raw.level) || 1);
+    const rawMissed = Array.isArray(raw.missedQuestions) && raw.missedQuestions.length > 0
+      ? raw.missedQuestions
+      : loadLocalMissedQuestions();
     return {
       name: (raw.name || '').trim() || 'Scholar Student',
       gradeLevel: (raw.gradeLevel || '10').trim() || '10',
@@ -966,6 +1222,8 @@ export default function App() {
       totalQuizzes: Math.max(0, Number(raw.totalQuizzes) || 0),
       totalPoints: Math.max(0, Number(raw.totalPoints) || 0),
       testHistory: Array.isArray(raw.testHistory) ? raw.testHistory : [],
+      missedQuestions: rawMissed,
+      topicStats: raw.topicStats && typeof raw.topicStats === 'object' ? raw.topicStats : {},
       progressMap: raw.progressMap || {},
       role: raw.role,
       isGuest: raw.isGuest,
@@ -1001,6 +1259,8 @@ export default function App() {
     groups?: Group[];
     timerDuration?: number;
   } | null>(null);
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState<boolean>(false);
+  const generationAbortRef = useRef<AbortController | null>(null);
   const sessionAskedQuestionsRef = useRef<string[]>([]);
 
   const tipOfTheDay = useMemo(() => {
@@ -1235,8 +1495,40 @@ export default function App() {
   const [materials, setMaterials] = useState<StudyMaterial[]>([
     { id: '1', title: 'CBSE Physics Ch-1 Syllabus Guideline', content: 'Reflection of light by curved surfaces; Images formed by spherical mirrors, centre of curvature, principal axis, principal focus, focal length, mirror formula, magnification, Refraction; Laws of refraction, refractive index.', timestamp: Date.now() }
   ]);
-  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+  const selectedMaterialIdsRef = useRef<string[]>([]);
+  useEffect(() => { selectedMaterialIdsRef.current = selectedMaterialIds; }, [selectedMaterialIds]);
   const [isMaterialManagerOpen, setIsMaterialManagerOpen] = useState<boolean>(false);
+
+  const selectedMaterials = useMemo(
+    () => materials.filter(m => selectedMaterialIds.includes(m.id)),
+    [materials, selectedMaterialIds]
+  );
+
+  const toggleMaterialSelection = (id: string) => {
+    setSelectedMaterialIds(prev => {
+      const next = prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id];
+      selectedMaterialIdsRef.current = next;
+      return next;
+    });
+  };
+
+  const clearMaterialSelection = () => {
+    selectedMaterialIdsRef.current = [];
+    setSelectedMaterialIds([]);
+  };
+
+  const getActiveStudyMaterials = () => {
+    const activeIds = selectedMaterialIdsRef.current;
+    const activeList = materials.filter(m => activeIds.includes(m.id));
+    const sourceTitles = activeList.map(m => m.title.trim()).filter(Boolean);
+    const sourceMaterial = activeList.length > 0
+      ? activeList
+          .map((m, idx) => `=== STUDY LIBRARY SOURCE ${idx + 1}: ${m.title} ===\n${m.content}`)
+          .join('\n\n')
+      : undefined;
+    return { activeList, sourceTitles, sourceMaterial };
+  };
 
   // Load study materials from IndexedDB on startup (stays in browser, complies with offline local mandate)
   useEffect(() => {
@@ -1290,7 +1582,9 @@ export default function App() {
       totalQuizzes: Math.max(0, Number(profile.totalQuizzes) || 0),
       totalPoints: Math.max(0, Number(profile.totalPoints) || 0),
       progressMap: profile.progressMap || {},
-      testHistory: Array.isArray(profile.testHistory) ? profile.testHistory.slice(0, 50) : []
+      testHistory: Array.isArray(profile.testHistory) ? profile.testHistory.slice(0, 50) : [],
+      missedQuestions: Array.isArray(profile.missedQuestions) ? profile.missedQuestions.slice(0, 20) : [],
+      topicStats: profile.topicStats && typeof profile.topicStats === 'object' ? profile.topicStats : {}
     };
   };
 
@@ -1302,21 +1596,49 @@ export default function App() {
         try {
           const userDocRef = doc(db, 'users', fbUser.uid);
           const userSnap = await getDoc(userDocRef);
+          const localCached = (() => {
+            try {
+              const raw = localStorage.getItem('scholar_earn_user');
+              return raw ? (JSON.parse(raw) as Partial<UserProfile>) : null;
+            } catch {
+              return null;
+            }
+          })();
+          const localMistakes = loadLocalMissedQuestions();
+
           if (userSnap.exists()) {
             const cloudUser = userSnap.data() as UserProfile;
-            // Always start a fresh browser session at Level 1 while preserving lifetime stats & highestLevel
-            const sessionReady = sanitizeLoadedProfile(cloudUser, true);
+            // Merge local guest mistakes cleanly if upgrading to Google Join
+            const cloudMissed = Array.isArray(cloudUser.missedQuestions) ? cloudUser.missedQuestions : [];
+            const seenMissedIds = new Set(cloudMissed.map(m => m.id));
+            const mergedMissed = !fbUser.isAnonymous
+              ? [...cloudMissed, ...localMistakes.filter(m => !seenMissedIds.has(m.id))].slice(0, 40)
+              : cloudMissed;
+            const mergedStats = cloudUser.topicStats && Object.keys(cloudUser.topicStats).length > 0
+              ? cloudUser.topicStats
+              : (localCached?.topicStats || {});
+
+            const sessionReady = sanitizeLoadedProfile({
+              ...cloudUser,
+              missedQuestions: mergedMissed,
+              topicStats: mergedStats
+            }, true);
             setUser(sessionReady);
             userRef.current = sessionReady;
             localStorage.setItem('scholar_earn_user', JSON.stringify(sessionReady));
+            localStorage.setItem(MISTAKE_LEDGER_STORAGE_KEY, JSON.stringify(sessionReady.missedQuestions || []));
           } else {
             const initialUser = sanitizeLoadedProfile({
-              name: fbUser.displayName || 'Scholar Student'
+              ...(localCached && !fbUser.isAnonymous ? localCached : {}),
+              name: fbUser.displayName || localCached?.name || 'Scholar Student',
+              missedQuestions: !fbUser.isAnonymous ? localMistakes : [],
+              isGuest: fbUser.isAnonymous
             }, true);
             await setDoc(userDocRef, buildFirestoreUserPayload(fbUser.uid, initialUser));
             setUser(initialUser);
             userRef.current = initialUser;
             localStorage.setItem('scholar_earn_user', JSON.stringify(initialUser));
+            localStorage.setItem(MISTAKE_LEDGER_STORAGE_KEY, JSON.stringify(initialUser.missedQuestions || []));
           }
         } catch (e) {
           console.warn("Failed to load/initialize user document:", e);
@@ -1343,16 +1665,132 @@ export default function App() {
     const normalized: UserProfile = {
       ...updated,
       level: Math.max(1, Number(updated.level) || 1),
-      highestLevel: Math.max(Number(updated.highestLevel) || 1, Number(updated.level) || 1)
+      highestLevel: Math.max(Number(updated.highestLevel) || 1, Number(updated.level) || 1),
+      missedQuestions: Array.isArray(updated.missedQuestions) ? updated.missedQuestions.slice(0, 40) : [],
+      topicStats: updated.topicStats && typeof updated.topicStats === 'object' ? updated.topicStats : {}
     };
     setUser(normalized);
     userRef.current = normalized;
     localStorage.setItem('scholar_earn_user', JSON.stringify(normalized));
+    localStorage.setItem(MISTAKE_LEDGER_STORAGE_KEY, JSON.stringify(normalized.missedQuestions || []));
     if (currentUser) {
       setDoc(doc(db, 'users', currentUser.uid), buildFirestoreUserPayload(currentUser.uid, normalized)).catch(err => {
         console.warn("Firestore sync warning:", err?.message || err);
       });
     }
+  };
+
+  // --- Record question accuracy and manage Mistake Ledger ---
+  const recordQuestionOutcome = (
+    questionObj: QuizQuestion,
+    selectedIdx: number | null,
+    isCorrect: boolean,
+    topicLabel: string,
+    subjectLabel: string,
+    gradeLabel?: string,
+    isRetryMode = false
+  ) => {
+    const latest = userRef.current;
+    const cleanTopic = (topicLabel || questionObj.topicTag || latest.topic || 'General').trim();
+    const statKey = cleanTopic.slice(0, 80);
+
+    const prevStats = { ...(latest.topicStats || {}) };
+    const existingStat: TopicAccuracyStat = prevStats[statKey] || { topic: cleanTopic, correct: 0, total: 0 };
+    prevStats[statKey] = {
+      topic: cleanTopic,
+      correct: existingStat.correct + (isCorrect ? 1 : 0),
+      total: existingStat.total + 1
+    };
+
+    const qStem = (questionObj.text || questionObj.question || '').trim();
+    const mistakeId = `${cleanTopic.toLowerCase()}::${qStem.toLowerCase().slice(0, 120)}`;
+    const prevMistakes = Array.isArray(latest.missedQuestions) ? [...latest.missedQuestions] : [];
+    let nextMistakes = prevMistakes;
+
+    if (isCorrect && isRetryMode) {
+      nextMistakes = prevMistakes.filter(m => m.id !== mistakeId);
+    } else if (!isCorrect && qStem) {
+      const existingIdx = prevMistakes.findIndex(m => m.id === mistakeId);
+      const dateLabel = new Date().toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const updatedRecord: MissedQuestionRecord = {
+        id: mistakeId,
+        question: questionObj,
+        selectedOptionIndex: selectedIdx,
+        topic: cleanTopic,
+        subject: subjectLabel || latest.subject || 'General',
+        gradeLevel: gradeLabel || latest.gradeLevel,
+        chapterTag: questionObj.chapterTag || questionObj.topicTag || cleanTopic,
+        missedAt: dateLabel,
+        attempts: existingIdx !== -1 ? prevMistakes[existingIdx].attempts + 1 : 1
+      };
+      if (existingIdx !== -1) {
+        prevMistakes.splice(existingIdx, 1);
+      }
+      nextMistakes = [updatedRecord, ...prevMistakes].slice(0, 40);
+    }
+
+    syncLocalUserProfile({
+      ...latest,
+      topicStats: prevStats,
+      missedQuestions: nextMistakes
+    });
+  };
+
+  const launchMistakeRetryQuiz = () => {
+    const missed = userRef.current.missedQuestions || [];
+    if (missed.length === 0) return;
+    if (autoAdvanceTimeoutRef.current) {
+      clearTimeout(autoAdvanceTimeoutRef.current);
+      autoAdvanceTimeoutRef.current = null;
+    }
+    if (generationAbortRef.current) {
+      generationAbortRef.current.abort();
+      generationAbortRef.current = null;
+    }
+    const retryQuestions: QuizQuestion[] = missed.slice(0, 10).map((m, idx) => ({
+      ...m.question,
+      id: idx + 1,
+      text: m.question.text || m.question.question || '',
+      question: m.question.question || m.question.text || '',
+      chapterTag: m.chapterTag || m.question.chapterTag || m.topic
+    }));
+    const emptyAnswers = new Array(retryQuestions.length).fill(null);
+    const retryProfile: UserProfile = {
+      ...userRef.current,
+      topic: 'Mistake Ledger Review'
+    };
+    const retrySession: QuizSession = {
+      profile: retryProfile,
+      questions: retryQuestions,
+      userAnswers: emptyAnswers,
+      score: 0,
+      questionTimer: individualTimer,
+      isMistakeRetry: true
+    };
+    setClassroomSession(null);
+    classroomSessionRef.current = null;
+    setQuizError(null);
+    setIsQuizGenerating(false);
+    setShowExitConfirmModal(false);
+    setCurrentQuestions(retryQuestions);
+    currentQuestionsRef.current = retryQuestions;
+    setCurrentQuestionIndex(0);
+    currentQuestionIndexRef.current = 0;
+    setUserAnswers(emptyAnswers);
+    userAnswersRef.current = emptyAnswers;
+    setFeedback(null);
+    setActiveQuiz(retrySession);
+    activeQuizRef.current = retrySession;
+    setTimeLeft(individualTimer);
+    setIsTimerRunning(individualTimer > 0);
+    setCurrentScreen(AppScreen.QUIZ);
+  };
+
+  const clearMistakeLedger = () => {
+    syncLocalUserProfile({
+      ...userRef.current,
+      missedQuestions: []
+    });
   };
 
   const updateAcademicConfig = (patch: Partial<UserProfile>) => {
@@ -1398,7 +1836,21 @@ export default function App() {
         setIsTimerRunning(classroomSession.questionTimer ? classroomSession.questionTimer > 0 : false);
       }, 2500);
     } else {
-      // Standard practice mode: auto submit incorrect
+      // Standard practice mode: auto submit incorrect & log to mistake ledger
+      const qIdx = currentQuestionIndexRef.current;
+      const currentQ = currentQuestionsRef.current[qIdx];
+      const activeQuizSnap = activeQuizRef.current;
+      if (currentQ && feedback === null) {
+        recordQuestionOutcome(
+          currentQ,
+          null,
+          false,
+          activeQuizSnap?.profile.topic || userRef.current.topic,
+          activeQuizSnap?.profile.subject || userRef.current.subject,
+          activeQuizSnap?.profile.gradeLevel || userRef.current.gradeLevel,
+          Boolean(activeQuizSnap?.isMistakeRetry)
+        );
+      }
       setFeedback({ selected: -1, isCorrect: false });
     }
   };
@@ -1429,16 +1881,20 @@ export default function App() {
   // --- Launch Explicit Offline Practice Mode ---
   const launchOfflinePractice = (targetLevel: number, isClassroom = false, groupsList?: Group[], timerDuration?: number) => {
     const latestUser = userRef.current;
-    const activeTopic = latestUser.topic?.trim() || 'Light - Reflection and Refraction';
+    const { sourceTitles, sourceMaterial } = getActiveStudyMaterials();
+    const fallbackTopic = latestUser.topic?.trim() || (isClassroom ? 'General Science Diagnostic' : 'Light - Reflection and Refraction');
+    const activeTopic = sourceTitles.length > 0 ? sourceTitles.join(' • ') : fallbackTopic;
+
     const activeUserProfile: UserProfile = {
       ...latestUser,
       name: latestUser.name?.trim() || 'Scholar Student',
       topic: activeTopic,
       level: Math.max(1, targetLevel || 1)
     };
-    const activeMaterial = materials.find(m => m.id === selectedMaterialId);
-    const offlineQuestions = generateOfflineQuizQuestions(activeUserProfile, activeTopic, activeMaterial?.content);
+    const offlineQuestions = generateOfflineQuizQuestions(activeUserProfile, activeTopic, sourceMaterial);
 
+    setIsQuizGenerating(false);
+    setLoadingProgress(100);
     setQuizError(null);
     setCurrentQuestions(offlineQuestions);
     currentQuestionsRef.current = offlineQuestions;
@@ -1459,6 +1915,7 @@ export default function App() {
         gradeLevel: activeUserProfile.gradeLevel,
         section: activeUserProfile.section || 'A',
         topic: activeTopic,
+        sourceTitles: sourceTitles.length > 0 ? sourceTitles : undefined,
         isStarted: true,
         questionTimer: duration
       };
@@ -1474,7 +1931,8 @@ export default function App() {
         questions: offlineQuestions,
         userAnswers: emptyAnswers,
         score: 0,
-        questionTimer: individualTimer
+        questionTimer: individualTimer,
+        sourceTitles: sourceTitles.length > 0 ? sourceTitles : undefined
       };
       setActiveQuiz(quizObj);
       activeQuizRef.current = quizObj;
@@ -1493,6 +1951,12 @@ export default function App() {
       autoAdvanceTimeoutRef.current = null;
     }
 
+    if (generationAbortRef.current) {
+      generationAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    generationAbortRef.current = controller;
+
     const latestUser = userRef.current;
     const currentLevel = Math.max(1, targetLevel !== undefined ? targetLevel : (latestUser.level || 1));
     if (currentLevel === 1) {
@@ -1501,7 +1965,17 @@ export default function App() {
 
     const difficultyInfo = getLevelDifficultyInfo(currentLevel);
     const studentName = latestUser.name?.trim() || 'Scholar Student';
-    const activeTopic = latestUser.topic?.trim() || 'Light - Reflection and Refraction';
+    const { sourceTitles, sourceMaterial } = getActiveStudyMaterials();
+    const activeTopic = sourceTitles.length > 0
+      ? sourceTitles.join(' • ')
+      : (latestUser.topic?.trim() || 'Light - Reflection and Refraction');
+
+    // Keep user's saved Mastery Configurator topic intact when Study Library overrides it
+    syncLocalUserProfile({
+      ...latestUser,
+      name: studentName,
+      level: currentLevel
+    });
 
     const activeUserProfile: UserProfile = {
       ...latestUser,
@@ -1510,10 +1984,21 @@ export default function App() {
       level: currentLevel
     };
 
-    syncLocalUserProfile(activeUserProfile);
+    const testTimer = individualTimer;
+    const initAnswers = new Array(5).fill(null);
+    const initialQuizSession: QuizSession = {
+      profile: activeUserProfile,
+      questions: [],
+      userAnswers: initAnswers,
+      score: 0,
+      questionTimer: testTimer,
+      sourceTitles: sourceTitles.length > 0 ? sourceTitles : undefined
+    };
+
     setClassroomSession(null);
     classroomSessionRef.current = null;
     setQuizError(null);
+    setShowExitConfirmModal(false);
 
     if (window.speechSynthesis) {
       try {
@@ -1524,34 +2009,37 @@ export default function App() {
     }
     setIsReadingAloud(false);
 
-    setLoadingProgress(25);
+    setLoadingProgress(15);
     setLoadingMessage(`Synthesizing Level ${currentLevel} (${difficultyInfo.name}) Diagnostic Assessments...`);
-    setCurrentScreen(AppScreen.LOADING);
 
     setCurrentQuestions([]);
     currentQuestionsRef.current = [];
     setCurrentQuestionIndex(0);
     currentQuestionIndexRef.current = 0;
-    const initAnswers = new Array(5).fill(null);
     setUserAnswers(initAnswers);
     userAnswersRef.current = initAnswers;
     setFeedback(null);
-    setActiveQuiz(null);
-    activeQuizRef.current = null;
+    setActiveQuiz(initialQuizSession);
+    activeQuizRef.current = initialQuizSession;
+    setTimeLeft(testTimer);
+    setIsTimerRunning(false);
     setIsQuizGenerating(true);
+    // Use non-blocking inline Quiz workspace banner across K-12 & all modes (never full-screen dim)
+    setCurrentScreen(AppScreen.QUIZ);
 
-    let hasSwitchedToQuiz = false;
-    const testTimer = individualTimer;
+    let timerStarted = false;
 
     const handleQuestionGenerated = (newQuestion: QuizQuestion) => {
-      const normNew = newQuestion.text.trim().toLowerCase();
-      if (currentQuestionsRef.current.some(q => q.text.trim().toLowerCase() === normNew)) {
+      if (controller.signal.aborted) return;
+      const normNew = (newQuestion.text || newQuestion.question || '').trim().toLowerCase();
+      if (!normNew || currentQuestionsRef.current.some(q => (q.text || q.question || '').trim().toLowerCase() === normNew)) {
         return;
       }
 
       const updated = [...currentQuestionsRef.current, newQuestion];
       currentQuestionsRef.current = updated;
       setCurrentQuestions(updated);
+      setLoadingProgress(Math.min(100, Math.round((updated.length / 5) * 100)));
 
       if (!sessionAskedQuestionsRef.current.includes(newQuestion.text)) {
         sessionAskedQuestionsRef.current = [...sessionAskedQuestionsRef.current, newQuestion.text].slice(-30);
@@ -1562,45 +2050,49 @@ export default function App() {
         ? {
             ...prevQuiz,
             profile: activeUserProfile,
-            questions: updated
+            questions: updated,
+            sourceTitles: sourceTitles.length > 0 ? sourceTitles : undefined
           }
         : {
             profile: activeUserProfile,
             questions: updated,
             userAnswers: new Array(5).fill(null),
             score: 0,
-            questionTimer: testTimer
+            questionTimer: testTimer,
+            sourceTitles: sourceTitles.length > 0 ? sourceTitles : undefined
           };
       activeQuizRef.current = nextQuiz;
       setActiveQuiz(nextQuiz);
 
-      if (!hasSwitchedToQuiz) {
-        hasSwitchedToQuiz = true;
-        setLoadingProgress(100);
+      if (!timerStarted) {
+        timerStarted = true;
         setTimeLeft(testTimer);
         setIsTimerRunning(testTimer > 0);
-        setCurrentScreen(AppScreen.QUIZ);
       }
     };
 
     try {
-      const activeMaterial = materials.find(m => m.id === selectedMaterialId);
       const questionsFetched = await generateQuizQuestions(
         activeUserProfile,
         false,
         undefined,
-        activeUserProfile.topic,
+        activeTopic,
         difficultyInfo.difficulty,
         0,
         undefined,
-        activeMaterial?.content,
+        sourceMaterial,
         handleQuestionGenerated,
-        sessionAskedQuestionsRef.current
+        sessionAskedQuestionsRef.current,
+        sourceTitles,
+        controller.signal
       );
+
+      if (controller.signal.aborted) return;
 
       if (questionsFetched && questionsFetched.length > 0) {
         currentQuestionsRef.current = questionsFetched;
         setCurrentQuestions(questionsFetched);
+        setLoadingProgress(100);
         const syncedAnswers =
           userAnswersRef.current.length === questionsFetched.length
             ? userAnswersRef.current
@@ -1614,38 +2106,43 @@ export default function App() {
           questions: questionsFetched,
           userAnswers: syncedAnswers,
           score: currentActiveQuiz?.score || 0,
-          questionTimer: testTimer
+          questionTimer: testTimer,
+          sourceTitles: sourceTitles.length > 0 ? sourceTitles : undefined
         };
         activeQuizRef.current = nextQuiz;
         setActiveQuiz(nextQuiz);
 
-        if (!hasSwitchedToQuiz) {
-          hasSwitchedToQuiz = true;
+        if (!timerStarted) {
+          timerStarted = true;
           setTimeLeft(testTimer);
           setIsTimerRunning(testTimer > 0);
-          setCurrentScreen(AppScreen.QUIZ);
         }
       }
     } catch (error: any) {
+      if (controller.signal.aborted || error?.code === 'CANCELLED') {
+        return;
+      }
       if (error instanceof QuizGenerationError) {
         console.info("Quiz generation notice:", error.code, error.message);
       } else {
         console.warn("Quiz synthesis issue:", error);
       }
-      if (!hasSwitchedToQuiz) {
-        const msg =
-          error instanceof QuizGenerationError
-            ? error.message
-            : error?.message || "Could not connect to the AI question generator.";
-        const code = error instanceof QuizGenerationError ? error.code : "GENERATION_FAILED";
-        setQuizError({
-          message: msg,
-          code,
-          pendingLevel: currentLevel,
-          isClassroom: false
-        });
-      }
+      setIsTimerRunning(false);
+      const msg =
+        error instanceof QuizGenerationError
+          ? error.message
+          : error?.message || "Could not connect to the AI question generator.";
+      const code = error instanceof QuizGenerationError ? error.code : "GENERATION_FAILED";
+      setQuizError({
+        message: msg,
+        code,
+        pendingLevel: currentLevel,
+        isClassroom: false
+      });
     } finally {
+      if (generationAbortRef.current === controller) {
+        generationAbortRef.current = null;
+      }
       setIsQuizGenerating(false);
     }
   };
@@ -1664,8 +2161,18 @@ export default function App() {
       autoAdvanceTimeoutRef.current = null;
     }
 
+    if (generationAbortRef.current) {
+      generationAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    generationAbortRef.current = controller;
+
     const latestUser = userRef.current;
-    const activeTopic = latestUser.topic?.trim() || 'General Science Diagnostic';
+    const { sourceTitles, sourceMaterial } = getActiveStudyMaterials();
+    const activeTopic = sourceTitles.length > 0
+      ? sourceTitles.join(' • ')
+      : (latestUser.topic?.trim() || 'General Science Diagnostic');
+
     const activeUserProfile: UserProfile = {
       ...latestUser,
       topic: activeTopic
@@ -1680,10 +2187,27 @@ export default function App() {
     }
     setIsReadingAloud(false);
     setQuizError(null);
+    setShowExitConfirmModal(false);
 
-    setLoadingProgress(20);
+    setLoadingProgress(15);
     setLoadingMessage("Fortifying Classroom Arena...");
-    setCurrentScreen(AppScreen.LOADING);
+
+    const initialClassSession: ClassroomSession = {
+      id: 'arena_' + Date.now(),
+      groups: groupsList.map(g => ({ ...g, score: 0 })),
+      currentGroupIndex: 0,
+      subject: activeUserProfile.subject,
+      gradeLevel: activeUserProfile.gradeLevel,
+      section: activeUserProfile.section || 'A',
+      topic: activeTopic,
+      sourceTitles: sourceTitles.length > 0 ? sourceTitles : undefined,
+      isStarted: true,
+      questionTimer: timerDuration
+    };
+    classroomSessionRef.current = initialClassSession;
+    setClassroomSession(initialClassSession);
+    setActiveQuiz(null);
+    activeQuizRef.current = null;
 
     setCurrentQuestions([]);
     currentQuestionsRef.current = [];
@@ -1693,47 +2217,36 @@ export default function App() {
     setUserAnswers(initAnswers);
     userAnswersRef.current = initAnswers;
     setFeedback(null);
+    setTimeLeft(timerDuration);
+    setIsTimerRunning(false);
     setIsQuizGenerating(true);
+    setCurrentScreen(AppScreen.QUIZ);
 
-    let hasSwitchedToQuiz = false;
+    let timerStarted = false;
 
     const handleQuestionGenerated = (newQuestion: QuizQuestion) => {
-      const normNew = newQuestion.text.trim().toLowerCase();
-      if (currentQuestionsRef.current.some(q => q.text.trim().toLowerCase() === normNew)) {
+      if (controller.signal.aborted) return;
+      const normNew = (newQuestion.text || newQuestion.question || '').trim().toLowerCase();
+      if (!normNew || currentQuestionsRef.current.some(q => (q.text || q.question || '').trim().toLowerCase() === normNew)) {
         return;
       }
       const updated = [...currentQuestionsRef.current, newQuestion];
       currentQuestionsRef.current = updated;
       setCurrentQuestions(updated);
+      setLoadingProgress(Math.min(100, Math.round((updated.length / 5) * 100)));
 
       if (!sessionAskedQuestionsRef.current.includes(newQuestion.text)) {
         sessionAskedQuestionsRef.current = [...sessionAskedQuestionsRef.current, newQuestion.text].slice(-30);
       }
 
-      if (!hasSwitchedToQuiz) {
-        hasSwitchedToQuiz = true;
-        setLoadingProgress(100);
-        const sessionObj: ClassroomSession = {
-          id: 'arena_' + Date.now(),
-          groups: groupsList.map(g => ({ ...g, score: 0 })),
-          currentGroupIndex: 0,
-          subject: activeUserProfile.subject,
-          gradeLevel: activeUserProfile.gradeLevel,
-          section: activeUserProfile.section || 'A',
-          topic: activeTopic,
-          isStarted: true,
-          questionTimer: timerDuration
-        };
-        classroomSessionRef.current = sessionObj;
-        setClassroomSession(sessionObj);
+      if (!timerStarted) {
+        timerStarted = true;
         setTimeLeft(timerDuration);
         setIsTimerRunning(timerDuration > 0);
-        setCurrentScreen(AppScreen.QUIZ);
       }
     };
 
     try {
-      const activeMaterial = materials.find(m => m.id === selectedMaterialId);
       const questionsFetched = await generateQuizQuestions(
         activeUserProfile,
         false,
@@ -1742,51 +2255,47 @@ export default function App() {
         DifficultyLevel.DEFAULT,
         0,
         undefined,
-        activeMaterial?.content,
+        sourceMaterial,
         handleQuestionGenerated,
-        sessionAskedQuestionsRef.current
+        sessionAskedQuestionsRef.current,
+        sourceTitles,
+        controller.signal
       );
+
+      if (controller.signal.aborted) return;
 
       if (questionsFetched && questionsFetched.length > 0) {
         currentQuestionsRef.current = questionsFetched;
         setCurrentQuestions(questionsFetched);
-        if (!hasSwitchedToQuiz) {
-          hasSwitchedToQuiz = true;
-          const sessionObj: ClassroomSession = {
-            id: 'arena_' + Date.now(),
-            groups: groupsList.map(g => ({ ...g, score: 0 })),
-            currentGroupIndex: 0,
-            subject: activeUserProfile.subject,
-            gradeLevel: activeUserProfile.gradeLevel,
-            section: activeUserProfile.section || 'A',
-            topic: activeTopic,
-            isStarted: true,
-            questionTimer: timerDuration
-          };
-          classroomSessionRef.current = sessionObj;
-          setClassroomSession(sessionObj);
+        setLoadingProgress(100);
+        if (!timerStarted) {
+          timerStarted = true;
           setTimeLeft(timerDuration);
           setIsTimerRunning(timerDuration > 0);
-          setCurrentScreen(AppScreen.QUIZ);
         }
       }
     } catch (e: any) {
+      if (controller.signal.aborted || e?.code === 'CANCELLED') {
+        return;
+      }
       if (e instanceof QuizGenerationError) {
         console.info("Classroom quiz notice:", e.code, e.message);
       } else {
         console.warn("Classroom session question generation issue:", e);
       }
-      if (!hasSwitchedToQuiz) {
-        setQuizError({
-          message: e?.message || "Could not generate classroom battle questions.",
-          code: e?.code || "GENERATION_FAILED",
-          pendingLevel: activeUserProfile.level || 1,
-          isClassroom: true,
-          groups: groupsList,
-          timerDuration
-        });
-      }
+      setIsTimerRunning(false);
+      setQuizError({
+        message: e?.message || "Could not generate classroom battle questions.",
+        code: e?.code || "GENERATION_FAILED",
+        pendingLevel: activeUserProfile.level || 1,
+        isClassroom: true,
+        groups: groupsList,
+        timerDuration
+      });
     } finally {
+      if (generationAbortRef.current === controller) {
+        generationAbortRef.current = null;
+      }
       setIsQuizGenerating(false);
     }
   };
@@ -1844,10 +2353,22 @@ export default function App() {
       };
       activeQuizRef.current = nextQuizObj;
       setActiveQuiz(nextQuizObj);
+
+      recordQuestionOutcome(
+        currentQ,
+        optionIdx,
+        correct,
+        activeQuizSnap.profile.topic || userRef.current.topic,
+        activeQuizSnap.profile.subject || userRef.current.subject,
+        activeQuizSnap.profile.gradeLevel || userRef.current.gradeLevel,
+        Boolean(activeQuizSnap.isMistakeRetry)
+      );
     }
 
     if (correct) {
-      const niceWords = ['Excellent!', 'Outstanding!', 'Phenomenal!', 'Impeccable!', 'Strategic Mind!', 'Elite Master!', 'Brilliant!', 'Perfect!'];
+      const niceWords = activeQuizSnap?.isMistakeRetry
+        ? ['Mistake Mastered!', 'Concept Cleared!', 'Great Recovery!', 'Locked In!']
+        : ['Excellent!', 'Outstanding!', 'Phenomenal!', 'Impeccable!', 'Strategic Mind!', 'Elite Master!', 'Brilliant!', 'Perfect!'];
       setMotivationText(niceWords[Math.floor(Math.random() * niceWords.length)]);
       setShowMotivationalPopup(true);
 
@@ -1856,7 +2377,7 @@ export default function App() {
       }
       autoAdvanceTimeoutRef.current = setTimeout(() => {
         handleNextQuizQuestion();
-      }, 4000);
+      }, 6500);
     }
   };
 
@@ -1930,7 +2451,9 @@ export default function App() {
         const parsedTime = new Date().toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' });
         const completedLevel = activeQuizSnap.profile.level || latestUser.level || 1;
         const passThreshold = Math.max(1, Math.ceil(totalQ * 0.6));
-        const nextProgressiveLevel = finalScore >= passThreshold ? completedLevel + 1 : completedLevel;
+        const nextProgressiveLevel = activeQuizSnap.isMistakeRetry
+          ? (latestUser.level || 1)
+          : (finalScore >= passThreshold ? completedLevel + 1 : completedLevel);
 
         const record: TestRecord = {
           topic: activeQuizSnap.profile.topic || latestUser.topic,
@@ -2641,14 +3164,22 @@ export default function App() {
     };
     const updated = [...materials, newItem];
     saveMaterialsToIndexedDb(updated);
-    setSelectedMaterialId(newItem.id);
+    setSelectedMaterialIds(prev => {
+      const next = prev.includes(newItem.id) ? prev : [...prev, newItem.id];
+      selectedMaterialIdsRef.current = next;
+      return next;
+    });
     setIsMaterialManagerOpen(false);
   };
 
   const handleDeleteMaterial = (id: string) => {
     const updated = materials.filter(m => m.id !== id);
     saveMaterialsToIndexedDb(updated);
-    if (selectedMaterialId === id) setSelectedMaterialId(null);
+    setSelectedMaterialIds(prev => {
+      const next = prev.filter(item => item !== id);
+      selectedMaterialIdsRef.current = next;
+      return next;
+    });
   };
 
   // --- Clock HUD Draggable Handlers ---
@@ -2675,6 +3206,18 @@ export default function App() {
       clearTimeout(autoAdvanceTimeoutRef.current);
       autoAdvanceTimeoutRef.current = null;
     }
+    if (generationAbortRef.current) {
+      generationAbortRef.current.abort();
+      generationAbortRef.current = null;
+    }
+    if (window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
+    }
+    stopRecordingAnswer();
+    setIsReadingAloud(false);
+    setIsTimerRunning(false);
+    setIsQuizGenerating(false);
+    setShowExitConfirmModal(false);
     sessionAskedQuestionsRef.current = [];
     setQuizError(null);
     setCurrentScreen(AppScreen.ENTRY);
@@ -2701,32 +3244,13 @@ export default function App() {
         <div className="absolute bottom-[10%] right-[25%] w-[450px] h-[450px] bg-secondary/15 rounded-full blur-[120px]" />
       </div>
 
-      {/* Floatable Draggable Timer HUD inside Quiz */}
-      {currentScreen === AppScreen.QUIZ && timeLeft > 0 && isTimerRunning && (
-        <div 
-          style={{ transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` }}
-          className="fixed z-50 p-2 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
-          <div className="bg-[#991b1b] border-4 border-[#d97706] rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3 outline-none font-headline font-extrabold text-sm uppercase italic tracking-widest text-white shadow-[#7f1d1d]/60">
-            <Clock className="w-6 h-6 text-[#f59e0b] animate-bounce" />
-            <span className="text-[#fef08a] font-black drop-shadow-sm">
-              Time Left: <span className="text-white text-lg font-black">{timeLeft}</span>s
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Unified Global Header Controls */}
-      <header className="border-b border-white/10 px-6 py-4 flex flex-wrap justify-between items-center bg-surface/50 backdrop-blur-md sticky top-0 z-40 gap-3">
-        <div className="flex items-center gap-3">
-          <GraduationCap className="w-8 h-8 text-primary" />
-          <div>
-            <h1 className="text-xl md:text-2xl font-headline font-extrabold text-on-surface tracking-tighter italic">ScholarEarn</h1>
-            <p className="text-[9px] uppercase tracking-widest text-primary/80 font-headline font-bold">Academic Diagnosis Platform</p>
+      <header className="border-b border-white/10 px-4 md:px-6 py-3.5 flex flex-wrap justify-between items-center bg-surface/50 backdrop-blur-md sticky top-0 z-40 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <GraduationCap className="w-8 h-8 text-primary flex-none" />
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-headline font-extrabold text-on-surface tracking-tighter italic truncate">ScholarEarn</h1>
+            <p className="text-[9px] uppercase tracking-widest text-primary/80 font-headline font-bold truncate">Academic Diagnosis Platform</p>
           </div>
         </div>
 
@@ -2787,7 +3311,19 @@ export default function App() {
             <RefreshCw className="w-5 h-5 text-on-surface-variant animate-spin" />
           ) : currentUser ? (
             <div className="flex items-center gap-2 bg-white/5 border border-white/10 p-1.5 rounded-xl text-xs">
-              <span className="text-on-surface font-body font-bold hidden md:inline">{currentUser.displayName || currentUser.email}</span>
+              <span className="text-on-surface font-body font-bold hidden md:inline">
+                {currentUser.isAnonymous ? 'Guest Learner' : (currentUser.displayName || currentUser.email)}
+              </span>
+              {currentUser.isAnonymous && (
+                <button
+                  onClick={handleGoogleLogin}
+                  type="button"
+                  className="px-2.5 py-1 bg-primary/15 border border-primary/30 hover:bg-primary/25 text-primary rounded-lg font-headline font-extrabold text-[9px] uppercase tracking-wider transition-colors"
+                  title="Link Google account to keep progress across devices"
+                >
+                  Google Join
+                </button>
+              )}
               <button 
                 onClick={async () => {
                   await logout();
@@ -2819,6 +3355,27 @@ export default function App() {
           )}
         </div>
       </header>
+
+      {/* Subtle Guest Mode Local-Storage Notice */}
+      {!authLoading && currentUser?.isAnonymous && currentScreen !== AppScreen.QUIZ && (
+        <div className="max-w-4xl mx-auto w-full px-4 md:px-6 pt-3">
+          <div className="bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-center gap-2 text-on-surface-variant">
+              <Info className="w-4 h-4 text-primary flex-none" />
+              <span className="font-body text-[11px] leading-snug">
+                Guest Mode: Your progress and Mistake Ledger are saved locally in this browser. Sign in with Google Join to keep your progress across devices.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="px-3 py-1.5 bg-primary/15 border border-primary/30 hover:bg-primary/25 text-primary rounded-xl font-headline font-extrabold text-[9px] uppercase tracking-wider transition-colors flex-none cursor-pointer"
+            >
+              Sign in with Google Join
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Dynamic Sandbox Auth Error Handler Banner */}
       {authError && (
@@ -2934,10 +3491,13 @@ export default function App() {
                 <div className={`${entryMobileTab === 'library' ? 'block' : 'hidden'} h-full w-full`}>
                   <StudyLibraryInlinePanel 
                     materials={materials}
-                    selectedId={selectedMaterialId}
-                    onSelect={setSelectedMaterialId}
+                    selectedIds={selectedMaterialIds}
+                    onToggleSelect={toggleMaterialSelection}
+                    onClearSelection={clearMaterialSelection}
                     onAdd={handleAddNewMaterial}
                     onDelete={handleDeleteMaterial}
+                    onStartDiagnosticFromSelected={() => initiateDiagnosis(user.level || 1)}
+                    onStartClassroomFromSelected={launchClassroomBattleSetup}
                   />
                 </div>
 
@@ -2955,6 +3515,24 @@ export default function App() {
                         <p className="text-[8px] text-[#7c755d] uppercase tracking-wider font-extrabold mt-0.5">Define Your Academic Objectives</p>
                       </div>
                     </div>
+
+                    {selectedMaterials.length > 0 && (
+                      <div className="bg-[#1e3a8a]/10 border border-[#1e3a8a]/30 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <BookOpen className="w-3.5 h-3.5 text-[#1e3a8a] flex-none" />
+                          <p className="text-[10px] font-headline font-extrabold text-[#1e3a8a] truncate">
+                            Library Source Active: {selectedMaterials.map(m => m.title).join(' • ')}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={clearMaterialSelection}
+                          className="text-[9px] font-headline font-bold uppercase text-[#b45309] hover:underline flex-none"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
 
                     {/* Horizontal Stream Level Selector */}
                     <div className="space-y-1.5">
@@ -3305,12 +3883,19 @@ export default function App() {
                 <div className={`${entryMobileTab === 'records' ? 'block' : 'hidden'} h-full w-full`}>
                   <div className="bg-[#faf6eb] text-[#1e293b] border border-[#e4dcc4] shadow-xl rounded-[2rem] p-5 space-y-4 relative overflow-hidden border-t-[10px] border-[#047857] h-full flex flex-col justify-between">
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 border-b border-[#e4dcc4] pb-2">
-                        <Trophy className="w-4.5 h-4.5 text-[#047857]" />
-                        <div>
-                          <h3 className="text-sm font-headline font-black text-[#047857] tracking-tight">Academic Records</h3>
-                          <p className="text-[8px] text-[#7c755d] uppercase tracking-wider font-extrabold mt-0.5">Your Achievements & History</p>
+                      <div className="flex items-center justify-between gap-2 border-b border-[#e4dcc4] pb-2">
+                        <div className="flex items-center gap-2">
+                          <Trophy className="w-4.5 h-4.5 text-[#047857]" />
+                          <div>
+                            <h3 className="text-sm font-headline font-black text-[#047857] tracking-tight">Academic Records</h3>
+                            <p className="text-[8px] text-[#7c755d] uppercase tracking-wider font-extrabold mt-0.5">Accuracy, Mistake Ledger &amp; History</p>
+                          </div>
                         </div>
+                        {(user.missedQuestions?.length || 0) > 0 && (
+                          <span className="text-[9px] font-headline font-black uppercase bg-rose-100 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-md">
+                            {user.missedQuestions?.length} Missed
+                          </span>
+                        )}
                       </div>
 
                       {/* Rank credentials stats */}
@@ -3325,10 +3910,91 @@ export default function App() {
                         </div>
                       </div>
 
+                      {/* Topic-Wise Accuracy Summary */}
+                      <div className="space-y-1.5">
+                        <p className="text-[9px] uppercase font-headline font-extrabold text-[#7c755d] tracking-widest">
+                          Topic-Wise Accuracy ({Object.keys(user.topicStats || {}).length})
+                        </p>
+                        {Object.keys(user.topicStats || {}).length > 0 ? (
+                          <div className="space-y-1.5 max-h-[110px] overflow-y-auto pr-0.5 no-scrollbar">
+                            {Object.values(user.topicStats || {})
+                              .sort((a, b) => b.total - a.total)
+                              .map(stat => {
+                                const pct = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0;
+                                return (
+                                  <div key={stat.topic} className="p-2 rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] space-y-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-[10px] font-headline font-extrabold text-[#1e3a8a] truncate">{stat.topic}</span>
+                                      <span className="text-[10px] font-mono font-black text-[#047857] flex-none">{pct}% ({stat.correct}/{stat.total})</span>
+                                    </div>
+                                    <div className="w-full h-1 bg-[#e4dcc4] rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full ${pct >= 75 ? 'bg-emerald-600' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        ) : (
+                          <p className="text-[9px] text-[#7c755d]/80 italic text-center py-2.5 bg-[#f5efe0]/30 rounded-xl border border-dashed border-[#e4dcc4]">
+                            Complete questions to track topic-wise accuracy.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Mistake Ledger */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[9px] uppercase font-headline font-extrabold text-rose-700 tracking-widest">
+                            Mistake Ledger ({user.missedQuestions?.length || 0})
+                          </p>
+                          {(user.missedQuestions?.length || 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={clearMistakeLedger}
+                              className="text-[8px] font-headline font-bold uppercase text-[#7c755d] hover:text-rose-700 underline"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        {user.missedQuestions && user.missedQuestions.length > 0 ? (
+                          <div className="space-y-2">
+                            <div className="space-y-1.5 max-h-[115px] overflow-y-auto pr-0.5 no-scrollbar">
+                              {user.missedQuestions.slice(0, 5).map(m => (
+                                <div key={m.id} className="p-2 rounded-xl bg-rose-50/70 border border-rose-200 text-left space-y-0.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[8px] font-mono font-bold text-rose-700 truncate">{m.chapterTag || m.topic}</span>
+                                    <span className="text-[8px] font-bold text-rose-600 flex-none">Missed {m.attempts}x</span>
+                                  </div>
+                                  <p className="text-[10px] font-body font-bold text-[#1e293b] line-clamp-1">
+                                    {m.question.text || m.question.question}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={launchMistakeRetryQuiz}
+                              className="w-full py-2 px-3 rounded-xl bg-rose-700 hover:bg-rose-800 text-white font-headline font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                            >
+                              <ListRestart className="w-3.5 h-3.5" />
+                              <span>Review &amp; Retry Missed Questions</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-[9px] text-[#7c755d]/80 italic text-center py-2.5 bg-[#f5efe0]/30 rounded-xl border border-dashed border-[#e4dcc4]">
+                            No missed questions saved yet. Incorrect answers appear here for targeted retry.
+                          </p>
+                        )}
+                      </div>
+
                       {/* Diagnostic Run History Log */}
                       <div className="space-y-2">
                         <p className="text-[9px] uppercase font-headline font-extrabold text-[#7c755d] tracking-widest">Diagnostic logs ({user.testHistory?.length || 0})</p>
-                        <div className="space-y-2 max-h-[160px] overflow-y-auto pr-0.5 no-scrollbar">
+                        <div className="space-y-2 max-h-[140px] overflow-y-auto pr-0.5 no-scrollbar">
                           {user.testHistory && user.testHistory.length > 0 ? (
                             user.testHistory.slice().reverse().map((record, i) => (
                               <div key={i} className="p-2.5 rounded-xl bg-[#fcfaf4] border border-[#e4dcc4] flex items-center justify-between transition-all hover:bg-[#f5efe0]">
@@ -3347,7 +4013,7 @@ export default function App() {
                               </div>
                             ))
                           ) : (
-                            <p className="text-[9px] text-[#7c755d]/80 italic text-center py-6 bg-[#f5efe0]/30 rounded-xl border border-dashed border-[#e4dcc4]">No milestone records. Launch a diagnostic test above to begin your ledger.</p>
+                            <p className="text-[9px] text-[#7c755d]/80 italic text-center py-4 bg-[#f5efe0]/30 rounded-xl border border-dashed border-[#e4dcc4]">No milestone records. Launch a diagnostic test above to begin your ledger.</p>
                           )}
                         </div>
                       </div>
@@ -3380,6 +4046,8 @@ export default function App() {
               <ClassroomSetupView 
                 onStart={startClassroomSession}
                 onCancel={handleResetToMenu}
+                selectedSourceTitles={selectedMaterials.map(m => m.title)}
+                onClearSources={clearMaterialSelection}
               />
             </motion.div>
           )}
@@ -3390,44 +4058,158 @@ export default function App() {
               <ProgressScreen 
                 user={user}
                 onBack={handleResetToMenu}
+                onRetryMistakes={launchMistakeRetryQuiz}
+                onClearMistakes={clearMistakeLedger}
               />
             </motion.div>
           )}
 
-          {/* MULTI_CHANNEL LOADING SYNTHESISER */}
-          {currentScreen === AppScreen.LOADING && (
+          {/* ACTIVE ADAPTIVE QUIZ WORKSPACE */}
+          {currentScreen === AppScreen.QUIZ && (() => {
+            const activeSourceTitles = classroomSession?.sourceTitles || activeQuiz?.sourceTitles || selectedMaterials.map(m => m.title);
+            const activeTopicDisplay = classroomSession?.topic || activeQuiz?.profile.topic || user.topic;
+            const activeLevelDisplay = activeQuiz?.profile.level || user.level || 1;
+            const completedPct = isQuizGenerating
+              ? Math.max(15, Math.min(95, Math.round((currentQuestions.length / 5) * 100)))
+              : 100;
+
+            return (
             <motion.div 
-              key="loading_diag"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full py-12 flex flex-col items-center justify-center text-center space-y-6"
+              key="active_diagnose"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="w-full flex flex-col gap-5"
             >
-              {quizError ? (
-                <div className="bg-surface-container-lowest/90 glass-card border border-error/30 rounded-3xl p-8 max-w-lg w-full space-y-5 shadow-2xl">
-                  <div className="w-14 h-14 mx-auto rounded-2xl bg-error/15 border border-error/30 flex items-center justify-center">
-                    <Info className="w-7 h-7 text-error" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-headline font-extrabold text-on-surface tracking-tight">
-                      Live Question Generation Unavailable
+              {/* Non-overlapping Active Diagnostic Control Strip */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-white/10 pb-4">
+                <div className="min-w-0 space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic flex items-center gap-1.5">
+                      {classroomSession ? (
+                        <>
+                          <Users className="w-4 h-4 text-secondary" />
+                          <span>Classroom Battle Arena</span>
+                        </>
+                      ) : (
+                        <>
+                          <Rocket className="w-4 h-4 text-primary" />
+                          <span>Active Diagnostic Level {activeLevelDisplay}</span>
+                        </>
+                      )}
                     </h3>
-                    <p className="text-xs font-body text-on-surface-variant leading-relaxed">
-                      {quizError.message}
-                    </p>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold bg-primary/10 text-primary border border-primary/20">
+                      {getLevelDifficultyInfo(activeLevelDisplay).name} Difficulty
+                    </span>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
-                    <Button
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[10px] text-on-surface-variant font-body font-bold uppercase truncate max-w-full">
+                      Topic: {activeTopicDisplay}
+                    </p>
+                    {activeSourceTitles.length > 0 && (
+                      <span
+                        data-testid="active-library-badge"
+                        className="inline-flex items-center gap-1 text-[9px] px-2.5 py-0.5 rounded-lg font-headline font-extrabold bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                      >
+                        <BookOpen className="w-3 h-3 text-amber-400 flex-none" />
+                        <span>Study Library: {activeSourceTitles.join(' • ')}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 flex-none">
+                  {timeLeft > 0 && isTimerRunning && (
+                    <div
+                      data-testid="active-timer-badge"
+                      className="bg-[#991b1b] border-2 border-[#d97706] rounded-xl px-3 py-1.5 shadow-md flex items-center gap-1.5 font-headline font-extrabold text-xs uppercase italic tracking-wider text-white"
+                    >
+                      <Clock className="w-3.5 h-3.5 text-[#f59e0b]" />
+                      <span className="text-[#fef08a]">
+                        Time Left: <span className="text-white font-black">{timeLeft}s</span>
+                      </span>
+                    </div>
+                  )}
+                  {classroomSession && (
+                    <div className="bg-secondary/10 border border-secondary/20 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5">
+                      <span className="text-[10px] font-headline font-bold text-secondary uppercase italic">Team Turn:</span>
+                      <span className="text-xs font-headline font-extrabold text-on-surface">{classroomSession.groups[classroomSession.currentGroupIndex].name}</span>
+                    </div>
+                  )}
+                  <span className="text-xs font-headline font-extrabold text-on-surface bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
+                    Question {currentQuestionIndex + 1}/{Math.max(currentQuestions.length, 5)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowExitConfirmModal(true)}
+                    className="px-3 py-1.5 rounded-xl border border-error/40 bg-error/15 hover:bg-error/25 text-error font-headline font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Exit Test</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Unified Non-Blocking Progress Banner (Same across K-12 & Classroom Battle) */}
+              {isQuizGenerating && (
+                <div
+                  data-testid="generation-progress-banner"
+                  className="bg-amber-500/10 border border-amber-500/25 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-2.5 text-amber-300">
+                    <RefreshCw className="w-4 h-4 animate-spin flex-none text-amber-400" />
+                    <span className="text-xs font-headline font-extrabold uppercase tracking-wider">
+                      Incoming questions loading ({currentQuestions.length}/5)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 sm:w-56">
+                    <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-amber-400 transition-all duration-300 rounded-full"
+                        style={{ width: `${completedPct}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono font-extrabold text-amber-300 flex-none">
+                      {completedPct}% COMPLETED
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Non-Blocking Error Recovery Banner */}
+              {quizError && (
+                <div
+                  data-testid="generation-error-banner"
+                  className="bg-error/10 border border-error/35 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-error/20 border border-error/30 flex-none">
+                      <Info className="w-5 h-5 text-error" />
+                    </div>
+                    <div className="space-y-1 text-left">
+                      <h4 className="text-sm font-headline font-extrabold text-on-surface">
+                        Live Question Generation Unavailable
+                      </h4>
+                      <p className="text-xs font-body text-on-surface-variant leading-relaxed">
+                        {quizError.message}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 flex-none">
+                    <button
+                      type="button"
                       onClick={() =>
                         quizError.isClassroom && quizError.groups
                           ? startClassroomSession(quizError.groups, quizError.timerDuration ?? 45)
                           : initiateDiagnosis(quizError.pendingLevel)
                       }
-                      className="h-11 rounded-xl text-[10px] font-headline font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5"
+                      className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-headline font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-md cursor-pointer"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" /> Retry Live AI
-                    </Button>
-                    <Button
+                      <RefreshCw className="w-3.5 h-3.5" /> Retry
+                    </button>
+                    <button
+                      type="button"
                       onClick={() =>
                         launchOfflinePractice(
                           quizError.pendingLevel,
@@ -3436,83 +4218,20 @@ export default function App() {
                           quizError.timerDuration
                         )
                       }
-                      variant="outline"
-                      className="h-11 rounded-xl text-[10px] font-headline font-extrabold uppercase tracking-wider"
+                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-on-surface font-headline font-extrabold text-[10px] uppercase tracking-wider cursor-pointer"
                     >
                       Use Offline Practice Set
-                    </Button>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetToMenu}
+                      className="px-3 py-2 rounded-xl text-on-surface-variant hover:text-on-surface font-headline font-bold text-[10px] uppercase tracking-wider cursor-pointer"
+                    >
+                      Return to Configurator
+                    </button>
                   </div>
-                  <button
-                    onClick={handleResetToMenu}
-                    type="button"
-                    className="text-xs font-headline font-bold text-on-surface-variant hover:text-on-surface uppercase tracking-wider py-1 px-3 inline-flex items-center gap-1"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" /> Return to Configurator
-                  </button>
                 </div>
-              ) : (
-                <>
-                  <div className="relative">
-                    <div className="w-24 h-24 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-                    <GraduationCap className="w-10 h-10 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-bounce" />
-                  </div>
-                  
-                  <div className="space-y-3 max-w-md mx-auto">
-                    <h3 className="text-xl font-headline font-extrabold text-on-surface tracking-tighter italic">{loadingMessage}</h3>
-                    <div className="w-full h-2.5 bg-surface-container-lowest rounded-full overflow-hidden">
-                      <div 
-                        style={{ width: `${loadingProgress}%` }}
-                        className="h-full bg-primary transition-all duration-300 rounded-full neon-glow-primary"
-                      />
-                    </div>
-                    <p className="text-[9px] font-headline font-extrabold uppercase tracking-widest text-on-surface-variant">Step: {loadingProgress}% Completed</p>
-                  </div>
-                </>
               )}
-            </motion.div>
-          )}
-
-          {/* ACTIVE ADAPTIVE QUIZ WORKSPACE */}
-          {currentScreen === AppScreen.QUIZ && (currentQuestions.length > 0 || isQuizGenerating) && (
-            <motion.div 
-              key="active_diagnose"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="w-full flex flex-col gap-6"
-            >
-              {/* Core responsive font HUD based headers */}
-              <div className="flex justify-between items-center gap-3 border-b border-white/5 pb-4">
-                <div>
-                  <h3 className="text-sm font-headline font-extrabold text-primary uppercase tracking-widest italic flex items-center gap-1.5">
-                    <Rocket className="w-4 h-4 text-primary" /> Active Diagnostic Level {activeQuiz?.profile.level || user.level || 1}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <p className="text-[10px] text-on-surface-variant font-body font-bold uppercase">Topic: {user.topic}</p>
-                    <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold bg-primary/10 text-primary border border-primary/20">
-                      {getLevelDifficultyInfo(activeQuiz?.profile.level || user.level || 1).name} Difficulty
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {isQuizGenerating && (
-                    <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 rounded-xl text-[10px] font-headline font-bold text-amber-400 animate-pulse">
-                      <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />
-                      <span>Incoming questions loading ({currentQuestions.length}/5)</span>
-                    </div>
-                  )}
-                  {classroomSession && (
-                    <div className="bg-secondary/10 border border-secondary/20 p-2.5 rounded-xl text-center flex items-center gap-2">
-                      <span className="text-[10px] font-headline font-bold text-secondary uppercase italic">Team Turn:</span>
-                      <span className="text-xs font-headline font-extrabold text-on-surface">{classroomSession.groups[classroomSession.currentGroupIndex].name}</span>
-                    </div>
-                  )}
-                  <span className="text-xs font-headline font-extrabold text-on-surface bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
-                    Question {currentQuestionIndex + 1}/{Math.max(currentQuestions.length, 5)}
-                  </span>
-                </div>
-              </div>
 
               {currentQuestions[currentQuestionIndex] ? (
                 /* 2-Column Responsive Layout: Question & Speech Controls on Left, Options & Feedback on Right */
@@ -3526,12 +4245,27 @@ export default function App() {
                       <div className={`absolute left-0 top-0 h-full w-2 ${currentQuestions[currentQuestionIndex].type === QuestionType.WORD_PROBLEM ? 'bg-tertiary' : 'bg-primary'}`} />
                       
                       <div className="flex justify-between items-start gap-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className={`text-[10px] font-headline font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-md ${
                             currentQuestions[currentQuestionIndex].type === QuestionType.WORD_PROBLEM ? 'bg-tertiary/15 text-tertiary border border-tertiary/20' : 'bg-primary/15 text-primary border border-primary/20'
                           }`}>
                             {currentQuestions[currentQuestionIndex].type || 'Question'}
                           </span>
+                          {(currentQuestions[currentQuestionIndex].chapterTag || currentQuestions[currentQuestionIndex].topicTag) && (
+                            <span
+                              data-testid="syllabus-chapter-tag"
+                              className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-md bg-secondary/10 text-secondary border border-secondary/20"
+                            >
+                              {currentQuestions[currentQuestionIndex].chapterTag || currentQuestions[currentQuestionIndex].topicTag}
+                            </span>
+                          )}
+                          {currentQuestions[currentQuestionIndex].topicTag &&
+                           currentQuestions[currentQuestionIndex].chapterTag &&
+                           currentQuestions[currentQuestionIndex].topicTag !== currentQuestions[currentQuestionIndex].chapterTag && (
+                            <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-md bg-white/5 text-on-surface-variant border border-white/10">
+                              {currentQuestions[currentQuestionIndex].topicTag}
+                            </span>
+                          )}
                         </div>
 
                         {/* Audio action controller bar */}
@@ -3757,8 +4491,42 @@ export default function App() {
                             {currentQuestions[currentQuestionIndex].explanation}
                           </p>
 
+                          {/* Step-by-Step Solution Breakdown */}
+                          {currentQuestions[currentQuestionIndex].stepByStepSolution && (
+                            <div
+                              data-testid="step-by-step-solution"
+                              className="p-3.5 bg-white/5 rounded-xl border border-white/10 space-y-1.5 text-left"
+                            >
+                              <p className="text-[9px] font-headline font-extrabold uppercase text-secondary tracking-wider flex items-center gap-1.5 italic">
+                                <CheckCircle className="w-3.5 h-3.5 text-secondary" /> Step-by-Step Solution
+                              </p>
+                              <p className={`font-body text-on-surface/95 whitespace-pre-line leading-relaxed ${
+                                fontSizeMode === 'normal' ? 'text-xs' : fontSizeMode === 'large' ? 'text-sm' : 'text-base'
+                              }`}>
+                                {currentQuestions[currentQuestionIndex].stepByStepSolution}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Why Wrong Options Are Tempting / Common Mistake Note */}
+                          {currentQuestions[currentQuestionIndex].commonMistakeNote && (
+                            <div
+                              data-testid="common-mistake-note"
+                              className="p-3.5 bg-amber-500/10 rounded-xl border border-amber-500/25 space-y-1.5 text-left"
+                            >
+                              <p className="text-[9px] font-headline font-extrabold uppercase text-amber-400 tracking-wider flex items-center gap-1.5 italic">
+                                <Lightbulb className="w-3.5 h-3.5 text-amber-400" /> Why Wrong Options Tempt &amp; Common Mistake
+                              </p>
+                              <p className={`font-body text-amber-100/90 leading-relaxed ${
+                                fontSizeMode === 'normal' ? 'text-xs' : fontSizeMode === 'large' ? 'text-sm' : 'text-base'
+                              }`}>
+                                {currentQuestions[currentQuestionIndex].commonMistakeNote}
+                              </p>
+                            </div>
+                          )}
+
                           {currentQuestions[currentQuestionIndex].inquiryPrompt && (
-                            <div className="mt-2.5 p-3.5 bg-primary/10 rounded-xl border border-primary/20 space-y-1">
+                            <div className="mt-2 p-3.5 bg-primary/10 rounded-xl border border-primary/20 space-y-1">
                               <p className="text-[9px] font-headline font-extrabold uppercase text-primary tracking-wider flex items-center gap-1.5 italic">
                                 <Sparkles className="w-3.5 h-3.5 text-primary" /> Future Diagnostic Exploration
                               </p>
@@ -3779,25 +4547,28 @@ export default function App() {
                   </div>
 
                 </div>
-              ) : (
-                /* Loading indicator for incoming question */
-                <div className="bg-surface-container-lowest/80 glass-card p-10 rounded-3xl border border-white/10 text-center space-y-6 flex flex-col items-center justify-center my-8">
+              ) : isQuizGenerating ? (
+                /* Non-blocking placeholder card while first question is streaming */
+                <div className="bg-surface-container-lowest/80 glass-card p-8 md:p-10 rounded-3xl border border-white/10 text-center space-y-5 flex flex-col items-center justify-center my-4">
                   <div className="relative">
                     <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
                     <Sparkles className="w-7 h-7 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-bounce" />
                   </div>
-                  <div className="space-y-2 max-w-sm">
+                  <div className="space-y-2 max-w-md">
                     <h3 className="text-lg font-headline font-black text-on-surface italic">Generating Question {currentQuestionIndex + 1}...</h3>
-                    <p className="text-xs text-on-surface-variant font-body">Our AI Tutor is synthesizing Question {currentQuestionIndex + 1} for {user.topic}. It will be interactive immediately once ready.</p>
+                    <p className="text-xs text-on-surface-variant font-body">
+                      Synthesizing Question {currentQuestionIndex + 1} for {activeTopicDisplay}. It will become interactive as soon as it loads.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] font-headline font-extrabold uppercase text-primary/80 bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-xl">
+                  <div className="flex items-center gap-2 text-[10px] font-headline font-extrabold uppercase text-primary/90 bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-xl">
                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />
                     <span>{currentQuestions.length} of 5 Questions Ready</span>
                   </div>
                 </div>
-              )}
+              ) : null}
             </motion.div>
-          )}
+            );
+          })()}
 
           {/* RESULTS CARD FOR SINGLE PARTICIPANTS */}
           {currentScreen === AppScreen.RESULTS && activeQuiz && (
@@ -4001,9 +4772,59 @@ export default function App() {
             materials={materials}
             onAdd={handleAddNewMaterial}
             onDelete={handleDeleteMaterial}
-            onSelect={setSelectedMaterialId}
-            selectedId={selectedMaterialId}
+            onToggleSelect={toggleMaterialSelection}
+            selectedIds={selectedMaterialIds}
+            onClearSelection={clearMaterialSelection}
+            onStartDiagnosticFromSelected={() => initiateDiagnosis(user.level || 1)}
+            onStartClassroomFromSelected={launchClassroomBattleSetup}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Exit Test Confirmation Modal */}
+      <AnimatePresence>
+        {showExitConfirmModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="exit-confirm-title"
+              className="bg-surface border border-white/15 rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-5"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-2xl bg-error/15 border border-error/30 flex-none">
+                  <LogOut className="w-5 h-5 text-error" />
+                </div>
+                <div className="space-y-1">
+                  <h3 id="exit-confirm-title" className="text-base font-headline font-extrabold text-on-surface">
+                    Exit Active Diagnostic
+                  </h3>
+                  <p className="text-xs font-body text-on-surface-variant leading-relaxed">
+                    End current diagnostic and return to configurator?
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowExitConfirmModal(false)}
+                  className="px-4 py-2 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-on-surface font-headline font-extrabold text-[10px] uppercase tracking-wider cursor-pointer"
+                >
+                  Continue Test
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetToMenu}
+                  className="px-4 py-2 rounded-xl bg-error hover:bg-error/90 text-white font-headline font-extrabold text-[10px] uppercase tracking-wider cursor-pointer shadow-md"
+                >
+                  End Diagnostic
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
